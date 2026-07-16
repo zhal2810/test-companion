@@ -1,0 +1,6 @@
+{
+  "name": "Era Production Planner",
+  "description": "An interactive supply chain and production calculator for the Era game, allowing users to plan, optimize, and allocate raw material and product chains across all their companies.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
