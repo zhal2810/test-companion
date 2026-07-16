@@ -1,4 +1,4 @@
-import { Company, CompanyProductionResult, GlobalSettings, SupplyChainNode } from '../types';
+import { Company, CompanyFinancials, CompanyProductionResult, GlobalSettings, MaterialCostLine, SupplyChainNode } from '../types';
 import { GAME_ITEMS, PRODUCTION_SKILL_VALUES, AUTOMATED_ENGINE_DAILY_PROD } from '../data/gameConfig';
 
 /**
@@ -260,4 +260,82 @@ export function calculateSupplyChain(
       overallEfficiency,
     },
   };
+}
+
+/**
+ * Menghitung sisi finansial (revenue, biaya bahan baku, net income) per company,
+ * berdasarkan hasil produksi & node supply chain untuk SATU skenario tertentu
+ * (baik mode "ideal"/market-buy maupun "self-sufficient").
+ *
+ * Prinsip alokasi:
+ * - Untuk tiap item, porsi yang TIDAK terpakai internal (net = produced - consumed,
+ *   dibatasi minimal 0) itulah yang benar2 terjual ke market. Dibagi proporsional
+ *   ke tiap company produsen sesuai porsi produksinya.
+ * - Untuk tiap bahan baku yang dibutuhkan sebuah company (inputsNeeded), porsi yang
+ *   berstatus defisit di level portfolio (consumed > produced) dianggap dibeli dari
+ *   market seharga harga pasar; sisanya dianggap disuplai gratis dari company lain
+ *   di portfolio yang sama. Dibagi proporsional ke tiap company konsumen sesuai
+ *   porsi kebutuhannya.
+ *
+ * Catatan: di mode "Self-Sufficient", producedQty produk sudah di-scale down supaya
+ * tidak pernah defisit — jadi materialCost akan selalu 0 di mode itu (semua
+ * tersuplai internal). Di mode "Market-Buy/Ideal", defisit dianggap dibeli dari
+ * market sesuai harga real-time.
+ */
+export function calculateFinancials(
+  companyResults: CompanyProductionResult[],
+  supplyNodes: Record<string, SupplyChainNode>,
+  marketPrices: Record<string, number>
+): Record<string, CompanyFinancials> {
+  const financials: Record<string, CompanyFinancials> = {};
+
+  companyResults.forEach((res) => {
+    const node = supplyNodes[res.itemCode];
+    const price = marketPrices[res.itemCode] ?? 0;
+
+    const totalProduced = node?.produced ?? 0;
+    const producedShare = totalProduced > 0 ? res.producedQty / totalProduced : 0;
+
+    // Total item yang benar2 dijual di level portfolio = surplus setelah dipakai internal.
+    const totalSellable = Math.max(0, node?.net ?? res.producedQty);
+    const soldQty = totalSellable * producedShare;
+    const usedInternallyQty = Math.max(0, res.producedQty - soldQty);
+    const grossRevenue = soldQty * price;
+
+    const materialBreakdown: MaterialCostLine[] = res.inputsNeeded.map((inp) => {
+      const inputNode = supplyNodes[inp.itemCode];
+      const inputPrice = marketPrices[inp.itemCode] ?? 0;
+      const totalConsumed = inputNode?.consumed ?? 0;
+      // Porsi item ini yang statusnya defisit di level portfolio (harus dibeli market)
+      const totalDeficit = Math.max(0, -(inputNode?.net ?? 0));
+      const deficitShare = totalConsumed > 0 ? totalDeficit / totalConsumed : 0;
+
+      const marketQty = inp.qty * deficitShare;
+      const internalQty = inp.qty - marketQty;
+
+      return {
+        itemCode: inp.itemCode,
+        qty: inp.qty,
+        internalQty,
+        marketQty,
+        cost: marketQty * inputPrice,
+      };
+    });
+
+    const materialCost = materialBreakdown.reduce((sum, m) => sum + m.cost, 0);
+
+    financials[res.companyId] = {
+      companyId: res.companyId,
+      itemCode: res.itemCode,
+      price,
+      soldQty,
+      usedInternallyQty,
+      grossRevenue,
+      materialBreakdown,
+      materialCost,
+      netIncome: grossRevenue - materialCost,
+    };
+  });
+
+  return financials;
 }

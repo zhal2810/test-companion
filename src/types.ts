@@ -52,3 +52,23 @@ export interface GlobalSettings {
   globalWorkerFidelity: number; // 0 to 10
   globalRegionBonus: number; // e.g. 0.25 for +25%
 }
+
+export interface MaterialCostLine {
+  itemCode: string;
+  qty: number;         // total qty needed for this input
+  internalQty: number;  // portion supplied internally for free (from own/other companies)
+  marketQty: number;    // portion that must be bought from market
+  cost: number;          // marketQty * price
+}
+
+export interface CompanyFinancials {
+  companyId: string;
+  itemCode: string;
+  price: number;
+  soldQty: number;         // portion of own output actually sold (not consumed internally by other companies)
+  usedInternallyQty: number; // portion of own output consumed internally by other companies (not sold)
+  grossRevenue: number;      // soldQty * price
+  materialBreakdown: MaterialCostLine[];
+  materialCost: number;       // sum of materialBreakdown[].cost
+  netIncome: number;           // grossRevenue - materialCost
+}

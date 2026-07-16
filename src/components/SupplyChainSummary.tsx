@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Company, GlobalSettings, SupplyChainNode } from '../types';
 import { GAME_ITEMS } from '../data/gameConfig';
-import { calculateSupplyChain } from '../utils/productionHelper';
-import { CheckCircle2, AlertTriangle, HelpCircle, ArrowRight, Activity, TrendingUp, TrendingDown, Layers, Info } from 'lucide-react';
+import { calculateSupplyChain, calculateFinancials } from '../utils/productionHelper';
+import { getItemPrices } from '../api/apiClient';
+import { CheckCircle2, AlertTriangle, HelpCircle, ArrowRight, Activity, TrendingUp, TrendingDown, Layers, Info, DollarSign } from 'lucide-react';
 
 interface SupplyChainSummaryProps {
   companies: Company[];
@@ -11,14 +12,28 @@ interface SupplyChainSummaryProps {
 
 export default function SupplyChainSummary({ companies, globalSettings }: SupplyChainSummaryProps) {
   const [allocationMode, setAllocationMode] = useState<'ideal' | 'sufficient'>('sufficient');
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    getItemPrices().then((res) => {
+      if (res.success) setMarketPrices(res.data);
+    });
+  }, []);
 
   // Compute both supply chain results
   const chain = calculateSupplyChain(companies, globalSettings);
-  
+
   // Decide which node and result to display based on selected mode
   const activeNodes = allocationMode === 'ideal' ? chain.supplyNodes : chain.selfSufficientResults.supplyNodes;
   const activeCompanyResults = allocationMode === 'ideal' ? chain.companyResults : chain.selfSufficientResults.companyResults;
   const selfSufficiencyEfficiency = chain.selfSufficientResults.overallEfficiency;
+
+  // Financials untuk skenario yang sedang aktif — recompute tiap kali mode/harga/companies berubah.
+  const financials = useMemo(
+    () => calculateFinancials(activeCompanyResults, activeNodes, marketPrices),
+    [activeCompanyResults, activeNodes, marketPrices]
+  );
+  const portfolioNetIncome = Object.values(financials).reduce((sum, f) => sum + f.netIncome, 0);
 
   const activeNodesList = Object.values(activeNodes).sort((a, b) => {
     // Sort raw materials first, then products
@@ -39,6 +54,10 @@ export default function SupplyChainSummary({ companies, globalSettings }: Supply
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-indigo-400" />
             <h2 className="text-lg font-semibold tracking-tight text-white">Parent Supply Chain Allocator</h2>
+            <span className={`flex items-center gap-1 text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${portfolioNetIncome >= 0 ? 'text-emerald-400 bg-emerald-950/20 border-emerald-900/40' : 'text-red-400 bg-red-950/20 border-red-900/40'}`}>
+              <DollarSign className="w-3 h-3" />
+              {portfolioNetIncome >= 0 ? '+' : ''}{portfolioNetIncome.toFixed(2)}/hari
+            </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
             Connects and tracks production chains across all your companies.
@@ -255,6 +274,51 @@ export default function SupplyChainSummary({ companies, globalSettings }: Supply
                         </div>
                       </div>
                     </div>
+
+                    {/* Financial Breakdown */}
+                    {(() => {
+                      const fin = financials[res.companyId];
+                      if (!fin) return null;
+                      return (
+                        <div className="bg-[#0A0C10] p-2.5 rounded-lg border border-slate-800/60 flex flex-col gap-1.5 text-xs">
+                          {fin.usedInternallyQty > 0.001 && (
+                            <div className="flex justify-between text-slate-400">
+                              <span>Used Internally</span>
+                              <span className="font-mono text-amber-400">-{fin.usedInternallyQty.toFixed(1)}/hari</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-slate-400">
+                            <span>Gross Income ({fin.soldQty.toFixed(1)} sold @ {fin.price.toFixed(3)})</span>
+                            <span className="font-mono text-emerald-400">+{fin.grossRevenue.toFixed(3)}</span>
+                          </div>
+                          {fin.materialBreakdown.length > 0 && (
+                            <>
+                              <div className="flex justify-between text-slate-400">
+                                <span>Material Costs</span>
+                                <span className="font-mono text-red-400">-{fin.materialCost.toFixed(3)}</span>
+                              </div>
+                              {fin.materialBreakdown.map((m) => (
+                                <div key={m.itemCode} className="flex justify-between pl-2 text-[10.5px] text-slate-500">
+                                  <span>↳ {GAME_ITEMS[m.itemCode]?.name || m.itemCode}
+                                    {m.internalQty > 0.001 ? ` (internal ${m.internalQty.toFixed(1)})` : ''}
+                                    {m.marketQty > 0.001 ? ` (market ${m.marketQty.toFixed(1)})` : ''}
+                                  </span>
+                                  <span className={m.cost > 0.001 ? 'text-red-400 font-mono' : 'text-emerald-400 font-mono'}>
+                                    {m.cost > 0.001 ? `-${m.cost.toFixed(3)}` : 'Free'}
+                                  </span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                          <div className="flex justify-between font-bold pt-1.5 border-t border-slate-800/60">
+                            <span className="text-slate-300">Net Income</span>
+                            <span className={`font-mono ${fin.netIncome >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {fin.netIncome >= 0 ? '+' : ''}{fin.netIncome.toFixed(3)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
