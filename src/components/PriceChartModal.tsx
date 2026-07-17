@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { X, TrendingUp, TrendingDown } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
+import { getCandleHistory, Candle } from '../api/apiClient';
 
 interface PriceChartModalProps {
   item: {
@@ -26,12 +27,63 @@ function formatVolume(value: any): string {
 
 export default function PriceChartModal({ item, onClose }: PriceChartModalProps) {
   const [chartView, setChartView] = React.useState<'line' | 'candle'>('candle');
+  const [tf, setTf] = useState('week');
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
+
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
 
-  const isUp = item.changeValue >= 0;
-  const high = points.length ? Math.max(...points) : item.price;
-  const low = points.length ? Math.min(...points) : item.price;
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      setErrorMsg('');
+
+      const res = await getCandleHistory(item.item, tf);
+      if (cancelled) return;
+
+      if (!res.success || res.data.length === 0) {
+        setErrorMsg('Belum ada data candle buat item ini di WarEra Pulse.');
+        setCandles([]);
+        setLoading(false);
+        return;
+      }
+
+      setCandles(res.data);
+      setLoading(false);
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item.item, tf]);
+
+  // Calculate dynamic stats from the loaded candles to match the timeframe perfectly
+  const hasCandles = candles.length > 0;
+  const lastCandle = hasCandles ? candles[candles.length - 1] : null;
+  const firstCandle = hasCandles ? candles[0] : null;
+
+  const displayPrice = lastCandle ? lastCandle.close : item.price;
+  
+  // Calculate percentage change over the selected timeframe
+  const displayChange = (lastCandle && firstCandle && firstCandle.open !== 0)
+    ? ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100
+    : item.changeValue;
+
+  const displayHigh = hasCandles 
+    ? Math.max(...candles.map(c => c.high)) 
+    : (points.length ? Math.max(...points) : item.price);
+
+  const displayLow = hasCandles 
+    ? Math.min(...candles.map(c => c.low)) 
+    : (points.length ? Math.min(...points) : item.price);
+
+  const isUp = displayChange >= 0;
 
   return (
     <div
@@ -65,18 +117,18 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 border-b border-slate-800/60">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Harga Saat Ini</div>
-            <div className="text-lg font-mono font-black text-white">{Number(item.price).toFixed(3)}</div>
+            <div className="text-lg font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Perubahan</div>
             <div className={`text-lg font-mono font-black flex items-center gap-1 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
               {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              {isUp ? '+' : ''}{item.changeValue.toFixed(2)}%
+              {isUp ? '+' : ''}{displayChange.toFixed(2)}%
             </div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Tertinggi / Terendah</div>
-            <div className="text-sm font-mono font-bold text-slate-300">{high.toFixed(3)} / {low.toFixed(3)}</div>
+            <div className="text-sm font-mono font-bold text-slate-300">{displayHigh.toFixed(3)} / {displayLow.toFixed(3)}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Volume</div>
@@ -106,7 +158,14 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
           </div>
 
           {chartView === 'candle' ? (
-            <CandleChart itemCode={item.item} />
+            <CandleChart 
+              itemCode={item.item} 
+              candles={candles} 
+              loading={loading} 
+              errorMsg={errorMsg} 
+              tf={tf} 
+              setTf={setTf} 
+            />
           ) : chartData.length > 1 ? (
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>

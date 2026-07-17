@@ -434,7 +434,11 @@ export default function NewsEvents({ token }: NewsEventsProps) {
       <span className="inline-flex items-center gap-1 mx-1.5 align-middle">
         {idList.map((id, index) => {
           const code = getCountryCodeFromId(id);
-          return <CountryFlag key={`${id}-${index}`} countryIdOrCode={code} />;
+          return (
+            <React.Fragment key={`${id}-${index}`}>
+              <CountryFlag countryIdOrCode={code} />
+            </React.Fragment>
+          );
         })}
       </span>
     );

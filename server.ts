@@ -147,14 +147,14 @@ async function startServer() {
   });
 
   // Market history (candles) proxy from WarEra Pulse
-  app.get("/api/market/history/:itemCode", async (req, res) => {
+  app.get(["/api/market/history/:itemCode", "/api/pulse/history/:itemCode"], async (req, res) => {
     try {
       const { itemCode } = req.params;
       const { tf = "week" } = req.query; // 'day', 'week', 'month'
       const targetUrl = `https://www.warera-pulse.info/api/history/${itemCode.toLowerCase()}?tf=${tf}`;
       const response = await fetch(targetUrl);
       const json = await response.json();
-      res.json({ success: true, data: json });
+      res.json({ success: true, ...json, data: json?.candles || json });
     } catch (err: any) {
       console.error(`[Proxy Error] Failed to fetch market history for ${req.params.itemCode}:`, err);
       res.status(502).json({

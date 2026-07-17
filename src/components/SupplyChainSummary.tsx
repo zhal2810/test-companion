@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Company, GlobalSettings, SupplyChainNode } from '../types';
+import { Company, GlobalSettings, SupplyChainNode, CompanyFinancials } from '../types';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { calculateSupplyChain, calculateFinancials } from '../utils/productionHelper';
 import { getItemPrices } from '../api/apiClient';
@@ -33,7 +33,7 @@ export default function SupplyChainSummary({ companies, globalSettings }: Supply
     () => calculateFinancials(activeCompanyResults, activeNodes, marketPrices),
     [activeCompanyResults, activeNodes, marketPrices]
   );
-  const portfolioNetIncome = Object.values(financials).reduce((sum, f) => sum + f.netIncome, 0);
+  const portfolioNetIncome = Object.values(financials).reduce((sum, f: CompanyFinancials) => sum + f.netIncome, 0);
 
   const activeNodesList = Object.values(activeNodes).sort((a, b) => {
     // Sort raw materials first, then products

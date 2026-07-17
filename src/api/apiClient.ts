@@ -164,6 +164,26 @@ export const getMarketStats = async (): Promise<any> => {
   }
 };
 
+export const getItemPrices = async (): Promise<{ success: boolean; error: string | null; data: Record<string, number> }> => {
+  try {
+    const res = await fetchWarera('itemTrading.getPrices', {});
+    if (!res.success) throw new Error(res.error || 'Gagal mengambil data harga');
+    const prices: Record<string, number> = {};
+    if (res.data && typeof res.data === 'object') {
+      Object.entries(res.data).forEach(([key, value]: [string, any]) => {
+        if (typeof value === 'number') {
+          prices[key] = value;
+        } else if (value && typeof value === 'object') {
+          prices[key] = value.avg ?? value.price ?? value.value ?? 0;
+        }
+      });
+    }
+    return { success: true, error: null, data: prices };
+  } catch (err: any) {
+    return { success: false, error: err.message, data: {} };
+  }
+};
+
 export interface Candle {
   time: number;
   open: number;

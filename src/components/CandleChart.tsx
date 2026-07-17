@@ -1,10 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { createChart, ColorType, CandlestickSeries, type IChartApi } from 'lightweight-charts';
-import { getCandleHistory, type Candle } from '../api/apiClient';
+import { type Candle } from '../api/apiClient';
 import { RefreshCw } from 'lucide-react';
 
 interface CandleChartProps {
   itemCode: string;
+  candles: Candle[];
+  loading: boolean;
+  errorMsg: string;
+  tf: string;
+  setTf: (tf: string) => void;
 }
 
 const TIMEFRAMES: { value: string; label: string }[] = [
@@ -12,85 +17,70 @@ const TIMEFRAMES: { value: string; label: string }[] = [
   { value: 'month', label: '1 Bulan' },
 ];
 
-export default function CandleChart({ itemCode }: CandleChartProps) {
+export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, setTf }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const [tf, setTf] = useState('week');
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      setErrorMsg('');
-
-      const res = await getCandleHistory(itemCode, tf);
-      if (cancelled) return;
-
-      if (!res.success || res.data.length === 0) {
-        setErrorMsg('Belum ada data candle buat item ini di WarEra Pulse.');
-        setLoading(false);
-        return;
-      }
-
-      if (!containerRef.current) return;
-
-      // Bersihkan chart lama sebelum bikin baru (ganti timeframe / re-render)
+    if (loading || errorMsg || candles.length === 0) {
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
       }
+      return;
+    }
 
-      const chart = createChart(containerRef.current, {
-        layout: {
-          background: { type: ColorType.Solid, color: 'transparent' },
-          textColor: '#94A3B8',
-        },
-        grid: {
-          vertLines: { color: '#1E293B' },
-          horzLines: { color: '#1E293B' },
-        },
-        width: containerRef.current.clientWidth,
-        height: 280,
-        timeScale: { timeVisible: true, secondsVisible: false },
-      });
+    if (!containerRef.current) return;
 
-      const series = chart.addSeries(CandlestickSeries, {
-        upColor: '#34D399',
-        downColor: '#FB7185',
-        borderVisible: false,
-        wickUpColor: '#34D399',
-        wickDownColor: '#FB7185',
-      });
+    // Bersihkan chart lama sebelum bikin baru
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
 
-      const formatted = res.data
-        .map((c: Candle) => ({
-          time: c.time as any,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }))
-        .sort((a, b) => (a.time as number) - (b.time as number));
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#94A3B8',
+      },
+      grid: {
+        vertLines: { color: '#1E293B' },
+        horzLines: { color: '#1E293B' },
+      },
+      width: containerRef.current.clientWidth,
+      height: 280,
+      timeScale: { timeVisible: true, secondsVisible: false },
+    });
 
-      series.setData(formatted);
-      chart.timeScale().fitContent();
-      chartRef.current = chart;
-      setLoading(false);
-    };
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: '#34D399',
+      downColor: '#FB7185',
+      borderVisible: false,
+      wickUpColor: '#34D399',
+      wickDownColor: '#FB7185',
+    });
 
-    load();
+    const formatted = candles
+      .map((c: Candle) => ({
+        time: c.time as any,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      }))
+      .sort((a, b) => (a.time as number) - (b.time as number));
+
+    series.setData(formatted);
+    chart.timeScale().fitContent();
+    chartRef.current = chart;
 
     return () => {
-      cancelled = true;
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
       }
     };
-  }, [itemCode, tf]);
+  }, [candles, loading, errorMsg]);
 
   // Responsif kalau container-nya resize (misal modal berubah ukuran)
   useEffect(() => {
