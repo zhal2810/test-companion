@@ -211,7 +211,9 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
   // di-flag "selalu jual ke market"), lalu hitung Used Internally / Sold /
   // Material Cost per company.
   const financialsByCompanyId = useMemo(() => {
-    const results = companies
+    type CompanyProdResult = { companyId: string } & ReturnType<typeof computeCompanyDailyProduction>;
+
+    const results: CompanyProdResult[] = companies
       .filter((c: any) => c?._id)
       .map((c: any) => ({
         companyId: c._id as string,
@@ -228,7 +230,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
     const pool: Record<string, number> = {};
     // Total kebutuhan per itemCode (dari semua company produk yang butuh item itu)
     const consumedTotal: Record<string, number> = {};
-    results.forEach((r) => {
+    results.forEach((r: CompanyProdResult) => {
       if (!excludedIds[r.companyId]) {
         pool[r.itemCode] = (pool[r.itemCode] || 0) + r.dailyProduction;
       }
@@ -245,7 +247,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
     };
 
     const byId: Record<string, any> = {};
-    results.forEach((r) => {
+    results.forEach((r: CompanyProdResult) => {
       const poolProduced = pool[r.itemCode] || 0;
       const totalConsumed = consumedTotal[r.itemCode] || 0;
 
