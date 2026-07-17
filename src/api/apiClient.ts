@@ -155,30 +155,36 @@ export const getUserEcoSkills = async (userId: string, token: string | null = nu
   }
 };
 
-export const getItemPrices = async (token: string | null = null): Promise<{ success: boolean; error: string | null; data: Record<string, number> }> => {
-  try {
-    const result = await fetchWarera('itemTrading.getPrices', {}, token);
-    if (!result.success) throw new Error(result.error || 'Gagal mengambil harga pasar');
-    const raw = result.data || {};
-    // Normalisasi ke Record<itemCode, number> — payload asli tiap item bisa berupa
-    // angka langsung, atau objek { avg/price/value }.
-    const normalized: Record<string, number> = {};
-    Object.entries(raw).forEach(([key, value]: [string, any]) => {
-      if (typeof value === 'number') {
-        normalized[key] = value;
-      } else if (value && typeof value === 'object') {
-        normalized[key] = value.avg ?? value.price ?? value.value ?? 0;
-      }
-    });
-    return { success: true, error: null, data: normalized };
-  } catch (err: any) {
-    return { success: false, error: err.message, data: {} };
-  }
-};
-
 export const getMarketStats = async (): Promise<any> => {
   try {
     const response = await axios.get('/api/market/stats');
+    return response.data;
+  } catch (error: any) {
+    return { success: false, error: error.message, data: null };
+  }
+};
+
+export const getMarketSpark = async (): Promise<any> => {
+  try {
+    const response = await axios.get('/api/market/spark');
+    return response.data;
+  } catch (error: any) {
+    return { success: false, error: error.message, data: null };
+  }
+};
+
+export const getMarketPulseSnapshot = async (): Promise<any> => {
+  try {
+    const response = await axios.get('/api/market/pulse-snapshot');
+    return response.data;
+  } catch (error: any) {
+    return { success: false, error: error.message, data: null };
+  }
+};
+
+export const getMarketHistory = async (itemCode: string, tf: string = 'week'): Promise<any> => {
+  try {
+    const response = await axios.get(`/api/market/history/${itemCode}`, { params: { tf } });
     return response.data;
   } catch (error: any) {
     return { success: false, error: error.message, data: null };

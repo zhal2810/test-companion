@@ -5,9 +5,7 @@ import { createServer as createViteServer } from "vite";
 
 async function startServer() {
   const app = express();
-  // Hosting platform (Render/Railway/Fly.io/dll) biasanya inject PORT sendiri
-  // lewat env var — kalau di-hardcode 3000, deploy bakal gagal listen.
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
 
   // Middleware for parsing body
   app.use(express.json());
@@ -116,6 +114,59 @@ async function startServer() {
       res.status(500).json({
         success: false,
         error: "Gagal membaca statistik pasar",
+        detail: err.message,
+      });
+    }
+  });
+
+  // Market sparklines proxy from WarEra Pulse
+  app.get("/api/market/spark", async (req, res) => {
+    try {
+      const targetUrl = "https://www.warera-pulse.info/api/spark";
+      const response = await fetch(targetUrl);
+      const json = await response.json();
+      res.json({ success: true, data: json });
+    } catch (err: any) {
+      console.error("[Proxy Error] Failed to fetch market sparklines:", err);
+      res.status(502).json({
+        success: false,
+        error: "Gagal mengambil data history/sparklines",
+        detail: err.message,
+      });
+    }
+  });
+
+  // Market history (candles) proxy from WarEra Pulse
+  app.get("/api/market/history/:itemCode", async (req, res) => {
+    try {
+      const { itemCode } = req.params;
+      const { tf = "week" } = req.query; // 'day', 'week', 'month'
+      const targetUrl = `https://www.warera-pulse.info/api/history/${itemCode}?tf=${tf}`;
+      const response = await fetch(targetUrl);
+      const json = await response.json();
+      res.json({ success: true, data: json });
+    } catch (err: any) {
+      console.error(`[Proxy Error] Failed to fetch market history for ${req.params.itemCode}:`, err);
+      res.status(502).json({
+        success: false,
+        error: "Gagal mengambil data history lilin",
+        detail: err.message,
+      });
+    }
+  });
+
+  // Market snapshot proxy from WarEra Pulse
+  app.get("/api/market/pulse-snapshot", async (req, res) => {
+    try {
+      const targetUrl = "https://www.warera-pulse.info/api/snapshot";
+      const response = await fetch(targetUrl);
+      const json = await response.json();
+      res.json({ success: true, data: json });
+    } catch (err: any) {
+      console.error("[Proxy Error] Failed to fetch market snapshot:", err);
+      res.status(502).json({
+        success: false,
+        error: "Gagal mengambil data snapshot",
         detail: err.message,
       });
     }
