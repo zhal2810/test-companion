@@ -16,13 +16,18 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
     xl: 'w-20 h-20',
   };
 
+  // `code` (lowercase) dipakai buat switch-case fallback SVG di bawah.
+  // TAPI file asset asli (public/assets/items/*.png) pakai casing ASLI dari
+  // itemCode API (contoh: cookedFish.png, lightAmmo.png, heavyAmmo.png) —
+  // BUKAN semua-lowercase. Kalau di-lowercase duluan, item dengan nama 2 kata
+  // (camelCase) jadi 404 dan langsung fallback ke SVG generik.
   const code = itemCode.toLowerCase();
 
   // If no image error, we attempt to load the actual asset file (e.g., from VS Code local public directory)
   if (!imgError) {
     return (
       <img
-        src={`/assets/items/${code}.png`}
+        src={`/assets/items/${itemCode}.png`}
         alt={itemCode}
         className={`${sizeClasses[size]} object-contain select-none ${className}`}
         onError={() => setImgError(true)}
@@ -329,7 +334,7 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
-      case 'cookedFish': // Salmon steak / fish slice
+      case 'cookedfish': // Salmon steak / fish slice
         return (
           <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -353,7 +358,7 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
-      case 'lightAmmo': // Single handgun bullet
+      case 'lightammo': // Single handgun bullet
         return (
           <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -410,7 +415,7 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
-      case 'heavyAmmo': // Triple rifle bullets (Heavy Ammo)
+      case 'heavyammo': // Triple rifle bullets (Heavy Ammo)
         return (
           <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
