@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchWarera, getMarketStats } from '../api/apiClient';
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
-import PriceChartModal from './Pricechartmodal';
+import PriceChartModal from './PriceChartModal';
 
 function formatItemName(key: string): string {
   return key
