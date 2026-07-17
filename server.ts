@@ -141,7 +141,7 @@ async function startServer() {
     try {
       const { itemCode } = req.params;
       const { tf = "week" } = req.query; // 'day', 'week', 'month'
-      const targetUrl = `https://www.warera-pulse.info/api/history/${itemCode}?tf=${tf}`;
+      const targetUrl = `https://www.warera-pulse.info/api/history/${itemCode.toLowerCase()}?tf=${tf}`;
       const response = await fetch(targetUrl);
       const json = await response.json();
       res.json({ success: true, data: json });

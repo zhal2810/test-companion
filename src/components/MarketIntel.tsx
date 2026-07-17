@@ -116,7 +116,7 @@ function resolveChangeValue(statsEntry: any, candidates: string[], fallback: num
   // Filter out any 0, null, negative, or invalid data points representing empty trade intervals
   const rawPoints = Array.isArray(statsEntry.points) ? statsEntry.points : null;
   const points = rawPoints
-    ? rawPoints.map(Number).filter((p) => !Number.isNaN(p) && p > 0)
+    ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
     : null;
 
   if (points && points.length > 1) {
