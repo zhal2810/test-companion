@@ -1,5 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownLeft, Calendar, FileText, AlertCircle } from 'lucide-react';
+import CurrencyIcon from './CurrencyIcon';
 
 function formatMoney(value: number): string {
   if (value === null || value === undefined || isNaN(value)) return "0";
@@ -222,19 +223,19 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-6">
         <SummaryBox 
           label="Total Pemasukan" 
-          value={`+${formatMoney(totalIncome)} cc`} 
+          value={<>+{formatMoney(totalIncome)} <CurrencyIcon /></>} 
           highlight="positive" 
           icon={<ArrowUpRight className="w-4 h-4 text-emerald-400" />}
         />
         <SummaryBox 
           label="Total Pengeluaran" 
-          value={`-${formatMoney(totalExpense)} cc`} 
+          value={<>-{formatMoney(totalExpense)} <CurrencyIcon /></>} 
           highlight="negative" 
           icon={<ArrowDownLeft className="w-4 h-4 text-rose-400" />}
         />
         <SummaryBox 
           label="Kekayaan Bersih" 
-          value={`${netWealth >= 0 ? '+' : ''}${formatMoney(netWealth)} cc`} 
+          value={<>{netWealth >= 0 ? '+' : ''}{formatMoney(netWealth)} <CurrencyIcon /></>} 
           highlight={netWealth >= 0 ? 'positive' : 'negative'} 
           icon={<Wallet className="w-4 h-4 text-emerald-400" />}
         />
@@ -301,8 +302,8 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
                       <div className="text-[10px] text-slate-400">
                         Avg: <span className="font-mono text-slate-200 font-semibold">{formatMoney(isBuy ? (item.totalBoughtMoney / item.totalBoughtQty) : (item.totalSoldMoney / item.totalSoldQty))}</span>
                       </div>
-                      <div className="font-mono font-bold text-white text-xs">
-                        {formatMoney(isBuy ? item.totalBoughtMoney : item.totalSoldMoney)} cc
+                      <div className="font-mono font-bold text-white text-xs flex items-center justify-end gap-1">
+                        {formatMoney(isBuy ? item.totalBoughtMoney : item.totalSoldMoney)} <CurrencyIcon />
                       </div>
                     </div>
                   </div>
@@ -316,9 +317,9 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
         <div className="mt-3.5 py-2.5 px-3 bg-slate-950/40 border border-slate-800/60 rounded-lg flex flex-col xs:flex-row justify-between items-start xs:items-center gap-2 text-xs font-mono">
           <span className="text-slate-500">Total Modal Niaga:</span>
           <div className="flex gap-4">
-            <span>Beli: <strong className="text-amber-500">{formatMoney(totalBoughtMoney)} cc</strong></span>
+            <span className="inline-flex items-center gap-1">Beli: <strong className="text-amber-500 inline-flex items-center gap-1">{formatMoney(totalBoughtMoney)} <CurrencyIcon /></strong></span>
             <span className="text-slate-700">|</span>
-            <span>Jual: <strong className="text-sky-400">{formatMoney(totalSoldMoney)} cc</strong></span>
+            <span className="inline-flex items-center gap-1">Jual: <strong className="text-sky-400 inline-flex items-center gap-1">{formatMoney(totalSoldMoney)} <CurrencyIcon /></strong></span>
           </div>
         </div>
       </div>
@@ -398,8 +399,8 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
                 </div>
                 
                 <div className="text-right space-y-1 shrink-0 ml-3">
-                  <span className="text-slate-200 font-mono font-medium block">
-                    {formatMoney(tx.moneySafe)} cc
+                  <span className="text-slate-200 font-mono font-medium flex items-center justify-end gap-1">
+                    {formatMoney(tx.moneySafe)} <CurrencyIcon />
                   </span>
                   {tx.profitThisTx !== null ? (
                     <span className={`text-[10px] font-mono block font-bold ${tx.profitThisTx >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -422,7 +423,7 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
 // Komponen Kotak Ringkasan
 interface SummaryBoxProps {
   label: string;
-  value: string;
+  value: React.ReactNode;
   highlight: 'positive' | 'negative';
   icon: React.ReactNode;
 }
@@ -438,7 +439,7 @@ function SummaryBox({ label, value, highlight, icon }: SummaryBoxProps) {
         <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
           {label}
         </div>
-        <div className={`text-sm md:text-base font-mono font-bold ${valColorClass}`}>
+        <div className={`text-sm md:text-base font-mono font-bold ${valColorClass} flex items-center gap-1`}>
           {value}
         </div>
       </div>

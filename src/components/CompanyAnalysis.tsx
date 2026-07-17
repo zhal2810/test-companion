@@ -3,6 +3,7 @@ import { getCompaniesByUserId, getProductionBonus, getWorkersByUserId, getUserEc
 import { AE_PP_PER_DAY, calculateWorkerDailyOutput, computeCompanyDailyProduction } from './production';
 import { Cpu, Users, Percent, MapPin, Coins, Building2, TrendingUp, ChevronDown, RefreshCw, AlertCircle, Package, Wallet, Landmark, Sword, Shirt } from 'lucide-react';
 import ItemIcon from './ItemIcon';
+import CurrencyIcon from './CurrencyIcon';
 
 interface CompanyAnalysisProps {
   userId: string;
@@ -48,7 +49,7 @@ export function WealthSummary({ wealth }: { wealth: any }) {
               <Icon className="w-3 h-3" />
               {label}
             </div>
-            <div className="text-sm font-bold font-mono text-slate-200">{formatMoney(value)} cc</div>
+            <div className="text-sm font-bold font-mono text-slate-200 flex items-center gap-1">{formatMoney(value)} <CurrencyIcon /></div>
           </div>
         ))}
       </div>
@@ -57,7 +58,7 @@ export function WealthSummary({ wealth }: { wealth: any }) {
           <Wallet className="w-3.5 h-3.5" />
           Total
         </div>
-        <div className="text-lg font-black font-mono text-emerald-400">{formatMoney(total)} cc</div>
+        <div className="text-lg font-black font-mono text-emerald-400 flex items-center gap-1">{formatMoney(total)} <CurrencyIcon className="w-4 h-4 inline-block align-[-3px]" /></div>
       </div>
     </div>
   );
@@ -632,7 +633,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
                   </div>
                   <DetailRow label="Daily PP" value={`${totalPP.toFixed(1)} PP`} />
                   <DetailRow label="Yield" value={`${dailyProduction.toFixed(1)}u / day`} />
-                  <DetailRow label="Market Price" value={`${itemPrice.toFixed(3)} cc`} />
+                  <DetailRow label="Market Price" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
 
                   {/* Toggle: khusus raw material — pilih dijual semua ke market,
                       atau ikut dialokasikan sebagai bahan baku company lain yang butuh item ini. */}
@@ -659,12 +660,12 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
                   )}
 
                   <div className="border-t border-slate-900 my-2"></div>
-                  <DetailRow label={`Revenue (${soldQty.toFixed(1)} sold)`} value={`+${grossRevenue.toFixed(3)} cc`} valueColor="text-emerald-400" />
-                  <DetailRow label="Wage Costs" value={`-${workersWagePerDay.toFixed(3)} cc`} valueColor="text-rose-400" />
+                  <DetailRow label={`Revenue (${soldQty.toFixed(1)} sold)`} value={<>+{grossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
+                  <DetailRow label="Wage Costs" value={<>-{workersWagePerDay.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
 
                   {materialBreakdown.length > 0 && (
                     <>
-                      <DetailRow label="Material Costs" value={`-${materialCost.toFixed(3)} cc`} valueColor="text-rose-400" />
+                      <DetailRow label="Material Costs" value={<>-{materialCost.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
                       {materialBreakdown.map((m: any) => (
                         <div key={m.itemCode} className="flex justify-between pl-2 text-[10px] text-slate-500 py-0.5">
                           <span>
@@ -683,7 +684,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
                   <div className="border-t border-slate-900 my-1.5"></div>
                   <DetailRow 
                     label="Profit / day" 
-                    value={`${netProfit >= 0 ? '+' : ''}${netProfit.toFixed(3)} cc`} 
+                    value={<>{netProfit >= 0 ? '+' : ''}{netProfit.toFixed(3)} <CurrencyIcon /></>} 
                     valueColor={netProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
                     isBold={true}
                   />
@@ -702,7 +703,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
 
 interface DetailRowProps {
   label: string;
-  value: string;
+  value: React.ReactNode;
   valueColor?: string;
   isBold?: boolean;
 }
@@ -711,7 +712,7 @@ function DetailRow({ label, value, valueColor = 'text-slate-200', isBold = false
   return (
     <div className="flex justify-between items-center text-[11px] py-1">
       <span className="text-slate-500">{label}</span>
-      <span className={`font-mono ${isBold ? 'font-bold' : ''} ${valueColor}`}>{value}</span>
+      <span className={`font-mono flex items-center gap-1 ${isBold ? 'font-bold' : ''} ${valueColor}`}>{value}</span>
     </div>
   );
 }

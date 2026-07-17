@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchWarera, getMarketStats } from '../api/apiClient';
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
+import CurrencyIcon from './CurrencyIcon';
 
 function formatItemName(key: string): string {
   return key
@@ -115,7 +116,7 @@ function resolveChangeValue(statsEntry: any, candidates: string[], fallback: num
   // Filter out any 0, null, negative, or invalid data points representing empty trade intervals
   const rawPoints = Array.isArray(statsEntry.points) ? statsEntry.points : null;
   const points = rawPoints
-    ? rawPoints.map(Number).filter((p) => !Number.isNaN(p) && p > 0)
+    ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
     : null;
 
   if (points && points.length > 1) {
@@ -467,7 +468,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                   <div className="grid grid-cols-3 gap-2 text-left pt-0.5">
                     <div>
                       <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-400">Harga Ticker</span>
-                      <span className="text-xs font-mono font-extrabold text-white">{Number(entry.price).toFixed(2)}</span>
+                      <span className="text-xs font-mono font-extrabold text-white flex items-center gap-1">{Number(entry.price).toFixed(2)} <CurrencyIcon /></span>
                     </div>
                     <div>
                       <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-400">Volume Bursa</span>
@@ -506,8 +507,8 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                   {/* TICKER PRICE & BID/ASK */}
                   <div className="text-right flex flex-col justify-between h-full py-0.5">
                     <div className="flex items-center justify-end gap-2 mb-1.5">
-                      <span className="text-base font-mono font-bold text-white">
-                        {Number(entry.price).toFixed(2)}
+                      <span className="text-base font-mono font-bold text-white flex items-center gap-1">
+                        {Number(entry.price).toFixed(2)} <CurrencyIcon className="w-4 h-4 inline-block align-[-3px]" />
                       </span>
                       <span className={`text-[10px] font-bold font-mono py-0.5 px-2 rounded-full border ${getChangeBadgeClasses(displayChangeValue)}`}>
                         {displayChangeValue > 0 ? '▲' : displayChangeValue < 0 ? '▼' : '•'} {displayChange}
