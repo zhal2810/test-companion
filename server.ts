@@ -11,6 +11,17 @@ async function startServer() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // CORS middleware for external deployments (e.g. Cloudflare Pages)
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, X-API-Key");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // API Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "WarEra Planner Backend Proxy is online!" });
@@ -123,7 +134,15 @@ async function startServer() {
   app.get("/api/market/spark", async (req, res) => {
     try {
       const targetUrl = "https://www.warera-pulse.info/api/spark";
-      const response = await fetch(targetUrl);
+      const response = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP status ${response.status}`);
+      }
       const json = await response.json();
       res.json({ success: true, data: json });
     } catch (err: any) {
@@ -142,7 +161,15 @@ async function startServer() {
       const { itemCode } = req.params;
       const { tf = "week" } = req.query; // 'day', 'week', 'month'
       const targetUrl = `https://www.warera-pulse.info/api/history/${itemCode.toLowerCase()}?tf=${tf}`;
-      const response = await fetch(targetUrl);
+      const response = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP status ${response.status}`);
+      }
       const json = await response.json();
       res.json({ success: true, data: json });
     } catch (err: any) {
@@ -159,7 +186,15 @@ async function startServer() {
   app.get("/api/market/pulse-snapshot", async (req, res) => {
     try {
       const targetUrl = "https://www.warera-pulse.info/api/snapshot";
-      const response = await fetch(targetUrl);
+      const response = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP status ${response.status}`);
+      }
       const json = await response.json();
       res.json({ success: true, data: json });
     } catch (err: any) {

@@ -1,8 +1,25 @@
 import axios from 'axios';
 import { normalizeWareraPayload, extractCompanyReferences, normalizeCompanyDetail } from './companyData';
 
+const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (
+      host.endsWith('.pages.dev') ||
+      host.endsWith('.github.io') ||
+      host.endsWith('.vercel.app') ||
+      host.endsWith('.netlify.app') ||
+      (host === 'localhost' && window.location.port === '5173')
+    ) {
+      // Cloud Run shared production URL for our app's backend
+      return 'https://ais-pre-2l6iieq7se36ky6pvwaaal-279512506871.asia-east1.run.app';
+    }
+  }
+  return '';
+};
+
 const api = axios.create({
-  baseURL: '/api/players',
+  baseURL: `${getApiBaseUrl()}/api/players`,
 });
 
 export const fetchWarera = async (procedure: string, input?: any, explicitToken: string | null = null): Promise<{ success: boolean; error: string | null; data: any }> => {
@@ -157,7 +174,7 @@ export const getUserEcoSkills = async (userId: string, token: string | null = nu
 
 export const getMarketStats = async (): Promise<any> => {
   try {
-    const response = await axios.get('/api/market/stats');
+    const response = await axios.get(`${getApiBaseUrl()}/api/market/stats`);
     return response.data;
   } catch (error: any) {
     return { success: false, error: error.message, data: null };
@@ -166,7 +183,7 @@ export const getMarketStats = async (): Promise<any> => {
 
 export const getMarketSpark = async (): Promise<any> => {
   try {
-    const response = await axios.get('/api/market/spark');
+    const response = await axios.get(`${getApiBaseUrl()}/api/market/spark`);
     return response.data;
   } catch (error: any) {
     return { success: false, error: error.message, data: null };
@@ -175,7 +192,7 @@ export const getMarketSpark = async (): Promise<any> => {
 
 export const getMarketPulseSnapshot = async (): Promise<any> => {
   try {
-    const response = await axios.get('/api/market/pulse-snapshot');
+    const response = await axios.get(`${getApiBaseUrl()}/api/market/pulse-snapshot`);
     return response.data;
   } catch (error: any) {
     return { success: false, error: error.message, data: null };
@@ -184,7 +201,7 @@ export const getMarketPulseSnapshot = async (): Promise<any> => {
 
 export const getMarketHistory = async (itemCode: string, tf: string = 'week'): Promise<any> => {
   try {
-    const response = await axios.get(`/api/market/history/${itemCode}`, { params: { tf } });
+    const response = await axios.get(`${getApiBaseUrl()}/api/market/history/${itemCode}`, { params: { tf } });
     return response.data;
   } catch (error: any) {
     return { success: false, error: error.message, data: null };
