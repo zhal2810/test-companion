@@ -98,7 +98,7 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
                 <Tooltip
                   contentStyle={{ background: '#0C0D13', border: '1px solid #1E293B', borderRadius: 8, fontSize: 12 }}
                   labelFormatter={() => ''}
-                  formatter={(value: number) => [Number(value).toFixed(3), 'Harga']}
+                  formatter={(value) => [Number(value ?? 0).toFixed(3), 'Harga']}
                 />
                 <Line
                   type="monotone"
