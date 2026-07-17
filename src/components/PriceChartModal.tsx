@@ -63,27 +63,42 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
     };
   }, [item.item, tf]);
 
-  // Calculate dynamic stats from the loaded candles to match the timeframe perfectly
-  const hasCandles = candles.length > 0;
-  const lastCandle = hasCandles ? candles[candles.length - 1] : null;
-  const firstCandle = hasCandles ? candles[0] : null;
+  // Sort candles chronologically to guarantee correct first/last selection
+  const sortedCandles = React.useMemo(() => {
+    if (!candles || candles.length === 0) return [];
+    return [...candles].sort((a, b) => Number(a.time) - Number(b.time));
+  }, [candles]);
+
+  const hasCandles = sortedCandles.length > 0;
+  const lastCandle = hasCandles ? sortedCandles[sortedCandles.length - 1] : null;
+  const firstCandle = hasCandles ? sortedCandles[0] : null;
 
   const displayPrice = lastCandle ? lastCandle.close : item.price;
   
-  // Calculate percentage change over the selected timeframe
-  const displayChange = (lastCandle && firstCandle && firstCandle.open !== 0)
-    ? ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100
-    : item.changeValue;
+  // Calculate percentage change over the selected timeframe using the first and last candle
+  const displayChange = React.useMemo(() => {
+    if (!lastCandle || !firstCandle) return item.changeValue;
+    const basePrice = firstCandle.open || firstCandle.close;
+    if (!basePrice || basePrice === 0) return 0;
+    return ((lastCandle.close - basePrice) / basePrice) * 100;
+  }, [lastCandle, firstCandle, item.changeValue]);
 
   const displayHigh = hasCandles 
-    ? Math.max(...candles.map(c => c.high)) 
+    ? Math.max(...sortedCandles.map(c => c.high)) 
     : (points.length ? Math.max(...points) : item.price);
 
   const displayLow = hasCandles 
-    ? Math.min(...candles.map(c => c.low)) 
+    ? Math.min(...sortedCandles.map(c => c.low)) 
     : (points.length ? Math.min(...points) : item.price);
 
   const isUp = displayChange >= 0;
+
+  const tfLabel = React.useMemo(() => {
+    if (tf === 'day') return '1 Hari';
+    if (tf === 'week') return '1 Minggu';
+    if (tf === 'month') return '1 Bulan';
+    return 'Rentang Waktu';
+  }, [tf]);
 
   return (
     <div
@@ -120,7 +135,7 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
             <div className="text-lg font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Perubahan</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Perubahan ({tfLabel})</div>
             <div className={`text-lg font-mono font-black flex items-center gap-1 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
               {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               {isUp ? '+' : ''}{displayChange.toFixed(2)}%
