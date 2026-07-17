@@ -1,0 +1,15 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#0d9488" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bgGrad)" />
+  <!-- Trend / growth line -->
+  <path d="M11 40 L24 27 L32 35 L53 14" stroke="#ECFDF5" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M42 14 L53 14 L53 25" stroke="#ECFDF5" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <!-- Coin -->
+  <circle cx="16" cy="49" r="7.5" fill="#FDE68A" stroke="#B45309" stroke-width="2" />
+  <text x="16" y="52.5" font-family="Arial, sans-serif" font-size="8" font-weight="700" fill="#92400E" text-anchor="middle">$</text>
+</svg>

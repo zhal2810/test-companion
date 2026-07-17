@@ -5,6 +5,7 @@ import TransactionLedger from './TransactionLedger';
 import CompanyAnalysis, { WealthSummary } from './CompanyAnalysis';
 import MarketIntel from './MarketIntel';
 import NewsEvents from './NewsEvents';
+import Logo from './Logo';
 import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -186,9 +187,7 @@ export default function Dashboard() {
         
         {/* LOGO */}
         <div className="flex items-center gap-2 min-w-0">
-          <div className="bg-gradient-to-br from-emerald-600 to-teal-500 p-2 rounded-lg text-slate-950 flex items-center justify-center font-black text-xs shadow-lg shadow-emerald-950/20 shrink-0">
-            WE
-          </div>
+          <Logo className="w-8 h-8 shrink-0 shadow-lg shadow-emerald-950/20 rounded-lg" />
           <div className="min-w-0">
             <h1 className="text-xs sm:text-sm font-bold tracking-tight text-white uppercase flex items-center gap-1.5 truncate">
               <span>WarEra <span className="hidden xs:inline">Companion</span></span> 
