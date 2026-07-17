@@ -85,31 +85,37 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
         {/* CHART */}
         <div className="p-5">
           {chartData.length > 1 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="#1E293B" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="index" hide />
-                <YAxis
-                  domain={['auto', 'auto']}
-                  tick={{ fill: '#64748B', fontSize: 10 }}
-                  width={50}
-                  tickFormatter={(v) => Number(v).toFixed(2)}
-                />
-                <Tooltip
-                  contentStyle={{ background: '#0C0D13', border: '1px solid #1E293B', borderRadius: 8, fontSize: 12 }}
-                  labelFormatter={() => ''}
-                  formatter={(value) => [Number(value ?? 0).toFixed(3), 'Harga']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke={isUp ? '#34D399' : '#FB7185'}
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="#1E293B" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="index" hide />
+                  <YAxis
+                    domain={['auto', 'auto']}
+                    tick={{ fill: '#64748B', fontSize: 10 }}
+                    width={50}
+                    tickFormatter={(v) => Number(v).toFixed(2)}
+                  />
+                  <Tooltip
+                    contentStyle={{ background: '#0C0D13', border: '1px solid #1E293B', borderRadius: 8, fontSize: 12 }}
+                    labelFormatter={() => ''}
+                    formatter={(value) => [Number(value ?? 0).toFixed(3), 'Harga']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke={isUp ? '#34D399' : '#FB7185'}
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <p className="text-[10px] text-slate-500 text-center mt-2 leading-relaxed">
+                ⚠️ Catatan jujur soal keterbatasan data: chart ini berbasis <code className="text-slate-400">temp_warera_stats.json</code>,
+                sebuah snapshot statis — bukan histori harga real-time. Data cuma berubah kalau file itu di-generate ulang secara manual.
+              </p>
+            </>
           ) : (
             <div className="text-center py-16 text-xs text-slate-500">
               Belum ada data histori harga yang cukup buat chart item ini.
