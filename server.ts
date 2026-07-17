@@ -10,6 +10,16 @@ async function startServer() {
   // Middleware for parsing body
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  // CORS middleware for external deployments (e.g. Cloudflare Pages)
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, X-API-Key");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
 
   // API Health check
   app.get("/api/health", (req, res) => {
