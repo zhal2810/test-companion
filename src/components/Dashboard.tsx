@@ -193,7 +193,7 @@ export default function Dashboard() {
               <span>WarEra <span className="hidden xs:inline">Companion</span></span> 
               <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 border border-emerald-500/10 rounded font-normal lowercase shrink-0">v0.17</span>
             </h1>
-            <p className="hidden sm:block text-[10px] text-slate-500 font-mono">Bursa & Rekap Portofolio Makro</p>
+            <p className="hidden sm:block text-[10px] text-slate-500 font-mono">Market & Rekap Portofolio Makro</p>
           </div>
         </div>
 
@@ -245,7 +245,7 @@ export default function Dashboard() {
                 Hubungkan Akun WarEra Anda
               </h4>
               <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
-                Dapatkan visualisasi analisis pabrik, laba bersih buruh real-time, sirkulasi uang, dan catatan mutasi buku besar langsung dengan menyambungkan username Anda.
+                Dapatkan visualisasi analisis pabrik, laba bersih buruh real-time, sirkulasi uang, dan catatan mutasi buku besar langsung dengan menyambungkan TOken Anda.
               </p>
               <button 
                 onClick={() => setIsConfigOpen(true)}
@@ -263,13 +263,13 @@ export default function Dashboard() {
           <TabButton 
             active={activeTab === 'company'} 
             onClick={() => setActiveTab('company')}
-            label="Pabrik & Buruh"
+            label="Pabrik Anda"
             icon={<Building2 className="w-4 h-4" />}
           />
           <TabButton 
             active={activeTab === 'transaction'} 
             onClick={() => setActiveTab('transaction')}
-            label="Buku Besar Dompet"
+            label="Buku Transaksi"
             icon={<Wallet className="w-4 h-4" />}
           />
           <TabButton 
@@ -281,7 +281,7 @@ export default function Dashboard() {
           <TabButton 
             active={activeTab === 'news'} 
             onClick={() => setActiveTab('news')}
-            label="Berita & Event"
+            label="Linimasa"
             icon={<Newspaper className="w-4 h-4" />}
           />
         </div>
@@ -385,7 +385,7 @@ export default function Dashboard() {
                             className="flex items-center gap-1 text-slate-400 hover:text-white text-xs px-2.5 py-1.5 transition duration-150 cursor-pointer disabled:text-slate-600"
                           >
                             <RefreshCw className={`w-3.5 h-3.5 ${txLoading ? 'animate-spin' : ''}`} />
-                            Refresh Buku Besar
+                            Refresh Transaksi
                           </button>
                         </div>
                       )}

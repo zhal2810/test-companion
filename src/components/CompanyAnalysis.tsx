@@ -40,7 +40,7 @@ export function WealthSummary({ wealth }: { wealth: any }) {
     <div className="bg-[#12141C] border border-slate-800 rounded-xl p-4 mb-4">
       <div className="flex items-center gap-2 mb-3 text-[10px] uppercase tracking-widest font-bold text-slate-500">
         <Landmark className="w-3.5 h-3.5" />
-        Kekayaan Real (Net Worth)
+        Rincian Kekayaan 
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {rows.map(({ key, label, icon: Icon, value }) => (
@@ -56,7 +56,7 @@ export function WealthSummary({ wealth }: { wealth: any }) {
       <div className="border-t border-slate-800 mt-3 pt-3 flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
           <Wallet className="w-3.5 h-3.5" />
-          Total
+          Total Kekayaan
         </div>
         <div className="text-lg font-black font-mono text-emerald-400 flex items-center gap-1">{formatMoney(total)} <CurrencyIcon className="w-4 h-4 inline-block align-[-3px]" /></div>
       </div>
@@ -631,9 +631,9 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
                       Ringkasan Finansial Harian
                     </span>
                   </div>
-                  <DetailRow label="Daily PP" value={`${totalPP.toFixed(1)} PP`} />
-                  <DetailRow label="Yield" value={`${dailyProduction.toFixed(1)}u / day`} />
-                  <DetailRow label="Market Price" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
+                  <DetailRow label="Harian PP" value={`${totalPP.toFixed(1)} PP`} />
+                  <DetailRow label="Hasil" value={`${dailyProduction.toFixed(1)}u / day`} />
+                  <DetailRow label="Harga Pasar" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
 
                   {/* Toggle: khusus raw material — pilih dijual semua ke market,
                       atau ikut dialokasikan sebagai bahan baku company lain yang butuh item ini. */}
@@ -656,7 +656,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
                   )}
 
                   {usedInternallyQty > 0.001 && (
-                    <DetailRow label="Used Internally" value={`-${usedInternallyQty.toFixed(1)}/day`} valueColor="text-amber-400" />
+                    <DetailRow label="Untuk Produksi" value={`-${usedInternallyQty.toFixed(1)}/day`} valueColor="text-amber-400" />
                   )}
 
                   <div className="border-t border-slate-900 my-2"></div>
