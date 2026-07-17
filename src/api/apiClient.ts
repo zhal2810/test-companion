@@ -164,29 +164,25 @@ export const getMarketStats = async (): Promise<any> => {
   }
 };
 
-export const getMarketSpark = async (): Promise<any> => {
-  try {
-    const response = await axios.get('/api/market/spark');
-    return response.data;
-  } catch (error: any) {
-    return { success: false, error: error.message, data: null };
-  }
-};
+export interface Candle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
 
-export const getMarketPulseSnapshot = async (): Promise<any> => {
+// Data candle OHLC — via gateway ke warera-pulse.info (pihak ketiga, BUKAN
+// API resmi WarEra). tf: 'week' | 'month' | dll sesuai yang didukung sumbernya.
+export const getCandleHistory = async (
+  itemCode: string,
+  tf: string = 'week'
+): Promise<{ success: boolean; error: string | null; data: Candle[] }> => {
   try {
-    const response = await axios.get('/api/market/pulse-snapshot');
-    return response.data;
+    const response = await axios.get(`/api/pulse/history/${itemCode}`, { params: { tf } });
+    const candles = Array.isArray(response.data?.candles) ? response.data.candles : [];
+    return { success: true, error: null, data: candles };
   } catch (error: any) {
-    return { success: false, error: error.message, data: null };
-  }
-};
-
-export const getMarketHistory = async (itemCode: string, tf: string = 'week'): Promise<any> => {
-  try {
-    const response = await axios.get(`/api/market/history/${itemCode}`, { params: { tf } });
-    return response.data;
-  } catch (error: any) {
-    return { success: false, error: error.message, data: null };
+    return { success: false, error: error.message, data: [] };
   }
 };

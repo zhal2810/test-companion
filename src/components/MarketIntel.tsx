@@ -155,6 +155,7 @@ interface PriceEntry {
   };
   volumeValue: number;
   volume: any;
+  points?: number[];
   topBuy?: string;
   topSell?: string;
   offerText?: string | null;
@@ -231,6 +232,11 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         change = '—';
       }
 
+      const rawPoints = Array.isArray(statsEntry?.points) ? statsEntry.points : null;
+      const cleanedPoints = rawPoints
+        ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
+        : undefined;
+
       return {
         item: key,
         name: typeof value === 'object' && value && value.name ? value.name : baseName,
@@ -240,6 +246,7 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         changeByRange,
         volumeValue: Number(volume) || 0,
         volume,
+        points: cleanedPoints,
       };
     }).filter(Boolean);
 
@@ -283,25 +290,9 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         });
       }
 
-      let rawPrices = (wareraRes.success && wareraRes.data) ? wareraRes.data : null;
-
-      // If the live API is offline, empty, or fails, we fall back to local JSON stats data
-      if (!rawPrices || Object.keys(rawPrices).length === 0) {
-        console.warn("Live itemTrading.getPrices API failed or returned empty data; falling back to local stats json data.");
-        const fallbackObj: Record<string, any> = {};
-        if (statsRes?.success && Array.isArray(statsRes.data)) {
-          statsRes.data.forEach((item: any) => {
-            fallbackObj[item.itemCode] = {
-              avg: item.avg,
-              vol: item.vol,
-              change: item.change,
-            };
-          });
-        }
-        rawPrices = fallbackObj;
-      }
-
-      const normalized = normalizePrices(rawPrices, previousSnapshot, statsMap);
+      const normalized = (wareraRes.success && wareraRes.data)
+        ? normalizePrices(wareraRes.data, previousSnapshot, statsMap)
+        : [];
 
       const enriched = await Promise.all(normalized.map(async (entry) => {
         try {
@@ -460,7 +451,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
             return (
               <React.Fragment key={entry.item}>
                 {/* Mobile Card Layout (visible only on mobile) */}
-                <div 
+                <div
                   onClick={() => setSelectedItem(entry)}
                   className="sm:hidden bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl transition duration-200 space-y-2.5 cursor-pointer"
                 >
@@ -505,7 +496,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                 </div>
 
                 {/* Desktop Card Layout (visible only on desktop) */}
-                <div 
+                <div
                   onClick={() => setSelectedItem(entry)}
                   className="hidden sm:flex bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-4 rounded-xl items-center justify-between gap-4 transition duration-200 cursor-pointer"
                 >
@@ -561,18 +552,9 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         </div>
       )}
 
-      {/* PRICE CHART MODAL */}
-      <PriceChartModal
-        isOpen={selectedItem !== null}
-        onClose={() => setSelectedItem(null)}
-        itemCode={selectedItem?.item ?? null}
-        itemName={selectedItem?.name ?? ''}
-        currentPrice={selectedItem?.price ?? 0}
-        volume={selectedItem?.volume ?? 0}
-        change24h={selectedItem?.changeByRange?.['24h'] ?? selectedItem?.changeValue ?? 0}
-        topBuy={selectedItem?.topBuy}
-        topSell={selectedItem?.topSell}
-      />
+      {selectedItem && (
+        <PriceChartModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
 
     </div>
   );
