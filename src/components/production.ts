@@ -61,3 +61,52 @@ export function calculateCompanyProduction(comp: any, regionData: any, countryDa
 
   return { totalEfficiency, breakdownNotes };
 }
+
+/**
+ * Hitung dailyProduction (unit/hari) 1 company dari Engine + Worker + bonus,
+ * dikonversi ke unit pakai productionPoints item-nya (BUKAN 1:1).
+ * Helper ini dipakai bareng oleh CompanyListItem (buat display per-card) DAN
+ * parent CompanyAnalysis (buat bangun pool alokasi lintas-company).
+ */
+export function computeCompanyDailyProduction({
+  comp,
+  productionBonus,
+  workers = [],
+  itemsConfig = {},
+}: {
+  comp: any;
+  productionBonus: any;
+  workers?: any[];
+  itemsConfig?: Record<string, any>;
+}) {
+  const aeLevel = Number(comp?.activeUpgradeLevels?.automatedEngine ?? comp?.automatedEngine ?? 0);
+  const basePP = AE_PP_PER_DAY[aeLevel] ?? 0;
+  const bonusPercent = productionBonus?.total || 0;
+  const enginePPWithBonus = basePP * (1 + bonusPercent / 100);
+
+  const workerBreakdowns = (Array.isArray(workers) ? workers : []).map((w: any) => ({
+    ...w,
+    ...calculateWorkerDailyOutput({
+      energyMax: w?.energyValue || 0,
+      productionValue: w?.productionValue || 0,
+      wagePerPP: w?.wage || 0,
+      fidelity: w?.fidelity || 0,
+      companyBonusPercent: bonusPercent,
+    }),
+  }));
+  const workersBoostedPPPerDay = workerBreakdowns.reduce((sum, w) => sum + w.boostedPPPerDay, 0);
+  const workersWagePerDay = workerBreakdowns.reduce((sum, w) => sum + w.wagePerDay, 0);
+  const totalPP = enginePPWithBonus + workersBoostedPPPerDay;
+
+  const itemCode = comp?.itemCode;
+  const itemMeta = itemsConfig?.[itemCode] || {};
+  const ppPerUnit = itemMeta.productionPoints || 1;
+  const dailyProduction = ppPerUnit > 0 ? totalPP / ppPerUnit : 0;
+
+  return {
+    aeLevel, basePP, bonusPercent, enginePPWithBonus,
+    workerBreakdowns, workersBoostedPPPerDay, workersWagePerDay, totalPP,
+    itemCode, itemType: itemMeta.type || 'raw', productionNeeds: itemMeta.productionNeeds || null,
+    ppPerUnit, dailyProduction,
+  };
+}
