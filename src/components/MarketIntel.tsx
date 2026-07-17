@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchWarera, getMarketStats } from '../api/apiClient';
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
-import CurrencyIcon from './CurrencyIcon';
+import PriceChartModal from './Pricechartmodal';
 
 function formatItemName(key: string): string {
   return key
@@ -155,6 +155,7 @@ interface PriceEntry {
   };
   volumeValue: number;
   volume: any;
+  points?: number[];
   topBuy?: string;
   topSell?: string;
   offerText?: string | null;
@@ -231,6 +232,11 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         change = '—';
       }
 
+      const rawPoints = Array.isArray(statsEntry?.points) ? statsEntry.points : null;
+      const cleanedPoints = rawPoints
+        ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
+        : undefined;
+
       return {
         item: key,
         name: typeof value === 'object' && value && value.name ? value.name : baseName,
@@ -240,6 +246,7 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         changeByRange,
         volumeValue: Number(volume) || 0,
         volume,
+        points: cleanedPoints,
       };
     }).filter(Boolean);
 
@@ -258,6 +265,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
   const [sortBy, setSortBy] = useState<'volume' | 'price' | 'change' | 'name'>('price');
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
   const [changeRange, setChangeRange] = useState<'24h' | '7d' | '30d' | '90d' | 'all'>('24h');
+  const [selectedItem, setSelectedItem] = useState<PriceEntry | null>(null);
 
   const loadMarketData = async () => {
     setLoading(true);
@@ -443,7 +451,10 @@ export default function MarketIntel({ token }: MarketIntelProps) {
             return (
               <React.Fragment key={entry.item}>
                 {/* Mobile Card Layout (visible only on mobile) */}
-                <div className="sm:hidden bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl transition duration-200 space-y-2.5">
+                <div
+                  onClick={() => setSelectedItem(entry)}
+                  className="sm:hidden bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl transition duration-200 space-y-2.5 cursor-pointer"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-8 h-8 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
@@ -468,7 +479,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                   <div className="grid grid-cols-3 gap-2 text-left pt-0.5">
                     <div>
                       <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-400">Harga Ticker</span>
-                      <span className="text-xs font-mono font-extrabold text-white flex items-center gap-1">{Number(entry.price).toFixed(2)} <CurrencyIcon /></span>
+                      <span className="text-xs font-mono font-extrabold text-white">{Number(entry.price).toFixed(2)}</span>
                     </div>
                     <div>
                       <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-400">Volume Bursa</span>
@@ -485,7 +496,10 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                 </div>
 
                 {/* Desktop Card Layout (visible only on desktop) */}
-                <div className="hidden sm:flex bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-4 rounded-xl items-center justify-between gap-4 transition duration-200">
+                <div
+                  onClick={() => setSelectedItem(entry)}
+                  className="hidden sm:flex bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-4 rounded-xl items-center justify-between gap-4 transition duration-200 cursor-pointer"
+                >
                   {/* ICON & NAME */}
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
@@ -507,8 +521,8 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                   {/* TICKER PRICE & BID/ASK */}
                   <div className="text-right flex flex-col justify-between h-full py-0.5">
                     <div className="flex items-center justify-end gap-2 mb-1.5">
-                      <span className="text-base font-mono font-bold text-white flex items-center gap-1">
-                        {Number(entry.price).toFixed(2)} <CurrencyIcon className="w-4 h-4 inline-block align-[-3px]" />
+                      <span className="text-base font-mono font-bold text-white">
+                        {Number(entry.price).toFixed(2)}
                       </span>
                       <span className={`text-[10px] font-bold font-mono py-0.5 px-2 rounded-full border ${getChangeBadgeClasses(displayChangeValue)}`}>
                         {displayChangeValue > 0 ? '▲' : displayChangeValue < 0 ? '▼' : '•'} {displayChange}
@@ -536,6 +550,10 @@ export default function MarketIntel({ token }: MarketIntelProps) {
           <AlertCircle className="w-8 h-8 text-slate-600 mb-1" />
           <span>Gagal memuat ticker pasar. Layanan official WarEra API sedang tidak responsif atau proxy terganggu.</span>
         </div>
+      )}
+
+      {selectedItem && (
+        <PriceChartModal item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
 
     </div>
