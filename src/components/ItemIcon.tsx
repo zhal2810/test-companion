@@ -329,7 +329,7 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
-      case 'cookedfish': // Salmon steak / fish slice
+      case 'cookedFish': // Salmon steak / fish slice
         return (
           <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -353,7 +353,7 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
-      case 'lightammo': // Single handgun bullet
+      case 'lightAmmo': // Single handgun bullet
         return (
           <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -410,7 +410,7 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
-      case 'heavyammo': // Triple rifle bullets (Heavy Ammo)
+      case 'heavyAmmo': // Triple rifle bullets (Heavy Ammo)
         return (
           <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
