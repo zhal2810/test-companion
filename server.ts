@@ -5,7 +5,9 @@ import { createServer as createViteServer } from "vite";
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  // Hosting platform (Render/Railway/Fly.io/dll) biasanya inject PORT sendiri
+  // lewat env var — kalau di-hardcode 3000, deploy bakal gagal listen.
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Middleware for parsing body
   app.use(express.json());
