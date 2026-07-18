@@ -12,10 +12,29 @@ export interface ProductionMarginResult {
   missingInputPrices: string[]; // input item codes we couldn't price
 }
 
-// Rata-rata wage per PP di pasar WarEra. Ini ASUMSI, bukan angka pasti —
-// wage riil tiap worker beda-beda (lihat contoh wage 0.132/pp yang pernah
-// kita analisis). Dipakai sebagai estimasi biaya tenaga kerja per unit produksi.
+// Fallback kalau endpoint snapshot tidak tersedia atau format respons berubah.
 export const DEFAULT_AVG_WAGE_PER_PP = 0.13;
+
+export function extractAverageWagePerPP(
+  snapshot: unknown,
+  fallback: number = DEFAULT_AVG_WAGE_PER_PP
+): number {
+  if (!snapshot || typeof snapshot !== 'object') return fallback;
+
+  const root = snapshot as Record<string, unknown>;
+  const data = root.data && typeof root.data === 'object'
+    ? root.data as Record<string, unknown>
+    : root;
+  const wage = data.wage;
+  const allowedRange = wage && typeof wage === 'object'
+    ? (wage as Record<string, unknown>).allowedRange
+    : null;
+  const average = allowedRange && typeof allowedRange === 'object'
+    ? Number((allowedRange as Record<string, unknown>).average)
+    : Number.NaN;
+
+  return Number.isFinite(average) && average > 0 ? average : fallback;
+}
 
 // Ambang batas margin buat menentukan sinyal. Ini juga bisa disesuaikan —
 // bukan angka baku dari game, murni heuristik ekonomi produksi.
