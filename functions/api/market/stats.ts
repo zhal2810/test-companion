@@ -1,15 +1,28 @@
-// Catatan: server.ts versi Express baca file ini pakai fs.readFileSync,
-// tapi Cloudflare Pages Functions jalan di edge runtime TANPA filesystem.
-// Solusinya: import langsung sebagai JSON module, dibundle saat build.
-import stats from "../../../temp_warera_stats.json";
+// functions/api/market/stats.ts
+import { handleLiveMarketStats } from '../../../src/utils/proxyHandler';
 
-export const onRequestGet: PagesFunction = async () => {
-  try {
-    return Response.json({ success: true, data: stats });
-  } catch (err: any) {
-    return Response.json(
-      { success: false, error: "Gagal membaca statistik pasar", detail: err.message },
-      { status: 500 }
-    );
+export const onRequest: PagesFunction = async (context) => {
+  const { request } = context;
+  
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': 'https://test-companion.pages.dev', // Ganti dengan domain Anda
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    });
   }
+
+  // Panggil fungsi market stats live
+  const result = await handleLiveMarketStats();
+
+  return new Response(JSON.stringify(result.payload), {
+    status: result.status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': 'https://test-companion.pages.dev', // Ganti dengan domain Anda
+    },
+  });
 };
