@@ -3,8 +3,8 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { X, TrendingUp, TrendingDown } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
-import { getCandleHistory, Candle } from '../api/apiClient';
-import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP } from '../utils/signalEngine';
+import { getCandleHistory, Candle, getItemStats } from '../api/apiClient';
+import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP } from '../utils/signalEngine';
 
 interface PriceChartModalProps {
   item: {
@@ -34,6 +34,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [orderBookRaw, setOrderBookRaw] = useState<{ buy: { price: number; quantity: number }[]; sell: { price: number; quantity: number }[] } | null>(null);
+  const [orderBookError, setOrderBookError] = useState('');
 
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
@@ -65,6 +67,27 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
       cancelled = true;
     };
   }, [item.item, tf]);
+
+  // Order book (bid/ask) — dipakai buat konfirmasi sinyal margin produksi.
+  // Fetch sekali per item, tidak bergantung pada timeframe chart.
+  useEffect(() => {
+    let cancelled = false;
+    setOrderBookError('');
+    setOrderBookRaw(null);
+
+    getItemStats(item.item).then((res) => {
+      if (cancelled) return;
+      if (res.success && res.data?.orderbook) {
+        setOrderBookRaw(res.data.orderbook);
+      } else {
+        setOrderBookError(res.error || 'Order book tidak tersedia');
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item.item]);
 
   // Sort candles chronologically to guarantee correct first/last selection
   const sortedCandles = React.useMemo(() => {
@@ -102,9 +125,22 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     () => calculateProductionMargin(item.item, priceMap, avgWagePerPP),
     [item.item, priceMap, avgWagePerPP]
   );
+
+  const orderBookImbalance = React.useMemo(() => {
+    if (!orderBookRaw) return null;
+    const referencePrice = displayPrice || item.price;
+    if (!referencePrice || referencePrice <= 0) return null;
+
+    const orders = [
+      ...orderBookRaw.buy.map((o) => ({ type: 'buy' as const, price: o.price, quantity: o.quantity })),
+      ...orderBookRaw.sell.map((o) => ({ type: 'sell' as const, price: o.price, quantity: o.quantity })),
+    ];
+    return calculateOrderBookImbalance(orders, referencePrice);
+  }, [orderBookRaw, displayPrice, item.price]);
+
   const signalResult = React.useMemo(
-    () => computeTradeSignal(marginResult, null),
-    [marginResult]
+    () => computeTradeSignal(marginResult, orderBookImbalance),
+    [marginResult, orderBookImbalance]
   );
 
   const signalStyle = {
@@ -217,6 +253,25 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             </div>
           ) : null}
 
+          {orderBookImbalance && (
+            <div className="grid grid-cols-3 gap-2.5 mb-2.5 text-xs">
+              <div>
+                <div className="text-[9px] uppercase text-slate-500 font-bold">Bid Volume</div>
+                <div className="font-mono font-bold text-emerald-400">{orderBookImbalance.bidVolume.toLocaleString('id-ID')}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-slate-500 font-bold">Ask Volume</div>
+                <div className="font-mono font-bold text-rose-400">{orderBookImbalance.askVolume.toLocaleString('id-ID')}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-slate-500 font-bold">Bid/Ask Ratio</div>
+                <div className="font-mono font-bold text-slate-300">
+                  {Number.isFinite(orderBookImbalance.imbalanceRatio) ? orderBookImbalance.imbalanceRatio.toFixed(2) : '∞'}
+                </div>
+              </div>
+            </div>
+          )}
+
           <ul className="space-y-1">
             {signalResult.reasons.map((reason, idx) => (
               <li key={idx} className="text-[11px] text-slate-500 flex gap-1.5">
@@ -227,8 +282,12 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           </ul>
 
           <div className="text-[10px] text-slate-600 mt-2">
-            ⚠️ Ini bukan saran finansial — estimasi memakai wage rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP dari snapshot WarEra Pulse.
-            Order book belum ikut dipertimbangkan di versi ini.
+            ⚠️ Ini bukan saran finansial — estimasi biaya produksi memakai wage rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP dari snapshot WarEra Pulse.
+            {orderBookRaw
+              ? ' Order book (via warerastats.io) sudah ikut dipertimbangkan sebagai konfirmasi.'
+              : orderBookError
+                ? ` Order book gagal dimuat (${orderBookError}) — sinyal ini murni dari margin produksi.`
+                : ' Memuat order book…'}
           </div>
         </div>
 

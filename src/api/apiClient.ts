@@ -219,3 +219,31 @@ export const getCandleHistory = async (
     return { success: false, error: error.message, data: [] };
   }
 };
+
+export interface OrderBookLevel {
+  price: number;
+  quantity: number;
+}
+export interface ItemStats {
+  price: number;
+  averagePrice: number;
+  low: number;
+  high: number;
+  volume: number;
+  effectivePrices?: Record<string, { buy: number; sell: number }>;
+  orderbook?: { buy: OrderBookLevel[]; sell: OrderBookLevel[] };
+}
+
+// Order book + effectivePrices per item — via gateway ke api.warerastats.io
+// (pihak ketiga, BUKAN API resmi WarEra).
+export const getItemStats = async (
+  itemCode: string
+): Promise<{ success: boolean; error: string | null; data: ItemStats | null }> => {
+  try {
+    const response = await axios.get(`/api/stats/item/${itemCode}`);
+    if (!response.data?.success) throw new Error(response.data?.error || 'Gagal mengambil data item');
+    return { success: true, error: null, data: response.data.data as ItemStats };
+  } catch (err: any) {
+    return { success: false, error: err.message, data: null };
+  }
+};

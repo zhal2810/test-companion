@@ -153,7 +153,7 @@ async function startServer() {
       const { tf = "week" } = req.query; // 'day', 'week', 'month'
       const targetUrl = `https://www.warera-pulse.info/api/history/${itemCode.toLowerCase()}?tf=${tf}`;
       const response = await fetch(targetUrl);
-      const json = await response.json();
+      const json = await response.json() as Record<string, any>; 
       res.json({ success: true, ...json, data: json?.candles || json });
     } catch (err: any) {
       console.error(`[Proxy Error] Failed to fetch market history for ${req.params.itemCode}:`, err);
@@ -177,6 +177,33 @@ async function startServer() {
       res.status(502).json({
         success: false,
         error: "Gagal mengambil data snapshot",
+        detail: err.message,
+      });
+    }
+  });
+
+  // Data order book & effectivePrices per item — via gateway ke
+  // api.warerastats.io (pihak ketiga, BUKAN API resmi WarEra).
+  app.get("/api/stats/item/:item", async (req, res) => {
+    const item = req.params.item;
+    try {
+      const targetUrl = `https://api.warerastats.io/item/${encodeURIComponent(item)}`;
+      const response = await fetch(targetUrl, {
+        headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
+      });
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          error: `api.warerastats.io merespons status ${response.status}`,
+        });
+      }
+      const data = await response.json();
+      res.json({ success: true, data });
+    } catch (err: any) {
+      console.error("[Proxy Error] Failed to fetch warerastats item:", err);
+      res.status(502).json({
+        success: false,
+        error: "Gagal mengambil data dari api.warerastats.io",
         detail: err.message,
       });
     }
