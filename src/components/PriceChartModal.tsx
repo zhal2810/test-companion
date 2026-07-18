@@ -4,7 +4,7 @@ import { X, TrendingUp, TrendingDown } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
 import { getCandleHistory, Candle } from '../api/apiClient';
-import { calculateProductionMargin, computeTradeSignal } from '../utils/signalEngine';
+import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP } from '../utils/signalEngine';
 
 interface PriceChartModalProps {
   item: {
@@ -19,6 +19,7 @@ interface PriceChartModalProps {
   };
   onClose: () => void;
   priceMap?: Record<string, number>;
+  avgWagePerPP?: number;
 }
 
 function formatVolume(value: any): string {
@@ -27,7 +28,7 @@ function formatVolume(value: any): string {
   return Math.round(num).toLocaleString('id-ID');
 }
 
-export default function PriceChartModal({ item, onClose, priceMap = {} }: PriceChartModalProps) {
+export default function PriceChartModal({ item, onClose, priceMap = {}, avgWagePerPP }: PriceChartModalProps) {
   const [chartView, setChartView] = React.useState<'line' | 'candle'>('candle');
   const [tf, setTf] = useState('week');
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -98,8 +99,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {} }: PriceC
   const usingFallback = !hasCandles && !loading;
 
   const marginResult = React.useMemo(
-    () => calculateProductionMargin(item.item, priceMap),
-    [item.item, priceMap]
+    () => calculateProductionMargin(item.item, priceMap, avgWagePerPP),
+    [item.item, priceMap, avgWagePerPP]
   );
   const signalResult = React.useMemo(
     () => computeTradeSignal(marginResult, null),
@@ -226,7 +227,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {} }: PriceC
           </ul>
 
           <div className="text-[10px] text-slate-600 mt-2">
-            ⚠️ Ini bukan saran finansial — cuma estimasi dari biaya bahan baku + asumsi wage rata-rata (0.13 cc/PP).
+            ⚠️ Ini bukan saran finansial — estimasi memakai wage rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP dari snapshot WarEra Pulse.
             Order book belum ikut dipertimbangkan di versi ini.
           </div>
         </div>

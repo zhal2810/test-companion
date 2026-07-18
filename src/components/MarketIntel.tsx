@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { fetchWarera, getMarketStats } from '../api/apiClient';
+import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient';
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import PriceChartModal from './PriceChartModal';
-import { calculateProductionMargin, computeTradeSignal, type TradeSignal } from '../utils/signalEngine';
+import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
 
 function formatItemName(key: string): string {
   return key
@@ -281,6 +281,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
   const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
   const [changeRange, setChangeRange] = useState<'24h' | '7d' | '30d' | '90d' | 'all'>('24h');
   const [selectedItem, setSelectedItem] = useState<PriceEntry | null>(null);
+  const [averageWagePerPP, setAverageWagePerPP] = useState(DEFAULT_AVG_WAGE_PER_PP);
 
   const loadMarketData = async () => {
     setLoading(true);
@@ -293,10 +294,15 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         }
       })();
 
-      const [wareraRes, statsRes] = await Promise.all([
+      const [wareraRes, statsRes, snapshotRes] = await Promise.all([
         fetchWarera('itemTrading.getPrices', {}),
-        getMarketStats().catch(() => null)
+        getMarketStats().catch(() => null),
+        getMarketSnapshot().catch(() => null),
       ]);
+
+      if (snapshotRes?.success) {
+        setAverageWagePerPP(extractAverageWagePerPP(snapshotRes.data));
+      }
 
       const statsMap: Record<string, any> = {};
       if (statsRes?.success && Array.isArray(statsRes.data)) {
@@ -468,7 +474,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
             const displayChangeValue = getDisplayChangeValue(entry);
             const displayChange = formatChange(displayChangeValue);
 
-            const marginResult = calculateProductionMargin(entry.item, priceMap);
+            const marginResult = calculateProductionMargin(entry.item, priceMap, averageWagePerPP);
             const signalResult = computeTradeSignal(marginResult, null);
 
             return (
@@ -578,7 +584,12 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       )}
 
       {selectedItem && (
-        <PriceChartModal item={selectedItem} onClose={() => setSelectedItem(null)} priceMap={priceMap} />
+        <PriceChartModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          priceMap={priceMap}
+          avgWagePerPP={averageWagePerPP}
+        />
       )}
 
     </div>

@@ -164,6 +164,19 @@ export const getMarketStats = async (): Promise<any> => {
   }
 };
 
+export const getMarketSnapshot = async (): Promise<{ success: boolean; error: string | null; data: any }> => {
+  try {
+    const response = await axios.get('/api/market/pulse-snapshot');
+    return {
+      success: response.data?.success !== false,
+      error: null,
+      data: response.data?.data ?? response.data,
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message, data: null };
+  }
+};
+
 export const getItemPrices = async (): Promise<{ success: boolean; error: string | null; data: Record<string, number> }> => {
   try {
     const res = await fetchWarera('itemTrading.getPrices', {});
