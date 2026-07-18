@@ -93,12 +93,15 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
 
   const isUp = displayChange >= 0;
 
+  const usingFallback = !hasCandles && !loading;
+
   const tfLabel = React.useMemo(() => {
+    if (usingFallback) return 'All-time, data candle kosong';
     if (tf === 'day') return '1 Hari';
     if (tf === 'week') return '1 Minggu';
     if (tf === 'month') return '1 Bulan';
     return 'Rentang Waktu';
-  }, [tf]);
+  }, [tf, usingFallback]);
 
   return (
     <div
@@ -132,21 +135,36 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 border-b border-slate-800/60">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Harga Saat Ini</div>
-            <div className="text-lg font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
+            {loading && !hasCandles ? (
+              <div className="h-6 w-20 bg-slate-800/60 rounded animate-pulse" />
+            ) : (
+              <div className="text-lg font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
+            )}
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Perubahan ({tfLabel})</div>
-            <div className={`text-lg font-mono font-black flex items-center gap-1 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              {isUp ? '+' : ''}{displayChange.toFixed(2)}%
-            </div>
+            {loading && !hasCandles ? (
+              <div className="h-6 w-16 bg-slate-800/60 rounded animate-pulse" />
+            ) : (
+              <div className={`text-lg font-mono font-black flex items-center gap-1 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                {isUp ? '+' : ''}{displayChange.toFixed(2)}%
+              </div>
+            )}
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Tertinggi / Terendah</div>
-            <div className="text-sm font-mono font-bold text-slate-300">{displayHigh.toFixed(3)} / {displayLow.toFixed(3)}</div>
+            {loading && !hasCandles ? (
+              <div className="h-5 w-24 bg-slate-800/60 rounded animate-pulse" />
+            ) : (
+              <div className="text-sm font-mono font-bold text-slate-300">{displayHigh.toFixed(3)} / {displayLow.toFixed(3)}</div>
+            )}
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Volume</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1 flex items-center gap-1">
+              Volume
+              <span className="text-slate-600 normal-case font-normal">(snapshot, bukan per-rentang)</span>
+            </div>
             <div className="text-sm font-mono font-bold text-slate-300">{formatVolume(item.volume)}</div>
           </div>
         </div>
