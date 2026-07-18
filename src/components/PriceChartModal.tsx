@@ -4,6 +4,7 @@ import { X, TrendingUp, TrendingDown } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
 import { getCandleHistory, Candle } from '../api/apiClient';
+import { calculateProductionMargin, computeTradeSignal } from '../utils/signalEngine';
 
 interface PriceChartModalProps {
   item: {
@@ -17,6 +18,7 @@ interface PriceChartModalProps {
     topSell?: string;
   };
   onClose: () => void;
+  priceMap?: Record<string, number>;
 }
 
 function formatVolume(value: any): string {
@@ -25,7 +27,7 @@ function formatVolume(value: any): string {
   return Math.round(num).toLocaleString('id-ID');
 }
 
-export default function PriceChartModal({ item, onClose }: PriceChartModalProps) {
+export default function PriceChartModal({ item, onClose, priceMap = {} }: PriceChartModalProps) {
   const [chartView, setChartView] = React.useState<'line' | 'candle'>('candle');
   const [tf, setTf] = useState('week');
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -94,6 +96,21 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
   const isUp = displayChange >= 0;
 
   const usingFallback = !hasCandles && !loading;
+
+  const marginResult = React.useMemo(
+    () => calculateProductionMargin(item.item, priceMap),
+    [item.item, priceMap]
+  );
+  const signalResult = React.useMemo(
+    () => computeTradeSignal(marginResult, null),
+    [marginResult]
+  );
+
+  const signalStyle = {
+    buy: { label: 'BUY', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+    sell: { label: 'SELL', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
+    hold: { label: 'HOLD', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
+  }[signalResult.signal];
 
   const tfLabel = React.useMemo(() => {
     if (usingFallback) return 'All-time, data candle kosong';
@@ -166,6 +183,51 @@ export default function PriceChartModal({ item, onClose }: PriceChartModalProps)
               <span className="text-slate-600 normal-case font-normal">(snapshot, bukan per-rentang)</span>
             </div>
             <div className="text-sm font-mono font-bold text-slate-300">{formatVolume(item.volume)}</div>
+          </div>
+        </div>
+
+        {/* SINYAL BUY/SELL/HOLD — berbasis margin ekonomi produksi */}
+        <div className="p-5 border-b border-slate-800/60">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className={`text-xs font-black px-2.5 py-1 rounded-full border uppercase tracking-wider ${signalStyle.className}`}>
+              {signalStyle.label}
+            </span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+              Sinyal berbasis ekonomi produksi
+            </span>
+          </div>
+
+          {marginResult ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-2.5 text-xs">
+              <div>
+                <div className="text-[9px] uppercase text-slate-500 font-bold">Cost/Unit</div>
+                <div className="font-mono font-bold text-slate-300">{marginResult.costPerUnit.toFixed(3)}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-slate-500 font-bold">Harga Pasar</div>
+                <div className="font-mono font-bold text-slate-300">{marginResult.marketPrice.toFixed(3)}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-slate-500 font-bold">Margin</div>
+                <div className={`font-mono font-bold ${marginResult.marginPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {marginResult.marginPercent >= 0 ? '+' : ''}{marginResult.marginPercent.toFixed(1)}%
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <ul className="space-y-1">
+            {signalResult.reasons.map((reason, idx) => (
+              <li key={idx} className="text-[11px] text-slate-500 flex gap-1.5">
+                <span>•</span>
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="text-[10px] text-slate-600 mt-2">
+            ⚠️ Ini bukan saran finansial — cuma estimasi dari biaya bahan baku + asumsi wage rata-rata (0.13 cc/PP).
+            Order book belum ikut dipertimbangkan di versi ini.
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { fetchWarera, getMarketStats } from '../api/apiClient';
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import PriceChartModal from './PriceChartModal';
+import { calculateProductionMargin, computeTradeSignal, type TradeSignal } from '../utils/signalEngine';
 
 function formatItemName(key: string): string {
   return key
@@ -259,6 +260,20 @@ interface MarketIntelProps {
   token: string | null;
 }
 
+function SignalBadge({ signal }: { signal: TradeSignal }) {
+  const config = {
+    buy: { label: 'Buy', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+    sell: { label: 'Sell', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
+    hold: { label: 'Hold', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
+  }[signal];
+
+  return (
+    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${config.className}`}>
+      {config.label}
+    </span>
+  );
+}
+
 export default function MarketIntel({ token }: MarketIntelProps) {
   const [prices, setPrices] = useState<PriceEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -338,6 +353,11 @@ export default function MarketIntel({ token }: MarketIntelProps) {
     const value = entry?.changeByRange?.[changeRange];
     return value === null || value === undefined ? entry?.changeValue ?? 0 : Number(value);
   };
+
+  const priceMap = React.useMemo(
+    () => Object.fromEntries(priceEntries.map((e) => [e.item, Number(e.price)])),
+    [priceEntries]
+  );
 
   const sortedEntries = [...priceEntries].sort((a, b) => {
     let comparison = 0;
@@ -448,6 +468,9 @@ export default function MarketIntel({ token }: MarketIntelProps) {
             const displayChangeValue = getDisplayChangeValue(entry);
             const displayChange = formatChange(displayChangeValue);
 
+            const marginResult = calculateProductionMargin(entry.item, priceMap);
+            const signalResult = computeTradeSignal(marginResult, null);
+
             return (
               <React.Fragment key={entry.item}>
                 {/* Mobile Card Layout (visible only on mobile) */}
@@ -464,8 +487,9 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                         <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
                           {entry.item}
                         </span>
-                        <span className="text-xs font-bold text-white leading-tight block truncate">
+                        <span className="text-xs font-bold text-white leading-tight flex items-center gap-1.5 truncate">
                           {entry.name}
+                          <SignalBadge signal={signalResult.signal} />
                         </span>
                       </div>
                     </div>
@@ -509,8 +533,9 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                       <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                         {entry.item}
                       </span>
-                      <span className="text-sm font-bold text-white leading-tight">
+                      <span className="text-sm font-bold text-white leading-tight flex items-center gap-1.5">
                         {entry.name}
+                        <SignalBadge signal={signalResult.signal} />
                       </span>
                       <span className="block text-[10.5px] text-slate-500 mt-1 font-mono">
                         Vol: {formatVolume(entry.volume)}
@@ -553,7 +578,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       )}
 
       {selectedItem && (
-        <PriceChartModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+        <PriceChartModal item={selectedItem} onClose={() => setSelectedItem(null)} priceMap={priceMap} />
       )}
 
     </div>
