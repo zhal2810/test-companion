@@ -36,7 +36,7 @@ export const GAME_ITEMS: Record<string, GameItem> = {
   },
   iron: {
     code: 'iron',
-    name: 'Iron Ore',
+    name: 'Iron',
     type: 'raw',
     rarity: 'common',
     productionPoints: 1,
@@ -162,7 +162,7 @@ export const GAME_ITEMS: Record<string, GameItem> = {
   },
   oil: {
     code: 'oil',
-    name: 'Refined Oil',
+    name: 'Oil',
     type: 'product',
     rarity: 'uncommon',
     productionPoints: 1,
