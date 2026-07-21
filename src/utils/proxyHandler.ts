@@ -47,10 +47,11 @@ export async function handleWareraProxy(req: ProxyRequest) {
 export async function handleLiveMarketStats() {
   try {
     // Mengambil data real-time langsung dari API mirror pihak ketiga
-    const response = await fetch('https://warerastats.io/items', {
+    const response = await fetch('https://api.warerastats.io/items', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)'
       },
     });
 
