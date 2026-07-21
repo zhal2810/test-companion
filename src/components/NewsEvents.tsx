@@ -202,8 +202,8 @@ function getFriendlyItemName(itemCode: string): string {
     ammo: 'Ammo',
     heavyammo: 'Heavy Ammo',
     heavyAmmo: 'Heavy Ammo',
-    case1: 'Case 1',
-    case2: 'Case 2',
+    case1: 'Case',
+    case2: 'Elite Case',
   };
   return mapping[itemCode] || mapping[itemCode.toLowerCase()] || itemCode;
 }
