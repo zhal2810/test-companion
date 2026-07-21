@@ -4,7 +4,7 @@ import { X, TrendingUp, TrendingDown } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
 import { getCandleHistory, Candle, getItemStats } from '../api/apiClient';
-import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP } from '../utils/signalEngine';
+import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
 
 interface PriceChartModalProps {
   item: {
@@ -149,6 +149,17 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     hold: { label: 'HOLD', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
   }[signalResult.signal];
 
+  const technicalSignalResult = React.useMemo(
+    () => computeTechnicalSignal(candles),
+    [candles]
+  );
+
+  const techSignalStyle = {
+    buy: { label: 'BUY', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+    sell: { label: 'SELL', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
+    hold: { label: 'HOLD', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
+  }[technicalSignalResult.signal];
+
   const tfLabel = React.useMemo(() => {
     if (usingFallback) return 'All-time, data candle kosong';
     if (tf === 'day') return '1 Hari';
@@ -223,68 +234,156 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           </div>
         </div>
 
-        {/* SINYAL BUY/SELL/HOLD — berbasis margin ekonomi produksi */}
-        <div className="p-5 border-b border-slate-800/60">
-          <div className="flex items-center gap-2 mb-2.5">
-            <span className={`text-xs font-black px-2.5 py-1 rounded-full border uppercase tracking-wider ${signalStyle.className}`}>
-              {signalStyle.label}
-            </span>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-              Sinyal berbasis ekonomi produksi
-            </span>
+        {/* SINYAL EKONOMI & TEKNIKAL - DUAL ENGINE */}
+        <div className="p-5 border-b border-slate-800/60 bg-slate-900/10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            
+            {/* COLUMN 1: FUNDAMENTAL/EKONOMI PRODUKSI */}
+            <div className="border border-slate-800/50 bg-[#0E1017] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3 border-b border-slate-800/60 pb-2">
+                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                  Ekonomi Produksi
+                </span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${signalStyle.className}`}>
+                  {signalStyle.label}
+                </span>
+              </div>
+              
+              {marginResult ? (
+                <div className="grid grid-cols-3 gap-2 mb-3 text-[11px]">
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Cost/Unit</div>
+                    <div className="font-mono font-bold text-slate-300">{marginResult.costPerUnit.toFixed(3)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Harga Pasar</div>
+                    <div className="font-mono font-bold text-slate-300">{marginResult.marketPrice.toFixed(3)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Margin</div>
+                    <div className={`font-mono font-bold ${marginResult.marginPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {marginResult.marginPercent >= 0 ? '+' : ''}{marginResult.marginPercent.toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {orderBookImbalance && (
+                <div className="grid grid-cols-3 gap-2 mb-3 text-[11px] border-t border-slate-800/30 pt-2">
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Bid Vol</div>
+                    <div className="font-mono font-bold text-emerald-400">{orderBookImbalance.bidVolume.toLocaleString('id-ID')}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Ask Vol</div>
+                    <div className="font-mono font-bold text-rose-400">{orderBookImbalance.askVolume.toLocaleString('id-ID')}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">Ratio</div>
+                    <div className="font-mono font-bold text-slate-300">
+                      {Number.isFinite(orderBookImbalance.imbalanceRatio) ? orderBookImbalance.imbalanceRatio.toFixed(2) : '∞'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <ul className="space-y-1 mt-2">
+                {signalResult.reasons.map((reason, idx) => (
+                  <li key={idx} className="text-[10px] text-slate-500 flex gap-1.5 leading-relaxed">
+                    <span>•</span>
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* COLUMN 2: ANALISIS TEKNIKAL (MA & RSI) */}
+            <div className="border border-slate-800/50 bg-[#0E1017] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3 border-b border-slate-800/60 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                    Teknikal (MA & RSI)
+                  </span>
+                  <span className="text-[9px] bg-slate-800 text-slate-400 px-1 py-0.2 rounded font-mono font-bold uppercase">
+                    {tf === 'week' ? '1M' : '1B'}
+                  </span>
+                </div>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${techSignalStyle.className}`}>
+                  {techSignalStyle.label}
+                </span>
+              </div>
+
+              {technicalSignalResult.hasSufficientData ? (
+                <div className="grid grid-cols-3 gap-2 mb-3 text-[11px]">
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">MA9 / MA21</div>
+                    <div className="font-mono font-bold text-slate-300">
+                      {technicalSignalResult.ma9.toFixed(3)} / {technicalSignalResult.ma21.toFixed(3)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">MA20 Trend</div>
+                    <div className={`font-mono font-bold ${technicalSignalResult.trend === 'uptrend' ? 'text-emerald-400' : technicalSignalResult.trend === 'downtrend' ? 'text-rose-400' : 'text-slate-400'}`}>
+                      {technicalSignalResult.ma20.toFixed(3)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase text-slate-500 font-bold">RSI (14)</div>
+                    <div className={`font-mono font-bold ${technicalSignalResult.rsi > 70 ? 'text-rose-400 font-black animate-pulse' : technicalSignalResult.rsi < 30 ? 'text-emerald-400 font-black' : 'text-slate-300'}`}>
+                      {technicalSignalResult.rsi.toFixed(1)}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[10px] text-slate-500 bg-slate-900/40 p-2.5 rounded border border-slate-800/40 text-center mb-3">
+                  Data candle tidak cukup untuk menghitung indikator teknikal (minimal butuh 22 candle).
+                </div>
+              )}
+
+              <ul className="space-y-1 mt-2">
+                {technicalSignalResult.reasons.map((reason, idx) => (
+                  <li key={idx} className="text-[10px] text-slate-500 flex gap-1.5 leading-relaxed">
+                    <span>•</span>
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
           </div>
 
-          {marginResult ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-2.5 text-xs">
-              <div>
-                <div className="text-[9px] uppercase text-slate-500 font-bold">Cost/Unit</div>
-                <div className="font-mono font-bold text-slate-300">{marginResult.costPerUnit.toFixed(3)}</div>
+          {/* OVERALL CROSS-CONFIRMATION ACTIONABLE RECOMMENDATION */}
+          <div className="mt-4 p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            <div className="w-full">
+              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-black">
+                Konfirmasi Silang (Dual Engine Planner)
               </div>
-              <div>
-                <div className="text-[9px] uppercase text-slate-500 font-bold">Harga Pasar</div>
-                <div className="font-mono font-bold text-slate-300">{marginResult.marketPrice.toFixed(3)}</div>
-              </div>
-              <div>
-                <div className="text-[9px] uppercase text-slate-500 font-bold">Margin</div>
-                <div className={`font-mono font-bold ${marginResult.marginPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {marginResult.marginPercent >= 0 ? '+' : ''}{marginResult.marginPercent.toFixed(1)}%
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {orderBookImbalance && (
-            <div className="grid grid-cols-3 gap-2.5 mb-2.5 text-xs">
-              <div>
-                <div className="text-[9px] uppercase text-slate-500 font-bold">Bid Volume</div>
-                <div className="font-mono font-bold text-emerald-400">{orderBookImbalance.bidVolume.toLocaleString('id-ID')}</div>
-              </div>
-              <div>
-                <div className="text-[9px] uppercase text-slate-500 font-bold">Ask Volume</div>
-                <div className="font-mono font-bold text-rose-400">{orderBookImbalance.askVolume.toLocaleString('id-ID')}</div>
-              </div>
-              <div>
-                <div className="text-[9px] uppercase text-slate-500 font-bold">Bid/Ask Ratio</div>
-                <div className="font-mono font-bold text-slate-300">
-                  {Number.isFinite(orderBookImbalance.imbalanceRatio) ? orderBookImbalance.imbalanceRatio.toFixed(2) : '∞'}
-                </div>
+              <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                {signalResult.signal === 'buy' && technicalSignalResult.signal === 'buy' ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                    🔥 SINYAL KONFIRMASI BELI KUAT: Kedua engine memberikan rekomendasi BUY. Margin produksi sangat tipis/negatif (pasokan ketat) didukung momentum pembalikan arah MA & RSI.
+                  </span>
+                ) : signalResult.signal === 'sell' && technicalSignalResult.signal === 'sell' ? (
+                  <span className="text-rose-400 font-bold flex items-center gap-1.5">
+                    🚨 SINYAL KONFIRMASI JUAL KUAT: Kedua engine memberikan rekomendasi SELL. Margin produksi sangat tinggi (potensi lonjakan suplai) didukung jenuh beli teknikal.
+                  </span>
+                ) : (signalResult.signal === 'buy' && technicalSignalResult.signal === 'sell') || (signalResult.signal === 'sell' && technicalSignalResult.signal === 'buy') ? (
+                  <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                    ⚠️ SINYAL KONTRADIKTIF: Engine ekonomi dan teknikal saling bertolak belakang. Sangat disarankan HOLD atau tunggu konfirmasi momentum lebih lanjut untuk keamanan modal.
+                  </span>
+                ) : (
+                  <span className="text-slate-400">
+                    Sinyal bercampur atau salah satu menyarankan HOLD. Ambil tindakan dengan hati-hati sesuai dengan toleransi risiko Anda.
+                  </span>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
-          <ul className="space-y-1">
-            {signalResult.reasons.map((reason, idx) => (
-              <li key={idx} className="text-[11px] text-slate-500 flex gap-1.5">
-                <span>•</span>
-                <span>{reason}</span>
-              </li>
-            ))}
-          </ul>
-
-          <div className="text-[10px] text-slate-600 mt-2">
-            ⚠️ Ini bukan saran finansial — estimasi biaya produksi memakai wage rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP dari snapshot WarEra Pulse.
+          <div className="text-[9px] text-slate-600 mt-3">
+            ⚠️ Ini bukan saran finansial — biaya produksi memakai upah rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP dari snapshot WarEra Pulse.
             {orderBookRaw
-              ? ' Order book (via warerastats.io) sudah ikut dipertimbangkan sebagai konfirmasi.'
+              ? ' Order book (via warerastats.io) sudah ikut dipertimbangkan sebagai konfirmasi ekonomi.'
               : orderBookError
                 ? ` Order book gagal dimuat (${orderBookError}) — sinyal ini murni dari margin produksi.`
                 : ' Memuat order book…'}

@@ -44,7 +44,7 @@ export const GAME_ITEMS: Record<string, GameItem> = {
   },
   coca: {
     code: 'coca',
-    name: 'Coca Leaves',
+    name: 'Mysterious Plant',
     type: 'raw',
     rarity: 'common',
     productionPoints: 1,
@@ -153,7 +153,7 @@ export const GAME_ITEMS: Record<string, GameItem> = {
   },
   cocain: {
     code: 'cocain',
-    name: 'Cocaine',
+    name: 'Pill',
     type: 'product',
     rarity: 'epic',
     productionPoints: 200,
