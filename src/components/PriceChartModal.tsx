@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { X, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
+import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction } from '../api/apiClient';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
 
@@ -219,7 +220,9 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
               <ItemIcon itemCode={item.item} size="md" />
             </div>
             <div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{item.item}</div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                {(GAME_ITEMS[item.item] || GAME_ITEMS[item.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
+              </div>
               <div className="text-base font-bold text-white">{item.name}</div>
             </div>
           </div>

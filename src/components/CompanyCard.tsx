@@ -12,7 +12,7 @@ interface CompanyCardProps {
 }
 
 export default function CompanyCard({ company, globalSettings, onUpdate, onDelete }: CompanyCardProps) {
-  const itemConfig = GAME_ITEMS[company.itemCode];
+  const itemConfig = GAME_ITEMS[company.itemCode] || GAME_ITEMS[company.itemCode.toLowerCase()];
   const prodResult = calculateCompanyProduction(company, globalSettings);
 
   const handleFieldChange = (key: keyof Company, value: any) => {
@@ -229,7 +229,7 @@ export default function CompanyCard({ company, globalSettings, onUpdate, onDelet
             <div className="text-[10px] text-slate-500 font-semibold mb-1 uppercase tracking-wider">Required Inputs:</div>
             <div className="flex flex-col gap-1">
               {prodResult.inputsNeeded.map((inp) => {
-                const reqItem = GAME_ITEMS[inp.itemCode];
+                const reqItem = GAME_ITEMS[inp.itemCode] || GAME_ITEMS[inp.itemCode.toLowerCase()];
                 return (
                   <div key={inp.itemCode} className="flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-1">

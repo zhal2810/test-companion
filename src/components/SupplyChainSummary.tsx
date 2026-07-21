@@ -37,8 +37,8 @@ export default function SupplyChainSummary({ companies, globalSettings }: Supply
 
   const activeNodesList = Object.values(activeNodes).sort((a, b) => {
     // Sort raw materials first, then products
-    const itemA = GAME_ITEMS[a.itemCode];
-    const itemB = GAME_ITEMS[b.itemCode];
+    const itemA = GAME_ITEMS[a.itemCode] || GAME_ITEMS[a.itemCode.toLowerCase()];
+    const itemB = GAME_ITEMS[b.itemCode] || GAME_ITEMS[b.itemCode.toLowerCase()];
     if (itemA?.type !== itemB?.type) {
       return itemA?.type === 'raw' ? -1 : 1;
     }
@@ -120,7 +120,7 @@ export default function SupplyChainSummary({ companies, globalSettings }: Supply
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Item Balance Dashboard</h3>
             <div className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1">
               {activeNodesList.map((node) => {
-                const item = GAME_ITEMS[node.itemCode];
+                const item = GAME_ITEMS[node.itemCode] || GAME_ITEMS[node.itemCode.toLowerCase()];
                 const isProduct = item?.type === 'product';
                 const hasDeficit = node.net < -0.001;
 
@@ -224,7 +224,7 @@ export default function SupplyChainSummary({ companies, globalSettings }: Supply
             <div className="flex flex-col gap-4 max-h-[480px] overflow-y-auto">
               {activeCompanyResults.map((res) => {
                 const companyObj = companies.find(c => c.id === res.companyId);
-                const item = GAME_ITEMS[res.itemCode];
+                const item = GAME_ITEMS[res.itemCode] || GAME_ITEMS[res.itemCode.toLowerCase()];
                 if (!item) return null;
 
                 const isProduct = item.type === 'product';
@@ -243,7 +243,7 @@ export default function SupplyChainSummary({ companies, globalSettings }: Supply
                         <div className="flex-1 flex flex-col gap-1">
                           <span className="text-[10px] text-slate-500 font-semibold uppercase">Needs</span>
                           {Object.entries(item.productionNeeds).map(([rawCode, ratio]) => {
-                            const rawItem = GAME_ITEMS[rawCode];
+                            const rawItem = GAME_ITEMS[rawCode] || GAME_ITEMS[rawCode.toLowerCase()];
                             const rawDemand = res.producedQty * ratio;
                             const isMet = (activeNodes[rawCode]?.produced ?? 0) >= (activeNodes[rawCode]?.consumed ?? 0);
                             

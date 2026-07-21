@@ -494,7 +494,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                       </div>
                       <div className="min-w-0">
                         <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
-                          {entry.item}
+                          {(GAME_ITEMS[entry.item] || GAME_ITEMS[entry.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
                         </span>
                         <span className="text-xs font-bold text-white leading-tight flex items-center gap-1.5 truncate">
                           {entry.name}
@@ -540,7 +540,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                     </div>
                     <div>
                       <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                        {entry.item}
+                        {(GAME_ITEMS[entry.item] || GAME_ITEMS[entry.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
                       </span>
                       <span className="text-sm font-bold text-white leading-tight flex items-center gap-1.5">
                         {entry.name}
