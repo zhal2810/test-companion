@@ -13,8 +13,11 @@ interface CandleChartProps {
 }
 
 const TIMEFRAMES: { value: string; label: string }[] = [
-  { value: 'week', label: '1 Minggu' },
-  { value: 'month', label: '1 Bulan' },
+  { value: '6h', label: '6 Jam' },
+  { value: '12h', label: '12 Jam' },
+  { value: '1d', label: '1 Hari' },
+  { value: '1w', label: '1 Minggu' },
+  { value: '1m', label: '1 Bulan' },
 ];
 
 export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, setTf }: CandleChartProps) {

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { X, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
-import { getCandleHistory, Candle, getItemStats } from '../api/apiClient';
+import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction } from '../api/apiClient';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
 
 interface PriceChartModalProps {
@@ -30,15 +30,20 @@ function formatVolume(value: any): string {
 
 export default function PriceChartModal({ item, onClose, priceMap = {}, avgWagePerPP }: PriceChartModalProps) {
   const [chartView, setChartView] = React.useState<'line' | 'candle'>('candle');
-  const [tf, setTf] = useState('week');
+  const [displayTf, setDisplayTf] = useState('1w'); // '6h', '12h', '1d', '1w', '1m'
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [orderBookRaw, setOrderBookRaw] = useState<{ buy: { price: number; quantity: number }[]; sell: { price: number; quantity: number }[] } | null>(null);
   const [orderBookError, setOrderBookError] = useState('');
+  const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
+  const [liveTradesLoading, setLiveTradesLoading] = useState(false);
 
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
+
+  // Deteksi timeframe fetch di API: 'day' (1 jam interval, isi 168) atau 'month' (12 jam interval, isi 61)
+  const fetchTf = displayTf === '1m' ? 'month' : 'day';
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +52,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
       setLoading(true);
       setErrorMsg('');
 
-      const res = await getCandleHistory(item.item, tf);
+      const res = await getCandleHistory(item.item, fetchTf);
       if (cancelled) return;
 
       if (!res.success || res.data.length === 0) {
@@ -66,7 +71,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return () => {
       cancelled = true;
     };
-  }, [item.item, tf]);
+  }, [item.item, fetchTf]);
 
   // Order book (bid/ask) — dipakai buat konfirmasi sinyal margin produksi.
   // Fetch sekali per item, tidak bergantung pada timeframe chart.
@@ -89,15 +94,42 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     };
   }, [item.item]);
 
+  // Load live transaction feed
+  const loadLiveTrades = async () => {
+    setLiveTradesLoading(true);
+    const res = await getLiveTransactions(item.item, 20); // Ambil 20 transaksi terbaru
+    if (res.success) {
+      setLiveTrades(res.data);
+    }
+    setLiveTradesLoading(false);
+  };
+
+  useEffect(() => {
+    loadLiveTrades();
+    const interval = setInterval(() => {
+      loadLiveTrades();
+    }, 15000); // refresh otomatis tiap 15 detik
+    return () => clearInterval(interval);
+  }, [item.item]);
+
   // Sort candles chronologically to guarantee correct first/last selection
   const sortedCandles = React.useMemo(() => {
     if (!candles || candles.length === 0) return [];
     return [...candles].sort((a, b) => Number(a.time) - Number(b.time));
   }, [candles]);
 
-  const hasCandles = sortedCandles.length > 0;
-  const lastCandle = hasCandles ? sortedCandles[sortedCandles.length - 1] : null;
-  const firstCandle = hasCandles ? sortedCandles[0] : null;
+  // Saring candle sesuai timeframe visual yang dipilih (slice)
+  const filteredCandles = React.useMemo(() => {
+    if (sortedCandles.length === 0) return [];
+    if (displayTf === '6h') return sortedCandles.slice(-6);
+    if (displayTf === '12h') return sortedCandles.slice(-12);
+    if (displayTf === '1d') return sortedCandles.slice(-24);
+    return sortedCandles; // '1w' dan '1m' menampilkan semua candle yang ditarik
+  }, [sortedCandles, displayTf]);
+
+  const hasCandles = filteredCandles.length > 0;
+  const lastCandle = hasCandles ? filteredCandles[filteredCandles.length - 1] : null;
+  const firstCandle = hasCandles ? filteredCandles[0] : null;
 
   const displayPrice = lastCandle ? lastCandle.close : item.price;
   
@@ -110,11 +142,11 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   }, [lastCandle, firstCandle, item.changeValue]);
 
   const displayHigh = hasCandles 
-    ? Math.max(...sortedCandles.map(c => c.high)) 
+    ? Math.max(...filteredCandles.map(c => c.high)) 
     : (points.length ? Math.max(...points) : item.price);
 
   const displayLow = hasCandles 
-    ? Math.min(...sortedCandles.map(c => c.low)) 
+    ? Math.min(...filteredCandles.map(c => c.low)) 
     : (points.length ? Math.min(...points) : item.price);
 
   const isUp = displayChange >= 0;
@@ -149,9 +181,10 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     hold: { label: 'HOLD', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
   }[signalResult.signal];
 
+  // Sinyal teknikal dihitung menggunakan data tren yang lebih lengkap (sortedCandles) agar indikator MA/RSI presisi
   const technicalSignalResult = React.useMemo(
-    () => computeTechnicalSignal(candles),
-    [candles]
+    () => computeTechnicalSignal(sortedCandles),
+    [sortedCandles]
   );
 
   const techSignalStyle = {
@@ -162,11 +195,13 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
 
   const tfLabel = React.useMemo(() => {
     if (usingFallback) return 'All-time, data candle kosong';
-    if (tf === 'day') return '1 Hari';
-    if (tf === 'week') return '1 Minggu';
-    if (tf === 'month') return '1 Bulan';
+    if (displayTf === '6h') return '6 Jam';
+    if (displayTf === '12h') return '12 Jam';
+    if (displayTf === '1d') return '1 Hari';
+    if (displayTf === '1w') return '1 Minggu';
+    if (displayTf === '1m') return '1 Bulan';
     return 'Rentang Waktu';
-  }, [tf, usingFallback]);
+  }, [displayTf, usingFallback]);
 
   return (
     <div
@@ -174,7 +209,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
       onClick={onClose}
     >
       <div
-        className="bg-[#0C0D13] border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl"
+        className="bg-[#0C0D13] border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* HEADER */}
@@ -305,7 +340,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                     Teknikal (MA & RSI)
                   </span>
                   <span className="text-[9px] bg-slate-800 text-slate-400 px-1 py-0.2 rounded font-mono font-bold uppercase">
-                    {tf === 'week' ? '1M' : '1B'}
+                    {displayTf.toUpperCase()}
                   </span>
                 </div>
                 <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${techSignalStyle.className}`}>
@@ -414,11 +449,11 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           {chartView === 'candle' ? (
             <CandleChart 
               itemCode={item.item} 
-              candles={candles} 
+              candles={filteredCandles} 
               loading={loading} 
               errorMsg={errorMsg} 
-              tf={tf} 
-              setTf={setTf} 
+              tf={displayTf} 
+              setTf={setDisplayTf} 
             />
           ) : chartData.length > 1 ? (
             <ResponsiveContainer width="100%" height={260}>
@@ -462,6 +497,58 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-3 text-center">
             <div className="text-[10px] uppercase tracking-wider text-rose-500/70 font-bold mb-1">Top Ask</div>
             <div className="text-sm font-mono font-bold text-rose-400">{item.topSell || '—'}</div>
+          </div>
+        </div>
+
+        {/* LIVE TRADE FEED */}
+        <div className="p-5 pt-0 border-t border-slate-800/40 mt-1">
+          <div className="flex items-center justify-between mb-3 pt-4">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Live Trade Feed (Transaksi Terbaru)</span>
+            </div>
+            <button 
+              onClick={loadLiveTrades} 
+              disabled={liveTradesLoading}
+              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${liveTradesLoading ? 'animate-spin' : ''}`} />
+              Muat Ulang
+            </button>
+          </div>
+
+          <div className="bg-[#07080C] border border-slate-800/50 rounded-xl overflow-hidden">
+            <div className="grid grid-cols-3 px-3.5 py-1.5 bg-slate-900/40 border-b border-slate-800/40 text-[9px] uppercase tracking-wider font-bold text-slate-500">
+              <div>Waktu</div>
+              <div className="text-right">Kuantitas</div>
+              <div className="text-right">Harga (cc)</div>
+            </div>
+
+            {liveTradesLoading && liveTrades.length === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-600 animate-pulse">Menghubungkan ke WarEra Pulse...</div>
+            ) : liveTrades.length === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-600">Tidak ada transaksi terdeteksi baru-baru ini.</div>
+            ) : (
+              <div className="max-h-[140px] overflow-y-auto divide-y divide-slate-800/30">
+                {liveTrades.map((trade) => {
+                  const date = new Date(trade.createdAt);
+                  const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  return (
+                    <div key={trade.id} className="grid grid-cols-3 px-3.5 py-2 hover:bg-slate-900/30 text-xs font-mono transition duration-150">
+                      <div className="text-slate-500">{timeStr}</div>
+                      <div className="text-right text-slate-300 font-bold">{trade.quantity.toLocaleString('id-ID')}</div>
+                      <div className="text-right text-emerald-400 font-bold">{trade.money.toFixed(3)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="text-[9px] text-slate-600 mt-2 text-right">
+            Transaksi pasar real-time via <span className="text-slate-500">warera-pulse.info/api/transactions</span>
           </div>
         </div>
       </div>

@@ -220,6 +220,30 @@ export const getCandleHistory = async (
   }
 };
 
+export interface LiveTransaction {
+  id: string;
+  code: string;
+  type: string;
+  quantity: number;
+  money: number;
+  createdAt: string;
+}
+
+export const getLiveTransactions = async (
+  itemCode?: string,
+  limit: number = 30
+): Promise<{ success: boolean; error: string | null; data: LiveTransaction[] }> => {
+  try {
+    const response = await axios.get('/api/pulse/transactions', {
+      params: { code: itemCode, limit }
+    });
+    const items = Array.isArray(response.data?.items) ? response.data.items : [];
+    return { success: true, error: null, data: items };
+  } catch (error: any) {
+    return { success: false, error: error.message, data: [] };
+  }
+};
+
 export interface OrderBookLevel {
   price: number;
   quantity: number;
