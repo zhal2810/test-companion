@@ -535,7 +535,13 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
               <div className="max-h-[140px] overflow-y-auto divide-y divide-slate-800/30">
                 {liveTrades.map((trade) => {
                   const date = new Date(trade.createdAt);
-                  const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  const timeStr = date.toLocaleString('id-ID', {
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  });
                   return (
                     <div key={trade.id} className="grid grid-cols-3 px-3.5 py-2 hover:bg-slate-900/30 text-xs font-mono transition duration-150">
                       <div className="text-slate-500">{timeStr}</div>
