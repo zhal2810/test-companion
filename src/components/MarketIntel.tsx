@@ -3,6 +3,7 @@ import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import PriceChartModal from './PriceChartModal';
+import { GAME_ITEMS } from '../data/gameConfig';
 import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
 
 function formatItemName(key: string): string {
@@ -166,7 +167,8 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
   if (Array.isArray(data)) return data;
   if (data && typeof data === 'object') {
     const entries = Object.entries(data).map(([key, value]: [string, any]) => {
-      const baseName = formatItemName(key);
+      const configItem = GAME_ITEMS[key] || GAME_ITEMS[key.toLowerCase()];
+      const baseName = configItem?.name || formatItemName(key);
       let price: number = 0;
       let volume: any = '—';
       let changeValue: number = 0;
@@ -240,7 +242,7 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
 
       return {
         item: key,
-        name: typeof value === 'object' && value && value.name ? value.name : baseName,
+        name: configItem?.name || (typeof value === 'object' && value && value.name ? value.name : baseName),
         price: numericPrice,
         changeValue,
         change,
