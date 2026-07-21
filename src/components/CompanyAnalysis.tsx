@@ -4,6 +4,7 @@ import { AE_PP_PER_DAY, calculateWorkerDailyOutput, computeCompanyDailyProductio
 import { Cpu, Users, Percent, MapPin, Coins, Building2, TrendingUp, ChevronDown, RefreshCw, AlertCircle, Package, Wallet, Landmark, Sword, Shirt } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CurrencyIcon from './CurrencyIcon';
+import { GAME_ITEMS } from '../data/gameConfig';
 
 interface CompanyAnalysisProps {
   userId: string;
@@ -456,7 +457,9 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
             </span>
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
-            <span className="uppercase font-bold text-slate-400">{comp?.itemCode || 'Komoditas'}</span>
+            <span className="uppercase font-bold text-slate-400">
+              {GAME_ITEMS[comp?.itemCode]?.name || comp?.itemCode || 'Komoditas'}
+            </span>
             <span>•</span>
             <span className="flex items-center gap-1">
               <Cpu className="w-3 h-3 text-slate-600" />
@@ -669,7 +672,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
                       {materialBreakdown.map((m: any) => (
                         <div key={m.itemCode} className="flex justify-between pl-2 text-[10px] text-slate-500 py-0.5">
                           <span>
-                            ↳ {m.itemCode}
+                            ↳ {GAME_ITEMS[m.itemCode]?.name || m.itemCode}
                             {m.internalQty > 0.001 ? ` (internal ${m.internalQty.toFixed(1)})` : ''}
                             {m.marketQty > 0.001 ? ` (market ${m.marketQty.toFixed(1)})` : ''}
                           </span>

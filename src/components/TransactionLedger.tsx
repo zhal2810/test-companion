@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownLeft, Calendar, FileText, AlertCircle } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
+import { GAME_ITEMS } from '../data/gameConfig';
 
 function formatMoney(value: number): string {
   if (value === null || value === undefined || isNaN(value)) return "0";
@@ -105,6 +106,8 @@ function calculateLedger(transactions: Transaction[], userId: string): LedgerRes
     else if (['trading', 'itemMarket'].includes(tx.transactionType)) {
       const itemCode = tx.itemCode || 'unknown';
       const qty = tx.quantity || 0;
+      const configItem = GAME_ITEMS[itemCode] || GAME_ITEMS[itemCode.toLowerCase()];
+      const itemDisplayName = configItem?.name || itemCode;
 
       if (!itemSummary[itemCode]) {
         itemSummary[itemCode] = {
@@ -131,7 +134,7 @@ function calculateLedger(transactions: Transaction[], userId: string): LedgerRes
         state.qtyHeld = newQtyHeld;
 
         enrichedTx.direction = 'buy';
-        enrichedTx.displayLabel = `🔻 Beli ${itemCode}`;
+        enrichedTx.displayLabel = `🔻 Beli ${itemDisplayName}`;
       } else if (isSell) {
         summary.totalSoldQty += qty;
         summary.totalSoldMoney += moneySafe;
@@ -150,7 +153,7 @@ function calculateLedger(transactions: Transaction[], userId: string): LedgerRes
         }
 
         enrichedTx.direction = 'sell';
-        enrichedTx.displayLabel = `🔺 Jual ${itemCode}`;
+        enrichedTx.displayLabel = `🔺 Jual ${itemDisplayName}`;
       }
     }
     // 3. TIPE LAINNYA (Tip, Donasi, Open Case, dll)
@@ -263,23 +266,27 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
                 <span className="text-right">Kumulatif</span>
               </div>
               <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1.5 custom-scrollbar">
-                {itemBreakdown.map((item) => (
-                  <div 
-                    key={item.itemCode} 
-                    className="grid grid-cols-4 text-xs py-2 px-2.5 bg-slate-900/20 border border-slate-800/40 rounded-lg hover:border-slate-700/50 transition duration-150 items-center"
-                  >
-                    <span className="font-bold text-slate-200 uppercase">{item.itemCode}</span>
-                    <span className={`text-[10px] font-bold ${item.totalBoughtQty > 0 ? 'text-amber-500/90' : 'text-sky-500/90'}`}>
-                      {item.totalBoughtQty > 0 ? 'BELI' : 'JUAL'}
-                    </span>
-                    <span className="text-right text-slate-300 font-mono">
-                      {formatMoney(item.totalBoughtQty > 0 ? (item.totalBoughtMoney / item.totalBoughtQty) : (item.totalSoldMoney / item.totalSoldQty))}
-                    </span>
-                    <span className="text-right text-white font-mono font-bold">
-                      {formatMoney(item.totalBoughtQty > 0 ? item.totalBoughtMoney : item.totalSoldMoney)}
-                    </span>
-                  </div>
-                ))}
+                {itemBreakdown.map((item) => {
+                  const configItem = GAME_ITEMS[item.itemCode] || GAME_ITEMS[item.itemCode.toLowerCase()];
+                  const displayName = configItem?.name || item.itemCode;
+                  return (
+                    <div 
+                      key={item.itemCode} 
+                      className="grid grid-cols-4 text-xs py-2 px-2.5 bg-slate-900/20 border border-slate-800/40 rounded-lg hover:border-slate-700/50 transition duration-150 items-center"
+                    >
+                      <span className="font-bold text-slate-200 uppercase">{displayName}</span>
+                      <span className={`text-[10px] font-bold ${item.totalBoughtQty > 0 ? 'text-amber-500/90' : 'text-sky-500/90'}`}>
+                        {item.totalBoughtQty > 0 ? 'BELI' : 'JUAL'}
+                      </span>
+                      <span className="text-right text-slate-300 font-mono">
+                        {formatMoney(item.totalBoughtQty > 0 ? (item.totalBoughtMoney / item.totalBoughtQty) : (item.totalSoldMoney / item.totalSoldQty))}
+                      </span>
+                      <span className="text-right text-white font-mono font-bold">
+                        {formatMoney(item.totalBoughtQty > 0 ? item.totalBoughtMoney : item.totalSoldMoney)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -287,13 +294,15 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
             <div className="sm:hidden space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
               {itemBreakdown.map((item) => {
                 const isBuy = item.totalBoughtQty > 0;
+                const configItem = GAME_ITEMS[item.itemCode] || GAME_ITEMS[item.itemCode.toLowerCase()];
+                const displayName = configItem?.name || item.itemCode;
                 return (
                   <div 
                     key={item.itemCode}
                     className="bg-slate-900/20 border border-slate-800/40 rounded-lg p-3 hover:border-slate-700/50 transition duration-150 flex justify-between items-center text-xs"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-200 uppercase">{item.itemCode}</span>
+                      <span className="font-bold text-sm text-slate-200 uppercase">{displayName}</span>
                       <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${isBuy ? 'text-amber-500 bg-amber-500/10 border border-amber-500/10' : 'text-sky-400 bg-sky-400/10 border border-sky-400/10'}`}>
                         {isBuy ? 'BELI' : 'JUAL'}
                       </span>
