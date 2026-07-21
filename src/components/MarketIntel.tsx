@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient';
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
-import PriceChartModal from './PriceChartModal';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
+
+const PriceChartModal = React.lazy(() => import('./PriceChartModal'));
 
 function formatItemName(key: string): string {
   return key
@@ -586,12 +587,21 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       )}
 
       {selectedItem && (
-        <PriceChartModal
-          item={selectedItem}
-          onClose={() => setSelectedItem(null)}
-          priceMap={priceMap}
-          avgWagePerPP={averageWagePerPP}
-        />
+        <React.Suspense fallback={
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl p-8 flex flex-col items-center gap-2">
+              <RefreshCw className="w-8 h-8 animate-spin text-sky-500" />
+              <span className="text-xs text-slate-400">Memuat Chart Ticker...</span>
+            </div>
+          </div>
+        }>
+          <PriceChartModal
+            item={selectedItem}
+            onClose={() => setSelectedItem(null)}
+            priceMap={priceMap}
+            avgWagePerPP={averageWagePerPP}
+          />
+        </React.Suspense>
       )}
 
     </div>
