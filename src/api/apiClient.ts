@@ -213,6 +213,9 @@ export const getCandleHistory = async (
 ): Promise<{ success: boolean; error: string | null; data: Candle[] }> => {
   try {
     const response = await axios.get(`/api/pulse/history/${itemCode}`, { params: { tf } });
+    if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
+      return { success: false, error: 'Response berupa HTML (Endpoint proxy tidak terjangkau)', data: [] };
+    }
     const candles = Array.isArray(response.data?.candles) ? response.data.candles : [];
     return { success: true, error: null, data: candles };
   } catch (error: any) {
@@ -237,6 +240,9 @@ export const getLiveTransactions = async (
     const response = await axios.get('/api/pulse/transactions', {
       params: { code: itemCode, limit }
     });
+    if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
+      return { success: false, error: 'Response berupa HTML (Endpoint proxy tidak terjangkau)', data: [] };
+    }
     const items = Array.isArray(response.data?.items) ? response.data.items : [];
     return { success: true, error: null, data: items };
   } catch (error: any) {
