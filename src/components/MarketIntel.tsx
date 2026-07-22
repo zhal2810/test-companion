@@ -397,6 +397,12 @@ export default function MarketIntel({ token }: MarketIntelProps) {
     return 'text-amber-400 bg-amber-950/25 border-amber-500/20';
   };
 
+  useEffect(() => {
+    if (sortedEntries.length > 0 && !selectedItem) {
+      setSelectedItem(sortedEntries[0]);
+    }
+  }, [sortedEntries, selectedItem]);
+
   return (
     <div className="bg-[#10121A]/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 md:p-6 text-slate-100 shadow-xl">
       
@@ -465,143 +471,115 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         </div>
       </div>
 
-      {/* MARKET COMMODITIES GRID */}
+      {/* MARKET COMMODITIES CARDS (ROW) */}
       {loading && priceEntries.length === 0 ? (
         <div className="text-center py-12 text-xs text-slate-500 flex flex-col items-center gap-2">
           <RefreshCw className="w-6 h-6 animate-spin text-sky-500" />
           <span>Mengunduh data ticker pasar global...</span>
         </div>
       ) : priceEntries.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {sortedEntries.map((entry) => {
-            const displayChangeValue = getDisplayChangeValue(entry);
-            const displayChange = formatChange(displayChangeValue);
+        <div className="space-y-6">
+          {/* TOP ITEM CARDS SCROLLABLE ROW */}
+          <div>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+              <span>Pilih Komoditas Pasar</span>
+              <span className="text-[10px] text-slate-500 font-normal">Klik untuk melihat Grafik Candle di bawah</span>
+            </div>
+            
+            <div className="flex gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-slate-800">
+              {sortedEntries.map((entry) => {
+                const isSelected = selectedItem?.item === entry.item;
+                const displayChangeValue = getDisplayChangeValue(entry);
+                const displayChange = formatChange(displayChangeValue);
+                const isPositive = displayChangeValue > 0;
+                const isNegative = displayChangeValue < 0;
 
-            const marginResult = calculateProductionMargin(entry.item, priceMap, averageWagePerPP);
-            const signalResult = computeTradeSignal(marginResult, null);
-
-            return (
-              <React.Fragment key={entry.item}>
-                {/* Mobile Card Layout (visible only on mobile) */}
-                <div
-                  onClick={() => setSelectedItem(entry)}
-                  className="sm:hidden bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-3.5 rounded-xl transition duration-200 space-y-2.5 cursor-pointer"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
-                        <ItemIcon itemCode={entry.item} size="sm" />
+                return (
+                  <div
+                    key={entry.item}
+                    onClick={() => setSelectedItem(entry)}
+                    className={`shrink-0 w-32 sm:w-36 cursor-pointer rounded-xl overflow-hidden border transition-all duration-200 select-none ${
+                      isSelected
+                        ? 'ring-2 ring-sky-400 border-sky-400 scale-[1.03] shadow-lg shadow-sky-500/20 z-10'
+                        : 'border-slate-800/90 hover:border-slate-700 hover:scale-[1.01]'
+                    }`}
+                  >
+                    {/* TOP BLACK BANNER: ITEM CODE & BID/ASK */}
+                    <div className="bg-black p-2 flex flex-col justify-between border-b border-slate-800/80 min-h-[46px]">
+                      <div className="text-xs font-black text-white truncate tracking-wider uppercase">
+                        {entry.item}
                       </div>
-                      <div className="min-w-0">
-                        <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
-                          {(GAME_ITEMS[entry.item] || GAME_ITEMS[entry.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
+                      <div className="flex justify-between items-center text-[9px] font-mono leading-none mt-1">
+                        <span className="text-rose-400 font-bold">
+                          <span className="text-[7.5px] text-slate-500 uppercase">bid</span> {entry.topBuy || '—'}
                         </span>
-                        <span className="text-xs font-bold text-white leading-tight flex items-center gap-1.5 truncate">
-                          {entry.name}
-                          <SignalBadge signal={signalResult.signal} />
+                        <span className="text-emerald-400 font-bold">
+                          <span className="text-[7.5px] text-slate-500 uppercase">ask</span> {entry.topSell || '—'}
                         </span>
                       </div>
                     </div>
-                    <span className={`text-[9.5px] font-bold font-mono py-0.5 px-2 rounded-full border ${getChangeBadgeClasses(displayChangeValue)}`}>
-                      {displayChangeValue > 0 ? '▲' : displayChangeValue < 0 ? '▼' : '•'} {displayChange}
-                    </span>
-                  </div>
-                  
-                  <div className="border-t border-slate-800/40 my-1"></div>
 
-                  <div className="grid grid-cols-3 gap-2 text-left pt-0.5">
-                    <div>
-                      <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-400">Harga Ticker</span>
-                      <span className="text-xs font-mono font-extrabold text-white">{Number(entry.price).toFixed(2)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-400">Volume Bursa</span>
-                      <span className="text-xs font-mono font-medium text-slate-300">{formatVolume(entry.volume)}</span>
-                    </div>
-                    <div>
-                      <span className="block text-[8px] uppercase tracking-wider font-bold text-slate-400 font-mono">Bid/Ask</span>
-                      <div className="space-y-0.5 text-[8.5px] font-mono leading-none mt-0.5">
-                        <div className="text-emerald-500/80">B: {entry.topBuy || '—'}</div>
-                        <div className="text-rose-400/80">S: {entry.topSell || '—'}</div>
+                    {/* BOTTOM BODY: ASSET ICON, PERCENTAGE & BIG TRIANGLE ARROW */}
+                    <div
+                      className={`p-2.5 flex items-center justify-between min-h-[56px] transition duration-200 ${
+                        isNegative
+                          ? 'bg-rose-600 text-white'
+                          : isPositive
+                          ? 'bg-lime-400 text-slate-950 font-bold'
+                          : 'bg-slate-800 text-slate-200'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="w-7 h-7 drop-shadow shrink-0">
+                          <ItemIcon itemCode={entry.item} size="sm" className="w-full h-full object-contain" />
+                        </div>
+                        <span className="text-xs font-mono font-extrabold tracking-tight leading-none">
+                          {displayChange}
+                        </span>
+                      </div>
+
+                      {/* PROMINENT TRIANGLE ARROW */}
+                      <div className="shrink-0 pl-1">
+                        {isNegative ? (
+                          <div className="w-0 h-0 border-l-[11px] border-l-transparent border-r-[11px] border-r-transparent border-t-[17px] border-t-white drop-shadow-md" />
+                        ) : isPositive ? (
+                          <div className="w-0 h-0 border-l-[11px] border-l-transparent border-r-[11px] border-r-transparent border-b-[17px] border-b-rose-700 drop-shadow-md" />
+                        ) : (
+                          <span className="text-sm font-bold">●</span>
+                        )}
                       </div>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* MAIN CENTER CANDLE CHART & DETAILS PANEL */}
+          {selectedItem && (
+            <div className="mt-4">
+              <React.Suspense fallback={
+                <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl p-12 flex flex-col items-center justify-center gap-3">
+                  <RefreshCw className="w-8 h-8 animate-spin text-sky-500" />
+                  <span className="text-xs text-slate-400">Memuat Chart Candle & Analisis Ticker...</span>
                 </div>
-
-                {/* Desktop Card Layout (visible only on desktop) */}
-                <div
-                  onClick={() => setSelectedItem(entry)}
-                  className="hidden sm:flex bg-[#0A0C12]/60 hover:bg-[#0E1018]/80 border border-slate-800 hover:border-slate-700 p-4 rounded-xl items-center justify-between gap-4 transition duration-200 cursor-pointer"
-                >
-                  {/* ICON & NAME */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
-                      <ItemIcon itemCode={entry.item} size="md" />
-                    </div>
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                        {(GAME_ITEMS[entry.item] || GAME_ITEMS[entry.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
-                      </span>
-                      <span className="text-sm font-bold text-white leading-tight flex items-center gap-1.5">
-                        {entry.name}
-                        <SignalBadge signal={signalResult.signal} />
-                      </span>
-                      <span className="block text-[10.5px] text-slate-500 mt-1 font-mono">
-                        Vol: {formatVolume(entry.volume)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* TICKER PRICE & BID/ASK */}
-                  <div className="text-right flex flex-col justify-between h-full py-0.5">
-                    <div className="flex items-center justify-end gap-2 mb-1.5">
-                      <span className="text-base font-mono font-bold text-white">
-                        {Number(entry.price).toFixed(2)}
-                      </span>
-                      <span className={`text-[10px] font-bold font-mono py-0.5 px-2 rounded-full border ${getChangeBadgeClasses(displayChangeValue)}`}>
-                        {displayChangeValue > 0 ? '▲' : displayChangeValue < 0 ? '▼' : '•'} {displayChange}
-                      </span>
-                    </div>
-
-                    <div className="space-y-0.5 text-[10px] font-mono">
-                      <div className="text-emerald-500/80 flex items-center justify-end gap-1">
-                        <span className="text-[9px] text-slate-500">BID:</span>
-                        <span>{entry.topBuy || '—'}</span>
-                      </div>
-                      <div className="text-rose-400/80 flex items-center justify-end gap-1">
-                        <span className="text-[9px] text-slate-500">ASK:</span>
-                        <span>{entry.topSell || '—'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </React.Fragment>
-            );
-          })}
+              }>
+                <PriceChartModal
+                  item={selectedItem}
+                  onClose={() => {}}
+                  priceMap={priceMap}
+                  avgWagePerPP={averageWagePerPP}
+                  isInline={true}
+                />
+              </React.Suspense>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-[#12141C] border border-slate-800 rounded-xl p-8 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
           <AlertCircle className="w-8 h-8 text-slate-600 mb-1" />
           <span>Gagal memuat ticker pasar. Layanan official WarEra API sedang tidak responsif atau proxy terganggu.</span>
         </div>
-      )}
-
-      {selectedItem && (
-        <React.Suspense fallback={
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center">
-            <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl p-8 flex flex-col items-center gap-2">
-              <RefreshCw className="w-8 h-8 animate-spin text-sky-500" />
-              <span className="text-xs text-slate-400">Memuat Chart Ticker...</span>
-            </div>
-          </div>
-        }>
-          <PriceChartModal
-            item={selectedItem}
-            onClose={() => setSelectedItem(null)}
-            priceMap={priceMap}
-            avgWagePerPP={averageWagePerPP}
-          />
-        </React.Suspense>
       )}
 
     </div>

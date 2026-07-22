@@ -18,9 +18,10 @@ interface PriceChartModalProps {
     topBuy?: string;
     topSell?: string;
   };
-  onClose: () => void;
+  onClose?: () => void;
   priceMap?: Record<string, number>;
   avgWagePerPP?: number;
+  isInline?: boolean;
 }
 
 function formatVolume(value: any): string {
@@ -29,7 +30,7 @@ function formatVolume(value: any): string {
   return Math.round(num).toLocaleString('id-ID');
 }
 
-export default function PriceChartModal({ item, onClose, priceMap = {}, avgWagePerPP }: PriceChartModalProps) {
+export default function PriceChartModal({ item, onClose, priceMap = {}, avgWagePerPP, isInline = false }: PriceChartModalProps) {
   const [chartView, setChartView] = React.useState<'line' | 'candle'>('candle');
   const [displayTf, setDisplayTf] = useState('1w'); // '6h', '12h', '1d', '1w', '1m'
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -204,35 +205,33 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return 'Rentang Waktu';
   }, [displayTf, usingFallback]);
 
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[#0C0D13] border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[92vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* HEADER */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
-              <ItemIcon itemCode={item.item} size="md" />
+  const content = (
+    <div className={`bg-[#0C0D13] border border-slate-800 rounded-2xl w-full shadow-2xl overflow-hidden ${isInline ? '' : 'max-w-2xl max-h-[92vh] overflow-y-auto'}`}>
+      {/* HEADER */}
+      <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-[#10121A]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
+            <ItemIcon itemCode={item.item} size="md" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              {(GAME_ITEMS[item.item] || GAME_ITEMS[item.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
             </div>
-            <div>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                {(GAME_ITEMS[item.item] || GAME_ITEMS[item.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
-              </div>
-              <div className="text-base font-bold text-white">{item.name}</div>
+            <div className="text-base font-bold text-white flex items-center gap-2">
+              {item.name}
+              <span className="text-xs font-mono text-slate-400 font-normal">({item.item})</span>
             </div>
           </div>
+        </div>
+        {!isInline && onClose && (
           <button
             onClick={onClose}
             className="text-slate-500 hover:text-white transition duration-150 cursor-pointer p-1"
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
+        )}
+      </div>
 
         {/* PRICE SUMMARY */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 border-b border-slate-800/60">
@@ -560,6 +559,20 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             Transaksi pasar real-time via <span className="text-slate-500">warera-pulse.info/api/transactions</span>
           </div>
         </div>
+    </div>
+  );
+
+  if (isInline) {
+    return content;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl">
+        {content}
       </div>
     </div>
   );
