@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { normalizeWareraPayload, extractCompanyReferences, normalizeCompanyDetail } from './companyData';
+import { GAME_ITEMS } from '../data/gameConfig';
 
 const api = axios.create({
   baseURL: '/api/players',
@@ -237,13 +238,27 @@ export const getLiveTransactions = async (
   limit: number = 30
 ): Promise<{ success: boolean; error: string | null; data: LiveTransaction[] }> => {
   try {
+    let formattedCode = itemCode;
+    if (itemCode) {
+      const configItem = GAME_ITEMS[itemCode] || GAME_ITEMS[itemCode.toLowerCase()];
+      formattedCode = configItem?.code || itemCode.toLowerCase();
+    }
+
     const response = await axios.get('/api/pulse/transactions', {
-      params: { code: itemCode, limit }
+      params: { code: formattedCode, limit }
     });
     if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
       return { success: false, error: 'Response berupa HTML (Endpoint proxy tidak terjangkau)', data: [] };
     }
-    const items = Array.isArray(response.data?.items) ? response.data.items : [];
+    let items: LiveTransaction[] = Array.isArray(response.data?.items) ? response.data.items : [];
+    if (formattedCode && items.length > 0) {
+      const searchCode = formattedCode.toLowerCase();
+      const rawCode = itemCode ? itemCode.toLowerCase() : searchCode;
+      items = items.filter(it => {
+        const itemCodeLower = it.code ? it.code.toLowerCase() : '';
+        return itemCodeLower === searchCode || itemCodeLower === rawCode;
+      });
+    }
     return { success: true, error: null, data: items };
   } catch (error: any) {
     return { success: false, error: error.message, data: [] };
