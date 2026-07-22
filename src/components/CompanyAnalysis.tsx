@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getCompaniesByUserId, getProductionBonus, getWorkersByUserId, getUserEcoSkills, getGameConfig, fetchWarera } from '../api/apiClient';
 import { AE_PP_PER_DAY, calculateWorkerDailyOutput, computeCompanyDailyProduction } from './production';
-import { Cpu, Users, Percent, MapPin, Coins, Building2, TrendingUp, ChevronDown, RefreshCw, AlertCircle, Package, Wallet, Landmark, Sword, Shirt } from 'lucide-react';
+import { Cpu, Users, Percent, MapPin, Coins, Building2, TrendingUp, ChevronDown, RefreshCw, AlertCircle, Package, Wallet, Landmark, Sword, Shirt, PowerOff } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CurrencyIcon from './CurrencyIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
@@ -358,6 +358,8 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
 }
 
 function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onToggle, marketPrices, workers = [], itemsConfig = {}, companyFinancials, excludedFromInternal, onToggleExcludeFromInternal }: any) {
+  const isDisabled = Boolean(comp?.disabledAt || comp?.isDisabled || comp?.disabled);
+
   const aeLevel = Number(comp?.activeUpgradeLevels?.automatedEngine ?? comp?.automatedEngine ?? 0);
   const ppPerDay = AE_PP_PER_DAY[aeLevel] ?? 0;
   
@@ -405,7 +407,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
     return notes;
   })();
 
-  const productionDisplay = productionValue !== null ? `${productionValue.toFixed(2)} di gudang` : '—';
+  const productionDisplay = isDisabled ? '0 (DIMATIKAN)' : productionValue !== null ? `${productionValue.toFixed(2)} di gudang` : '—';
   
   const locationText = (() => {
     const regionLabel = regionData?.displayName || regionData?.name || regionData?.code || regionData?.regionName || null;
@@ -436,7 +438,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
   })();
 
   return (
-    <div className="bg-[#10121A]/80 border border-slate-800 hover:border-slate-700/80 rounded-xl overflow-hidden transition duration-200">
+    <div className={`border rounded-xl overflow-hidden transition duration-200 ${isDisabled ? 'bg-[#10121A]/50 border-rose-900/30 opacity-80' : 'bg-[#10121A]/80 border-slate-800 hover:border-slate-700/80'}`}>
       
       {/* CLICKABLE HEADER */}
       <div 
@@ -449,16 +451,16 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1 xs:gap-4 pr-2">
-            <span className="font-bold text-sm text-white truncate">
+            <span className="font-bold text-sm text-white truncate flex items-center gap-2">
               {comp?.name || 'Pabrik Tanpa Nama'}
             </span>
-            <span className={`text-xs font-bold font-mono shrink-0 ${totalEfficiency === null ? 'text-slate-500' : totalEfficiency >= 100 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`text-xs font-bold font-mono shrink-0 ${isDisabled ? 'text-rose-400' : totalEfficiency === null ? 'text-slate-500' : totalEfficiency >= 100 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {productionDisplay}
             </span>
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
             <span className="uppercase font-bold text-slate-400">
-              {GAME_ITEMS[comp?.itemCode]?.name || comp?.itemCode || 'Komoditas'}
+              {(comp?.itemCode ? (GAME_ITEMS[comp.itemCode] || GAME_ITEMS[comp.itemCode.toLowerCase()])?.name : null) || comp?.itemCode || 'Komoditas'}
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
@@ -468,11 +470,15 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
           </div>
         </div>
 
-        {comp?.isFull && (
-          <span className="text-[10px] font-bold text-rose-400 bg-rose-950/20 px-2 py-0.5 border border-rose-900/30 rounded">
+        {isDisabled ? (
+          <span className="text-[10px] font-bold text-rose-400 bg-rose-950/40 px-2 py-0.5 border border-rose-900/50 rounded flex items-center gap-1 shrink-0">
+            <PowerOff className="w-3 h-3" /> DIMATIKAN
+          </span>
+        ) : comp?.isFull ? (
+          <span className="text-[10px] font-bold text-rose-400 bg-rose-950/20 px-2 py-0.5 border border-rose-900/30 rounded shrink-0">
             FULL
           </span>
-        )}
+        ) : null}
 
         <ChevronDown className={`w-4 h-4 text-slate-500 transition duration-200 shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
       </div>
@@ -480,6 +486,18 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
       {/* DROPDOWN DETAILS */}
       {isExpanded && (
         <div className="px-4 pb-4 border-t border-slate-800/60 pt-4 bg-[#0a0c10]/40 space-y-4">
+          
+          {isDisabled && (
+            <div className="bg-rose-950/30 border border-rose-900/50 text-rose-300 text-xs p-3 rounded-lg flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div>
+                <span className="font-bold">Company ini sedang DIMATIKAN (disabledAt).</span>
+                <p className="text-[11px] text-rose-300/80 mt-0.5">
+                  Produksi harian dihentikan (0 PP) dan perusahaan ini tidak diikutsertakan dalam alokasi bahan baku internal maupun perhitungan finansial rantai pasok.
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* LOKASI & STORAGE BAR */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -672,7 +690,7 @@ function CompanyListItem({ comp, regionsDict, productionBonus, isExpanded, onTog
                       {materialBreakdown.map((m: any) => (
                         <div key={m.itemCode} className="flex justify-between pl-2 text-[10px] text-slate-500 py-0.5">
                           <span>
-                            ↳ {GAME_ITEMS[m.itemCode]?.name || m.itemCode}
+                            ↳ {(m.itemCode ? (GAME_ITEMS[m.itemCode] || GAME_ITEMS[m.itemCode.toLowerCase()])?.name : null) || m.itemCode}
                             {m.internalQty > 0.001 ? ` (internal ${m.internalQty.toFixed(1)})` : ''}
                             {m.marketQty > 0.001 ? ` (market ${m.marketQty.toFixed(1)})` : ''}
                           </span>

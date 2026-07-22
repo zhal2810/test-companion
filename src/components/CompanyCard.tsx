@@ -1,7 +1,7 @@
 import { Company, GlobalSettings } from '../types';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { calculateCompanyProduction } from '../utils/productionHelper';
-import { Trash2, Cpu, Wrench, Package, Info, ShieldAlert } from 'lucide-react';
+import { Trash2, Cpu, Wrench, Package, Info, ShieldAlert, PowerOff } from 'lucide-react';
 
 interface CompanyCardProps {
   key?: string;
@@ -35,11 +35,16 @@ export default function CompanyCard({ company, globalSettings, onUpdate, onDelet
             className="w-full bg-transparent text-base font-bold text-white focus:outline-none border-b border-transparent focus:border-slate-700 hover:border-slate-800 pb-0.5 rounded px-1 -mx-1"
             placeholder="Company Name"
           />
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span className={`inline-block w-2 h-2 rounded-full ${itemConfig?.type === 'raw' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
             <span className="text-xs text-slate-400 font-medium capitalize">
               {itemConfig?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
             </span>
+            {(company.disabledAt || company.isDisabled) && (
+              <span className="text-[10px] font-bold text-rose-400 bg-rose-950/40 border border-rose-800/40 px-1.5 py-0.5 rounded flex items-center gap-1">
+                <PowerOff className="w-3 h-3" /> Dimatikan
+              </span>
+            )}
           </div>
         </div>
         <button

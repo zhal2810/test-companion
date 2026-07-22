@@ -79,8 +79,10 @@ export function computeCompanyDailyProduction({
   workers?: any[];
   itemsConfig?: Record<string, any>;
 }) {
+  const isDisabled = Boolean(comp?.disabledAt || comp?.isDisabled || comp?.disabled);
+
   const aeLevel = Number(comp?.activeUpgradeLevels?.automatedEngine ?? comp?.automatedEngine ?? 0);
-  const basePP = AE_PP_PER_DAY[aeLevel] ?? 0;
+  const basePP = isDisabled ? 0 : (AE_PP_PER_DAY[aeLevel] ?? 0);
   const bonusPercent = productionBonus?.total || 0;
   const enginePPWithBonus = basePP * (1 + bonusPercent / 100);
 
@@ -94,16 +96,17 @@ export function computeCompanyDailyProduction({
       companyBonusPercent: bonusPercent,
     }),
   }));
-  const workersBoostedPPPerDay = workerBreakdowns.reduce((sum, w) => sum + w.boostedPPPerDay, 0);
-  const workersWagePerDay = workerBreakdowns.reduce((sum, w) => sum + w.wagePerDay, 0);
-  const totalPP = enginePPWithBonus + workersBoostedPPPerDay;
+  const workersBoostedPPPerDay = isDisabled ? 0 : workerBreakdowns.reduce((sum, w) => sum + w.boostedPPPerDay, 0);
+  const workersWagePerDay = isDisabled ? 0 : workerBreakdowns.reduce((sum, w) => sum + w.wagePerDay, 0);
+  const totalPP = isDisabled ? 0 : (enginePPWithBonus + workersBoostedPPPerDay);
 
   const itemCode = comp?.itemCode;
   const itemMeta = itemsConfig?.[itemCode] || {};
   const ppPerUnit = itemMeta.productionPoints || 1;
-  const dailyProduction = ppPerUnit > 0 ? totalPP / ppPerUnit : 0;
+  const dailyProduction = isDisabled ? 0 : (ppPerUnit > 0 ? totalPP / ppPerUnit : 0);
 
   return {
+    isDisabled,
     aeLevel, basePP, bonusPercent, enginePPWithBonus,
     workerBreakdowns, workersBoostedPPPerDay, workersWagePerDay, totalPP,
     itemCode, itemType: itemMeta.type || 'raw', productionNeeds: itemMeta.productionNeeds || null,

@@ -11,13 +11,14 @@ export function calculateCompanyProduction(
   globalSettings: GlobalSettings
 ): CompanyProductionResult {
   const item = GAME_ITEMS[company.itemCode];
+  const isDisabled = Boolean(company.disabledAt || company.isDisabled || (company as any).disabled);
   
-  if (!item) {
+  if (!item || isDisabled) {
     return {
       companyId: company.id,
       companyName: company.name,
       itemCode: company.itemCode,
-      itemType: 'raw',
+      itemType: item?.type || 'raw',
       productionPoints: 0,
       producedQty: 0,
       inputsNeeded: [],

@@ -24,6 +24,8 @@ export interface Company {
   workerActions: number; // how many actions each worker performs per day
   workerFidelity: number; // 0 to 10
   regionBonus: number; // percentage multiplier: 0, 0.25, 0.50, 1.00 etc.
+  disabledAt?: string | null;
+  isDisabled?: boolean;
 }
 
 export interface CompanyProductionResult {
