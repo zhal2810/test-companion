@@ -208,16 +208,80 @@ export interface Candle {
 
 // Data candle OHLC — via gateway ke warera-pulse.info (pihak ketiga, BUKAN
 // API resmi WarEra). tf: 'week' | 'month' | dll sesuai yang didukung sumbernya.
+async function fetchPulseJson<T>(primaryUrl: string, fallbackDirectUrl: string): Promise<T | null> {
+  // 1. Coba proxy lokal
+  try {
+    const res = await fetch(primaryUrl);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && !text.trim().startsWith('<')) {
+        return JSON.parse(text) as T;
+      }
+    }
+  } catch (e) {
+    console.warn(`[Pulse Proxy] Proxy lokal ${primaryUrl} gagal/tidak merespon JSON, mencoba langsung...`, e);
+  }
+
+  // 2. Coba fetch langsung ke warera-pulse.info
+  try {
+    const res = await fetch(fallbackDirectUrl, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && !text.trim().startsWith('<')) {
+        return JSON.parse(text) as T;
+      }
+    }
+  } catch (e) {
+    console.warn(`[Pulse Direct] Fetch langsung ke ${fallbackDirectUrl} terhalang CORS/Network, mencoba AllOrigins...`, e);
+  }
+
+  // 3. Coba CORS Proxy Publik (api.allorigins.win/raw)
+  try {
+    const rawUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(fallbackDirectUrl)}`;
+    const res = await fetch(rawUrl);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && !text.trim().startsWith('<')) {
+        return JSON.parse(text) as T;
+      }
+    }
+  } catch (e) {
+    console.warn(`[Pulse CORS Proxy Raw] Gagal via raw, mencoba allorigins get...`, e);
+  }
+
+  // 4. Coba CORS Proxy Publik Wrapper (api.allorigins.win/get)
+  try {
+    const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(fallbackDirectUrl)}`;
+    const res = await fetch(corsProxyUrl);
+    if (res.ok) {
+      const json = await res.json() as { contents?: string };
+      if (json && json.contents && typeof json.contents === 'string' && !json.contents.trim().startsWith('<')) {
+        return JSON.parse(json.contents) as T;
+      }
+    }
+  } catch (e) {
+    console.error(`[Pulse CORS Proxy] Gagal mengambil data via CORS proxy dari ${fallbackDirectUrl}`, e);
+  }
+
+  return null;
+}
+
 export const getCandleHistory = async (
   itemCode: string,
   tf: string = 'week'
 ): Promise<{ success: boolean; error: string | null; data: Candle[] }> => {
   try {
-    const response = await axios.get(`/api/pulse/history/${itemCode}`, { params: { tf } });
-    if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
-      return { success: false, error: 'Response berupa HTML (Endpoint proxy tidak terjangkau)', data: [] };
+    const primaryUrl = `/api/pulse/history/${itemCode}?tf=${tf}`;
+    const directUrl = `https://www.warera-pulse.info/api/history/${itemCode}?tf=${tf}`;
+    
+    const parsedData = await fetchPulseJson<{ candles?: Candle[] }>(primaryUrl, directUrl);
+    if (!parsedData) {
+      return { success: false, error: 'Gagal mengambil data candle dari semua gateway Pulse', data: [] };
     }
-    const candles = Array.isArray(response.data?.candles) ? response.data.candles : [];
+
+    const candles = Array.isArray(parsedData.candles) ? parsedData.candles : [];
     return { success: true, error: null, data: candles };
   } catch (error: any) {
     return { success: false, error: error.message, data: [] };
@@ -238,13 +302,15 @@ export const getLiveTransactions = async (
   limit: number = 30
 ): Promise<{ success: boolean; error: string | null; data: LiveTransaction[]; isFilteredByItem: boolean }> => {
   try {
-    const response = await axios.get('/api/pulse/transactions', {
-      params: { limit: 100 }
-    });
-    if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
-      return { success: false, error: 'Response berupa HTML (Endpoint proxy tidak terjangkau)', data: [], isFilteredByItem: false };
+    const primaryUrl = `/api/pulse/transactions?limit=100`;
+    const directUrl = `https://www.warera-pulse.info/api/transactions?limit=100`;
+
+    const parsedData = await fetchPulseJson<{ items?: LiveTransaction[] }>(primaryUrl, directUrl);
+    if (!parsedData) {
+      return { success: false, error: 'Gagal terhubung ke WarEra Pulse', data: [], isFilteredByItem: false };
     }
-    const items: LiveTransaction[] = Array.isArray(response.data?.items) ? response.data.items : [];
+
+    const items: LiveTransaction[] = Array.isArray(parsedData.items) ? parsedData.items : [];
     
     if (itemCode && items.length > 0) {
       const configItem = GAME_ITEMS[itemCode] || GAME_ITEMS[itemCode.toLowerCase()];
