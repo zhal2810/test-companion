@@ -404,89 +404,90 @@ export default function MarketIntel({ token }: MarketIntelProps) {
   }, [sortedEntries, selectedItem]);
 
   return (
-    <div className="bg-[#10121A]/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 md:p-6 text-slate-100 shadow-xl">
+    <div className="bg-[#10121A]/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-3 md:p-4 text-slate-100 shadow-xl space-y-3">
       
-      {/* TITLE & DESCRIPTION */}
-      <div className="flex justify-between items-start gap-4 mb-5 flex-wrap">
+      {/* HEADER TITLE & CONTROLS BAR */}
+      <div className="flex items-center justify-between gap-3 flex-wrap border-b border-slate-800/80 pb-3">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-5 h-5 text-sky-400" />
-            <h3 className="text-base font-bold tracking-tight text-white uppercase">
+          <div className="flex items-center gap-2 mb-0.5">
+            <TrendingUp className="w-4 h-4 text-sky-400" />
+            <h3 className="text-sm font-bold tracking-tight text-white uppercase">
               Bursa Komoditas Real-time
             </h3>
           </div>
-          <p className="text-xs text-slate-500 max-w-md">
+          <p className="text-[10.5px] text-slate-400">
             Harga komoditas pasar global diperbarui langsung dari official server WarEra.
           </p>
         </div>
         
-        <button 
-          onClick={loadMarketData} 
-          disabled={loading}
-          className="flex items-center gap-1.5 bg-[#161924] hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-sky-400 text-xs px-3 py-1.5 rounded-lg transition duration-200 cursor-pointer disabled:text-slate-600 disabled:border-slate-900"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'MEMUAT...' : 'SINKRON BURSA'}
-        </button>
-      </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* INTERVAL TREN SELECTOR */}
+          <div className="flex items-center gap-1.5 bg-[#08090C] border border-slate-800 px-2 py-1 rounded-lg">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Interval:</span>
+            <select
+              value={changeRange}
+              onChange={(e) => setChangeRange(e.target.value as any)}
+              className="bg-transparent text-slate-300 text-xs font-semibold cursor-pointer outline-none"
+            >
+              <option value="24h">24 Jam</option>
+              <option value="7d">7 Hari</option>
+              <option value="30d">30 Hari</option>
+              <option value="90d">90 Hari</option>
+              <option value="all">Semua Historis</option>
+            </select>
+          </div>
 
-      {/* FILTER & SORT CONTROLS */}
-      <div className="flex justify-between items-center mb-5 flex-wrap gap-3.5 p-3.5 bg-slate-950/30 border border-slate-800/60 rounded-xl">
-        <div className="flex gap-2.5 items-center">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Interval Tren:</span>
-          <select
-            value={changeRange}
-            onChange={(e) => setChangeRange(e.target.value as any)}
-            className="bg-[#08090C] text-slate-300 border border-slate-800 hover:border-slate-700 focus:border-sky-500/40 rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer outline-none transition duration-200"
-          >
-            <option value="24h">24 Jam</option>
-            <option value="7d">7 Hari</option>
-            <option value="30d">30 Hari</option>
-            <option value="90d">90 Hari</option>
-            <option value="all">Semua Historis</option>
-          </select>
-        </div>
+          {/* SORT SELECTOR */}
+          <div className="flex items-center gap-1 bg-[#08090C] border border-slate-800 px-2 py-1 rounded-lg">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Urutan:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-transparent text-slate-300 text-xs font-semibold cursor-pointer outline-none"
+            >
+              <option value="price">Harga Ticker</option>
+              <option value="volume">Volume Bursa</option>
+              <option value="change">Fluktuasi Persen</option>
+              <option value="name">Nama Komoditas</option>
+            </select>
+            <select
+              value={sortDirection}
+              onChange={(e) => setSortDirection(e.target.value as any)}
+              className="bg-transparent text-slate-300 text-xs font-semibold cursor-pointer outline-none"
+            >
+              <option value="desc">↓ Tertinggi</option>
+              <option value="asc">↑ Terendah</option>
+            </select>
+          </div>
 
-        <div className="flex gap-2 items-center flex-wrap">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">Urutan:</span>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-[#08090C] text-slate-300 border border-slate-800 hover:border-slate-700 focus:border-sky-500/40 rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer outline-none transition duration-200"
+          {/* REFRESH BUTTON */}
+          <button 
+            onClick={loadMarketData} 
+            disabled={loading}
+            className="flex items-center gap-1 bg-[#161924] hover:bg-slate-800 border border-slate-800 text-sky-400 text-xs px-2.5 py-1 rounded-lg transition cursor-pointer disabled:opacity-50"
           >
-            <option value="price">Harga Ticker</option>
-            <option value="volume">Volume Bursa</option>
-            <option value="change">Fluktuasi Persen</option>
-            <option value="name">Nama Komoditas</option>
-          </select>
-
-          <select
-            value={sortDirection}
-            onChange={(e) => setSortDirection(e.target.value as any)}
-            className="bg-[#08090C] text-slate-300 border border-slate-800 hover:border-slate-700 focus:border-sky-500/40 rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer outline-none transition duration-200"
-          >
-            <option value="desc">↓ Tertinggi</option>
-            <option value="asc">↑ Terendah</option>
-          </select>
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'MEMUAT...' : 'SINKRON'}
+          </button>
         </div>
       </div>
 
       {/* MARKET COMMODITIES CARDS (ROW) */}
       {loading && priceEntries.length === 0 ? (
-        <div className="text-center py-12 text-xs text-slate-500 flex flex-col items-center gap-2">
-          <RefreshCw className="w-6 h-6 animate-spin text-sky-500" />
+        <div className="text-center py-8 text-xs text-slate-500 flex flex-col items-center gap-2">
+          <RefreshCw className="w-5 h-5 animate-spin text-sky-500" />
           <span>Mengunduh data ticker pasar global...</span>
         </div>
       ) : priceEntries.length > 0 ? (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {/* TOP ITEM CARDS SCROLLABLE ROW */}
           <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
               <span>Pilih Komoditas Pasar</span>
-              <span className="text-[10px] text-slate-500 font-normal">Klik untuk melihat Grafik Candle di bawah</span>
+              <span className="text-[9.5px] text-slate-500 font-normal">Klik untuk mengganti Grafik Candle di bawah</span>
             </div>
             
-            <div className="flex gap-2.5 overflow-x-auto pb-3 pt-1 scrollbar-thin scrollbar-thumb-slate-800">
+            <div className="flex gap-2 overflow-x-auto pb-2 pt-0.5 scrollbar-thin scrollbar-thumb-slate-800">
               {sortedEntries.map((entry) => {
                 const isSelected = selectedItem?.item === entry.item;
                 const displayChangeValue = getDisplayChangeValue(entry);
@@ -498,30 +499,30 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                   <div
                     key={entry.item}
                     onClick={() => setSelectedItem(entry)}
-                    className={`shrink-0 w-32 sm:w-36 cursor-pointer rounded-xl overflow-hidden border transition-all duration-200 select-none ${
+                    className={`shrink-0 w-28 sm:w-32 cursor-pointer rounded-lg overflow-hidden border transition-all duration-150 select-none ${
                       isSelected
-                        ? 'ring-2 ring-sky-400 border-sky-400 scale-[1.03] shadow-lg shadow-sky-500/20 z-10'
-                        : 'border-slate-800/90 hover:border-slate-700 hover:scale-[1.01]'
+                        ? 'ring-2 ring-sky-400 border-sky-400 scale-[1.02] shadow-md shadow-sky-500/20 z-10'
+                        : 'border-slate-800/90 hover:border-slate-700'
                     }`}
                   >
                     {/* TOP BLACK BANNER: ITEM CODE & BID/ASK */}
-                    <div className="bg-black p-2 flex flex-col justify-between border-b border-slate-800/80 min-h-[46px]">
-                      <div className="text-xs font-black text-white truncate tracking-wider uppercase">
+                    <div className="bg-black p-1.5 flex flex-col justify-between border-b border-slate-800/80 min-h-[38px]">
+                      <div className="text-[11px] font-black text-white truncate tracking-wider uppercase leading-tight">
                         {entry.item}
                       </div>
-                      <div className="flex justify-between items-center text-[9px] font-mono leading-none mt-1">
+                      <div className="flex justify-between items-center text-[8.5px] font-mono leading-none mt-0.5">
                         <span className="text-rose-400 font-bold">
-                          <span className="text-[7.5px] text-slate-500 uppercase">bid</span> {entry.topBuy || '—'}
+                          <span className="text-[7px] text-slate-500 uppercase">bid</span> {entry.topBuy || '—'}
                         </span>
                         <span className="text-emerald-400 font-bold">
-                          <span className="text-[7.5px] text-slate-500 uppercase">ask</span> {entry.topSell || '—'}
+                          <span className="text-[7px] text-slate-500 uppercase">ask</span> {entry.topSell || '—'}
                         </span>
                       </div>
                     </div>
 
                     {/* BOTTOM BODY: ASSET ICON, PERCENTAGE & BIG TRIANGLE ARROW */}
                     <div
-                      className={`p-2.5 flex items-center justify-between min-h-[56px] transition duration-200 ${
+                      className={`p-1.5 flex items-center justify-between min-h-[44px] transition duration-200 ${
                         isNegative
                           ? 'bg-rose-600 text-white'
                           : isPositive
@@ -529,23 +530,23 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                           : 'bg-slate-800 text-slate-200'
                       }`}
                     >
-                      <div className="flex flex-col gap-1 min-w-0">
-                        <div className="w-7 h-7 drop-shadow shrink-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="w-6 h-6 drop-shadow shrink-0">
                           <ItemIcon itemCode={entry.item} size="sm" className="w-full h-full object-contain" />
                         </div>
-                        <span className="text-xs font-mono font-extrabold tracking-tight leading-none">
+                        <span className="text-[11px] font-mono font-extrabold tracking-tight leading-none">
                           {displayChange}
                         </span>
                       </div>
 
                       {/* PROMINENT TRIANGLE ARROW */}
-                      <div className="shrink-0 pl-1">
+                      <div className="shrink-0 pl-0.5">
                         {isNegative ? (
-                          <div className="w-0 h-0 border-l-[11px] border-l-transparent border-r-[11px] border-r-transparent border-t-[17px] border-t-white drop-shadow-md" />
+                          <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[14px] border-t-white drop-shadow-md" />
                         ) : isPositive ? (
-                          <div className="w-0 h-0 border-l-[11px] border-l-transparent border-r-[11px] border-r-transparent border-b-[17px] border-b-rose-700 drop-shadow-md" />
+                          <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[14px] border-b-rose-700 drop-shadow-md" />
                         ) : (
-                          <span className="text-sm font-bold">●</span>
+                          <span className="text-xs font-bold">●</span>
                         )}
                       </div>
                     </div>
@@ -557,11 +558,11 @@ export default function MarketIntel({ token }: MarketIntelProps) {
 
           {/* MAIN CENTER CANDLE CHART & DETAILS PANEL */}
           {selectedItem && (
-            <div className="mt-4">
+            <div className="mt-2">
               <React.Suspense fallback={
-                <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl p-12 flex flex-col items-center justify-center gap-3">
-                  <RefreshCw className="w-8 h-8 animate-spin text-sky-500" />
-                  <span className="text-xs text-slate-400">Memuat Chart Candle & Analisis Ticker...</span>
+                <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center gap-2">
+                  <RefreshCw className="w-6 h-6 animate-spin text-sky-500" />
+                  <span className="text-xs text-slate-400">Memuat Chart Candle...</span>
                 </div>
               }>
                 <PriceChartModal

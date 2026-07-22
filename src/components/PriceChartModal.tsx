@@ -208,96 +208,193 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const content = (
     <div className={`bg-[#0C0D13] border border-slate-800 rounded-2xl w-full shadow-2xl overflow-hidden ${isInline ? '' : 'max-w-2xl max-h-[92vh] overflow-y-auto'}`}>
       {/* HEADER */}
-      <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-800 bg-[#10121A]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-slate-800 bg-[#10121A]">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 bg-slate-900/80 border border-slate-800 rounded-lg flex items-center justify-center shrink-0">
             <ItemIcon itemCode={item.item} size="md" />
           </div>
           <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
               {(GAME_ITEMS[item.item] || GAME_ITEMS[item.item.toLowerCase()])?.type === 'raw' ? 'Bahan Mentah (Raw)' : 'Barang Jadi (Product)'}
             </div>
-            <div className="text-base font-bold text-white flex items-center gap-2">
+            <div className="text-sm font-bold text-white flex items-center gap-1.5">
               {item.name}
               <span className="text-xs font-mono text-slate-400 font-normal">({item.item})</span>
             </div>
           </div>
         </div>
-        {!isInline && onClose && (
-          <button
-            onClick={onClose}
-            className="text-slate-500 hover:text-white transition duration-150 cursor-pointer p-1"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+        <div className="flex items-center gap-3">
+          {/* PRICE & CHANGE BADGE IN HEADER */}
+          <div className="text-right">
+            <div className="text-sm font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
+            <div className={`text-[10px] font-mono font-bold flex items-center justify-end gap-0.5 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{displayChange.toFixed(2)}%
+            </div>
+          </div>
+
+          {!isInline && onClose && (
+            <button
+              onClick={onClose}
+              className="text-slate-500 hover:text-white transition duration-150 cursor-pointer p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 1. CANDLE / LINE CHART (UTAMA) */}
+      <div className="p-3 sm:p-4 border-b border-slate-800/80 bg-[#090A0F]">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[10px] uppercase tracking-widest font-bold text-emerald-400 flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Grafik Candle
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setChartView('candle')}
+              className={`text-[10px] font-bold px-2 py-0.5 rounded transition duration-150 cursor-pointer ${
+                chartView === 'candle' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Candle
+            </button>
+            <button
+              onClick={() => setChartView('line')}
+              className={`text-[10px] font-bold px-2 py-0.5 rounded transition duration-150 cursor-pointer ${
+                chartView === 'line' ? 'bg-slate-800 text-white border border-slate-700' : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              Line
+            </button>
+          </div>
+        </div>
+
+        {chartView === 'candle' ? (
+          <CandleChart 
+            itemCode={item.item} 
+            candles={filteredCandles} 
+            loading={loading} 
+            errorMsg={errorMsg} 
+            tf={displayTf} 
+            setTf={setDisplayTf} 
+          />
+        ) : chartData.length > 1 ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="#1E293B" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="index" hide />
+              <YAxis
+                domain={['auto', 'auto']}
+                tick={{ fill: '#64748B', fontSize: 10 }}
+                width={50}
+                tickFormatter={(v) => Number(v).toFixed(2)}
+              />
+              <Tooltip
+                contentStyle={{ background: '#0C0D13', border: '1px solid #1E293B', borderRadius: 8, fontSize: 12 }}
+                labelFormatter={() => ''}
+                formatter={(value) => [Number(value ?? 0).toFixed(3), 'Harga']}
+              />
+              <Line
+                type="monotone"
+                dataKey="price"
+                stroke={isUp ? '#34D399' : '#FB7185'}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-center py-12 text-xs text-slate-500">
+            Belum ada data histori harga yang cukup buat chart item ini.
+          </div>
         )}
       </div>
 
-        {/* PRICE SUMMARY */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-5 border-b border-slate-800/60">
+      {/* 2. KETERANGAN & STATS (DI BAWAH CANDLE) */}
+      <div className="p-3 sm:p-4 space-y-4">
+        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-800/60 pb-1.5">
+          <span>Keterangan & Ringkasan Pasar</span>
+        </div>
+
+        {/* PRICE SUMMARY GRID */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 bg-slate-900/30 border border-slate-800/60 rounded-xl">
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Harga Saat Ini</div>
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Harga Ticker</div>
             {loading && !hasCandles ? (
-              <div className="h-6 w-20 bg-slate-800/60 rounded animate-pulse" />
+              <div className="h-5 w-16 bg-slate-800/60 rounded animate-pulse" />
             ) : (
-              <div className="text-lg font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
+              <div className="text-sm font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
             )}
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Perubahan ({tfLabel})</div>
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Perubahan ({tfLabel})</div>
             {loading && !hasCandles ? (
-              <div className="h-6 w-16 bg-slate-800/60 rounded animate-pulse" />
+              <div className="h-5 w-16 bg-slate-800/60 rounded animate-pulse" />
             ) : (
-              <div className={`text-lg font-mono font-black flex items-center gap-1 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              <div className={`text-sm font-mono font-black flex items-center gap-1 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isUp ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                 {isUp ? '+' : ''}{displayChange.toFixed(2)}%
               </div>
             )}
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1">Tertinggi / Terendah</div>
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">High / Low</div>
             {loading && !hasCandles ? (
-              <div className="h-5 w-24 bg-slate-800/60 rounded animate-pulse" />
+              <div className="h-5 w-20 bg-slate-800/60 rounded animate-pulse" />
             ) : (
-              <div className="text-sm font-mono font-bold text-slate-300">{displayHigh.toFixed(3)} / {displayLow.toFixed(3)}</div>
+              <div className="text-xs font-mono font-bold text-slate-300">{displayHigh.toFixed(3)} / {displayLow.toFixed(3)}</div>
             )}
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1 flex items-center gap-1">
-              Volume
-              <span className="text-slate-600 normal-case font-normal">(snapshot, bukan per-rentang)</span>
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-0.5">Volume & Top Order</div>
+            <div className="text-xs font-mono font-bold text-slate-300">
+              {formatVolume(item.volume)} <span className="text-[10px] text-slate-500 font-normal">(Vol)</span>
             </div>
-            <div className="text-sm font-mono font-bold text-slate-300">{formatVolume(item.volume)}</div>
+          </div>
+        </div>
+
+        {/* TOP BID & ASK STRIP */}
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-lg p-2 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-emerald-500/80 font-bold">Top Bid:</span>
+            <span className="text-xs font-mono font-extrabold text-emerald-400">{item.topBuy || '—'}</span>
+          </div>
+          <div className="bg-rose-950/20 border border-rose-500/20 rounded-lg p-2 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-rose-500/80 font-bold">Top Ask:</span>
+            <span className="text-xs font-mono font-extrabold text-rose-400">{item.topSell || '—'}</span>
           </div>
         </div>
 
         {/* SINYAL EKONOMI & TEKNIKAL - DUAL ENGINE */}
-        <div className="p-5 border-b border-slate-800/60 bg-slate-900/10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="border border-slate-800/80 bg-slate-900/10 rounded-xl p-3 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             
             {/* COLUMN 1: FUNDAMENTAL/EKONOMI PRODUKSI */}
-            <div className="border border-slate-800/50 bg-[#0E1017] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3 border-b border-slate-800/60 pb-2">
-                <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+            <div className="border border-slate-800/50 bg-[#0E1017] rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2 border-b border-slate-800/60 pb-1.5">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                   Ekonomi Produksi
                 </span>
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${signalStyle.className}`}>
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${signalStyle.className}`}>
                   {signalStyle.label}
                 </span>
               </div>
               
               {marginResult ? (
-                <div className="grid grid-cols-3 gap-2 mb-3 text-[11px]">
+                <div className="grid grid-cols-3 gap-1.5 mb-2 text-[10px]">
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">Cost/Unit</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">Cost/Unit</div>
                     <div className="font-mono font-bold text-slate-300">{marginResult.costPerUnit.toFixed(3)}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">Harga Pasar</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">Harga Pasar</div>
                     <div className="font-mono font-bold text-slate-300">{marginResult.marketPrice.toFixed(3)}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">Margin</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">Margin</div>
                     <div className={`font-mono font-bold ${marginResult.marginPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {marginResult.marginPercent >= 0 ? '+' : ''}{marginResult.marginPercent.toFixed(1)}%
                     </div>
@@ -306,17 +403,17 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
               ) : null}
 
               {orderBookImbalance && (
-                <div className="grid grid-cols-3 gap-2 mb-3 text-[11px] border-t border-slate-800/30 pt-2">
+                <div className="grid grid-cols-3 gap-1.5 mb-2 text-[10px] border-t border-slate-800/30 pt-1.5">
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">Bid Vol</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">Bid Vol</div>
                     <div className="font-mono font-bold text-emerald-400">{orderBookImbalance.bidVolume.toLocaleString('id-ID')}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">Ask Vol</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">Ask Vol</div>
                     <div className="font-mono font-bold text-rose-400">{orderBookImbalance.askVolume.toLocaleString('id-ID')}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">Ratio</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">Ratio</div>
                     <div className="font-mono font-bold text-slate-300">
                       {Number.isFinite(orderBookImbalance.imbalanceRatio) ? orderBookImbalance.imbalanceRatio.toFixed(2) : '∞'}
                     </div>
@@ -324,9 +421,9 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                 </div>
               )}
 
-              <ul className="space-y-1 mt-2">
+              <ul className="space-y-0.5 mt-1">
                 {signalResult.reasons.map((reason, idx) => (
-                  <li key={idx} className="text-[10px] text-slate-500 flex gap-1.5 leading-relaxed">
+                  <li key={idx} className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
                     <span>•</span>
                     <span>{reason}</span>
                   </li>
@@ -335,51 +432,51 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             </div>
 
             {/* COLUMN 2: ANALISIS TEKNIKAL (MA & RSI) */}
-            <div className="border border-slate-800/50 bg-[#0E1017] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3 border-b border-slate-800/60 pb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+            <div className="border border-slate-800/50 bg-[#0E1017] rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2 border-b border-slate-800/60 pb-1.5">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                     Teknikal (MA & RSI)
                   </span>
-                  <span className="text-[9px] bg-slate-800 text-slate-400 px-1 py-0.2 rounded font-mono font-bold uppercase">
+                  <span className="text-[8.5px] bg-slate-800 text-slate-400 px-1 rounded font-mono font-bold uppercase">
                     {displayTf.toUpperCase()}
                   </span>
                 </div>
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-wider ${techSignalStyle.className}`}>
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${techSignalStyle.className}`}>
                   {techSignalStyle.label}
                 </span>
               </div>
 
               {technicalSignalResult.hasSufficientData ? (
-                <div className="grid grid-cols-3 gap-2 mb-3 text-[11px]">
+                <div className="grid grid-cols-3 gap-1.5 mb-2 text-[10px]">
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">MA9 / MA21</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">MA9 / MA21</div>
                     <div className="font-mono font-bold text-slate-300">
                       {technicalSignalResult.ma9.toFixed(3)} / {technicalSignalResult.ma21.toFixed(3)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">MA20 Trend</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">MA20 Trend</div>
                     <div className={`font-mono font-bold ${technicalSignalResult.trend === 'uptrend' ? 'text-emerald-400' : technicalSignalResult.trend === 'downtrend' ? 'text-rose-400' : 'text-slate-400'}`}>
                       {technicalSignalResult.ma20.toFixed(3)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[9px] uppercase text-slate-500 font-bold">RSI (14)</div>
+                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">RSI (14)</div>
                     <div className={`font-mono font-bold ${technicalSignalResult.rsi > 70 ? 'text-rose-400 font-black animate-pulse' : technicalSignalResult.rsi < 30 ? 'text-emerald-400 font-black' : 'text-slate-300'}`}>
                       {technicalSignalResult.rsi.toFixed(1)}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-[10px] text-slate-500 bg-slate-900/40 p-2.5 rounded border border-slate-800/40 text-center mb-3">
-                  Data candle tidak cukup untuk menghitung indikator teknikal (minimal butuh 22 candle).
+                <div className="text-[9.5px] text-slate-500 bg-slate-900/40 p-2 rounded border border-slate-800/40 text-center mb-2">
+                  Data candle kurang dari 22 bar untuk indikator teknikal.
                 </div>
               )}
 
-              <ul className="space-y-1 mt-2">
+              <ul className="space-y-0.5 mt-1">
                 {technicalSignalResult.reasons.map((reason, idx) => (
-                  <li key={idx} className="text-[10px] text-slate-500 flex gap-1.5 leading-relaxed">
+                  <li key={idx} className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
                     <span>•</span>
                     <span>{reason}</span>
                   </li>
@@ -390,151 +487,71 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           </div>
 
           {/* OVERALL CROSS-CONFIRMATION ACTIONABLE RECOMMENDATION */}
-          <div className="mt-4 p-3 bg-slate-950/40 border border-slate-800/40 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+          <div className="p-2.5 bg-slate-950/40 border border-slate-800/40 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
             <div className="w-full">
-              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-black">
+              <div className="text-[8.5px] uppercase tracking-wider text-slate-500 font-black">
                 Konfirmasi Silang (Dual Engine Planner)
               </div>
-              <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+              <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">
                 {signalResult.signal === 'buy' && technicalSignalResult.signal === 'buy' ? (
-                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                    🔥 SINYAL KONFIRMASI BELI KUAT: Kedua engine memberikan rekomendasi BUY. Margin produksi sangat tipis/negatif (pasokan ketat) didukung momentum pembalikan arah MA & RSI.
+                  <span className="text-emerald-400 font-bold flex items-center gap-1">
+                    🔥 SINYAL KONFIRMASI BELI KUAT: Kedua engine memberikan rekomendasi BUY.
                   </span>
                 ) : signalResult.signal === 'sell' && technicalSignalResult.signal === 'sell' ? (
-                  <span className="text-rose-400 font-bold flex items-center gap-1.5">
-                    🚨 SINYAL KONFIRMASI JUAL KUAT: Kedua engine memberikan rekomendasi SELL. Margin produksi sangat tinggi (potensi lonjakan suplai) didukung jenuh beli teknikal.
+                  <span className="text-rose-400 font-bold flex items-center gap-1">
+                    🚨 SINYAL KONFIRMASI JUAL KUAT: Kedua engine memberikan rekomendasi SELL.
                   </span>
                 ) : (signalResult.signal === 'buy' && technicalSignalResult.signal === 'sell') || (signalResult.signal === 'sell' && technicalSignalResult.signal === 'buy') ? (
-                  <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                    ⚠️ SINYAL KONTRADIKTIF: Engine ekonomi dan teknikal saling bertolak belakang. Sangat disarankan HOLD atau tunggu konfirmasi momentum lebih lanjut untuk keamanan modal.
+                  <span className="text-amber-400 font-bold flex items-center gap-1">
+                    ⚠️ SINYAL KONTRADIKTIF: Engine ekonomi & teknikal bertolak belakang. Disarankan HOLD.
                   </span>
                 ) : (
                   <span className="text-slate-400">
-                    Sinyal bercampur atau salah satu menyarankan HOLD. Ambil tindakan dengan hati-hati sesuai dengan toleransi risiko Anda.
+                    Sinyal bercampur atau salah satu menyarankan HOLD. Ambil tindakan dengan hati-hati.
                   </span>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="text-[9px] text-slate-600 mt-3">
-            ⚠️ Ini bukan saran finansial — biaya produksi memakai upah rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP dari snapshot WarEra Pulse.
-            {orderBookRaw
-              ? ' Order book (via warerastats.io) sudah ikut dipertimbangkan sebagai konfirmasi ekonomi.'
-              : orderBookError
-                ? ` Order book gagal dimuat (${orderBookError}) — sinyal ini murni dari margin produksi.`
-                : ' Memuat order book…'}
-          </div>
-        </div>
-
-        {/* CHART */}
-        <div className="p-5">
-          <div className="flex justify-end gap-1 mb-2">
-            <button
-              onClick={() => setChartView('candle')}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-md transition duration-150 cursor-pointer ${
-                chartView === 'candle' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              Candle
-            </button>
-            <button
-              onClick={() => setChartView('line')}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-md transition duration-150 cursor-pointer ${
-                chartView === 'line' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              Line
-            </button>
-          </div>
-
-          {chartView === 'candle' ? (
-            <CandleChart 
-              itemCode={item.item} 
-              candles={filteredCandles} 
-              loading={loading} 
-              errorMsg={errorMsg} 
-              tf={displayTf} 
-              setTf={setDisplayTf} 
-            />
-          ) : chartData.length > 1 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="#1E293B" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="index" hide />
-                <YAxis
-                  domain={['auto', 'auto']}
-                  tick={{ fill: '#64748B', fontSize: 10 }}
-                  width={50}
-                  tickFormatter={(v) => Number(v).toFixed(2)}
-                />
-                <Tooltip
-                  contentStyle={{ background: '#0C0D13', border: '1px solid #1E293B', borderRadius: 8, fontSize: 12 }}
-                  labelFormatter={() => ''}
-                  formatter={(value) => [Number(value ?? 0).toFixed(3), 'Harga']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="price"
-                  stroke={isUp ? '#34D399' : '#FB7185'}
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="text-center py-16 text-xs text-slate-500">
-              Belum ada data histori harga yang cukup buat chart item ini.
-            </div>
-          )}
-        </div>
-
-        {/* BID / ASK */}
-        <div className="grid grid-cols-2 gap-3 p-5 pt-0">
-          <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-3 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-emerald-500/70 font-bold mb-1">Top Bid</div>
-            <div className="text-sm font-mono font-bold text-emerald-400">{item.topBuy || '—'}</div>
-          </div>
-          <div className="bg-rose-950/20 border border-rose-500/20 rounded-xl p-3 text-center">
-            <div className="text-[10px] uppercase tracking-wider text-rose-500/70 font-bold mb-1">Top Ask</div>
-            <div className="text-sm font-mono font-bold text-rose-400">{item.topSell || '—'}</div>
+          <div className="text-[8.5px] text-slate-600">
+            ⚠️ Bukan saran finansial — biaya produksi memakai upah rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP snapshot WarEra Pulse.
           </div>
         </div>
 
         {/* LIVE TRADE FEED */}
-        <div className="p-5 pt-0 border-t border-slate-800/40 mt-1">
-          <div className="flex items-center justify-between mb-3 pt-4">
+        <div className="border-t border-slate-800/40 pt-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Live Trade Feed (Transaksi Terbaru)</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Live Trade Feed (Transaksi Terbaru)</span>
             </div>
             <button 
               onClick={loadLiveTrades} 
               disabled={liveTradesLoading}
-              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+              className="text-[9.5px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
             >
-              <RefreshCw className={`w-3 h-3 ${liveTradesLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-2.5 h-2.5 ${liveTradesLoading ? 'animate-spin' : ''}`} />
               Muat Ulang
             </button>
           </div>
 
-          <div className="bg-[#07080C] border border-slate-800/50 rounded-xl overflow-hidden">
-            <div className="grid grid-cols-3 px-3.5 py-1.5 bg-slate-900/40 border-b border-slate-800/40 text-[9px] uppercase tracking-wider font-bold text-slate-500">
+          <div className="bg-[#07080C] border border-slate-800/50 rounded-lg overflow-hidden">
+            <div className="grid grid-cols-3 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
               <div>Waktu</div>
               <div className="text-right">Kuantitas</div>
               <div className="text-right">Harga (cc)</div>
             </div>
 
             {liveTradesLoading && liveTrades.length === 0 ? (
-              <div className="text-center py-6 text-xs text-slate-600 animate-pulse">Menghubungkan ke WarEra Pulse...</div>
+              <div className="text-center py-4 text-xs text-slate-600 animate-pulse">Menghubungkan ke WarEra Pulse...</div>
             ) : liveTrades.length === 0 ? (
-              <div className="text-center py-6 text-xs text-slate-600">Tidak ada transaksi terdeteksi baru-baru ini.</div>
+              <div className="text-center py-4 text-xs text-slate-600">Tidak ada transaksi terdeteksi baru-baru ini.</div>
             ) : (
-              <div className="max-h-[140px] overflow-y-auto divide-y divide-slate-800/30">
+              <div className="max-h-[120px] overflow-y-auto divide-y divide-slate-800/30">
                 {liveTrades.map((trade) => {
                   const date = new Date(trade.createdAt);
                   const timeStr = date.toLocaleString('id-ID', {
@@ -545,7 +562,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                     second: '2-digit'
                   });
                   return (
-                    <div key={trade.id} className="grid grid-cols-3 px-3.5 py-2 hover:bg-slate-900/30 text-xs font-mono transition duration-150">
+                    <div key={trade.id} className="grid grid-cols-3 px-3 py-1.5 hover:bg-slate-900/30 text-[11px] font-mono transition duration-150">
                       <div className="text-slate-500">{timeStr}</div>
                       <div className="text-right text-slate-300 font-bold">{trade.quantity.toLocaleString('id-ID')}</div>
                       <div className="text-right text-emerald-400 font-bold">{trade.money.toFixed(3)}</div>
@@ -555,10 +572,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
               </div>
             )}
           </div>
-          <div className="text-[9px] text-slate-600 mt-2 text-right">
-            Transaksi pasar real-time via <span className="text-slate-500">warera-pulse.info/api/transactions</span>
-          </div>
         </div>
+      </div>
     </div>
   );
 
