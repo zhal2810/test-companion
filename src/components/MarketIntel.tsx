@@ -480,14 +480,14 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         </div>
       ) : priceEntries.length > 0 ? (
         <div className="space-y-3">
-          {/* TOP ITEM CARDS SCROLLABLE ROW */}
+          {/* TOP ITEM CARDS RESPONSIVE GRID (NO SIDE SCROLL) */}
           <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
               <span>Pilih Komoditas Pasar</span>
-              <span className="text-[9.5px] text-slate-500 font-normal">Klik untuk mengganti Grafik Candle di bawah</span>
+              <span className="text-[9.5px] text-slate-500 font-normal">Klik item untuk melihat Grafik Candle di bawah</span>
             </div>
             
-            <div className="flex gap-2 overflow-x-auto pb-2 pt-0.5 scrollbar-thin scrollbar-thumb-slate-800">
+            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
               {sortedEntries.map((entry) => {
                 const isSelected = selectedItem?.item === entry.item;
                 const displayChangeValue = getDisplayChangeValue(entry);
@@ -499,54 +499,54 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                   <div
                     key={entry.item}
                     onClick={() => setSelectedItem(entry)}
-                    className={`shrink-0 w-28 sm:w-32 cursor-pointer rounded-lg overflow-hidden border transition-all duration-150 select-none ${
+                    className={`cursor-pointer rounded-xl overflow-hidden border transition-all duration-150 select-none flex flex-col justify-between ${
                       isSelected
-                        ? 'ring-2 ring-sky-400 border-sky-400 scale-[1.02] shadow-md shadow-sky-500/20 z-10'
-                        : 'border-slate-800/90 hover:border-slate-700'
+                        ? 'ring-2 ring-sky-400 border-sky-400 bg-sky-950/30 shadow-lg shadow-sky-500/15 scale-[1.02] z-10'
+                        : 'border-slate-800/90 bg-[#0B0D14] hover:border-slate-700 hover:bg-[#0F121D]'
                     }`}
                   >
-                    {/* TOP BLACK BANNER: ITEM CODE & BID/ASK */}
-                    <div className="bg-black p-1.5 flex flex-col justify-between border-b border-slate-800/80 min-h-[38px]">
+                    {/* TOP HEADER: ITEM CODE & BID/ASK */}
+                    <div className="bg-[#07080E] p-2 border-b border-slate-800/60">
                       <div className="text-[11px] font-black text-white truncate tracking-wider uppercase leading-tight">
                         {entry.item}
                       </div>
-                      <div className="flex justify-between items-center text-[8.5px] font-mono leading-none mt-0.5">
-                        <span className="text-rose-400 font-bold">
-                          <span className="text-[7px] text-slate-500 uppercase">bid</span> {entry.topBuy || '—'}
+                      <div className="flex justify-between items-center text-[8.5px] font-mono leading-none mt-1">
+                        <span className="text-emerald-400/90 font-bold truncate">
+                          <span className="text-[7.5px] text-slate-500">B</span> {entry.topBuy || '—'}
                         </span>
-                        <span className="text-emerald-400 font-bold">
-                          <span className="text-[7px] text-slate-500 uppercase">ask</span> {entry.topSell || '—'}
+                        <span className="text-rose-400/90 font-bold truncate ml-1">
+                          <span className="text-[7.5px] text-slate-500">A</span> {entry.topSell || '—'}
                         </span>
                       </div>
                     </div>
 
-                    {/* BOTTOM BODY: ASSET ICON, PERCENTAGE & BIG TRIANGLE ARROW */}
+                    {/* BOTTOM BODY: ASSET ICON, PERCENTAGE & TRIANGLE ARROW */}
                     <div
-                      className={`p-1.5 flex items-center justify-between min-h-[44px] transition duration-200 ${
+                      className={`p-2 flex items-center justify-between transition duration-200 ${
                         isNegative
-                          ? 'bg-rose-600 text-white'
+                          ? 'bg-rose-950/25 text-rose-400'
                           : isPositive
-                          ? 'bg-lime-400 text-slate-950 font-bold'
-                          : 'bg-slate-800 text-slate-200'
+                          ? 'bg-emerald-950/25 text-emerald-400'
+                          : 'bg-slate-900/40 text-slate-400'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <div className="w-6 h-6 drop-shadow shrink-0">
+                        <div className="w-6 h-6 shrink-0 flex items-center justify-center">
                           <ItemIcon itemCode={entry.item} size="sm" className="w-full h-full object-contain" />
                         </div>
-                        <span className="text-[11px] font-mono font-extrabold tracking-tight leading-none">
+                        <span className="text-[11px] font-mono font-black tracking-tight leading-none">
                           {displayChange}
                         </span>
                       </div>
 
-                      {/* PROMINENT TRIANGLE ARROW */}
-                      <div className="shrink-0 pl-0.5">
+                      {/* PROMINENT INDICATOR TRIANGLE */}
+                      <div className="shrink-0 pl-1">
                         {isNegative ? (
-                          <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[14px] border-t-white drop-shadow-md" />
+                          <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[9px] border-t-rose-500" />
                         ) : isPositive ? (
-                          <div className="w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[14px] border-b-rose-700 drop-shadow-md" />
+                          <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[9px] border-b-emerald-400" />
                         ) : (
-                          <span className="text-xs font-bold">●</span>
+                          <span className="text-[10px] text-slate-500">●</span>
                         )}
                       </div>
                     </div>
