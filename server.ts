@@ -142,16 +142,9 @@ async function startServer() {
 
   // 7b. Pulse Live Transactions
   app.get('/api/pulse/transactions', async (req, res) => {
-    const code = req.query.code;
-    const limit = req.query.limit || 50;
+    const limit = req.query.limit || 100;
     try {
-      let url = 'https://www.warera-pulse.info/api/transactions';
-      const params = new URLSearchParams();
-      if (code) params.append('code', String(code));
-      if (limit) params.append('limit', String(limit));
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
+      const url = `https://www.warera-pulse.info/api/transactions?limit=${limit}`;
 
       const response = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)' },

@@ -40,6 +40,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [orderBookError, setOrderBookError] = useState('');
   const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
+  const [isFilteredByItem, setIsFilteredByItem] = useState(false);
 
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
@@ -102,6 +103,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     const res = await getLiveTransactions(item.item, 20); // Ambil 20 transaksi terbaru
     if (res.success) {
       setLiveTrades(res.data);
+      setIsFilteredByItem(res.isFilteredByItem);
     }
     setLiveTradesLoading(false);
   };
@@ -521,13 +523,15 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
 
         {/* LIVE TRADE FEED */}
         <div className="border-t border-slate-800/40 pt-3">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Live Trade Feed (Transaksi Terbaru)</span>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                Live Trade Feed {isFilteredByItem ? `(${item.name || item.item})` : '(Bursa Global)'}
+              </span>
             </div>
             <button 
               onClick={loadLiveTrades} 
@@ -539,11 +543,18 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             </button>
           </div>
 
+          {!isFilteredByItem && liveTrades.length > 0 && (
+            <div className="text-[9px] text-amber-400/90 mb-1.5 font-medium flex items-center gap-1">
+              <span>⚠️ Belum ada transaksi {item.name || item.item} di batch bursa terbaru. Menampilkan transaksi bursa global:</span>
+            </div>
+          )}
+
           <div className="bg-[#07080C] border border-slate-800/50 rounded-lg overflow-hidden">
-            <div className="grid grid-cols-3 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
-              <div>Waktu</div>
-              <div className="text-right">Kuantitas</div>
-              <div className="text-right">Harga (cc)</div>
+            <div className="grid grid-cols-12 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
+              <div className="col-span-3">Waktu</div>
+              <div className="col-span-3">Komoditas</div>
+              <div className="col-span-2 text-right">Qty</div>
+              <div className="col-span-4 text-right">Total (Harga/u)</div>
             </div>
 
             {liveTradesLoading && liveTrades.length === 0 ? (
@@ -551,21 +562,31 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             ) : liveTrades.length === 0 ? (
               <div className="text-center py-4 text-xs text-slate-600">Tidak ada transaksi terdeteksi baru-baru ini.</div>
             ) : (
-              <div className="max-h-[120px] overflow-y-auto divide-y divide-slate-800/30">
+              <div className="max-h-[140px] overflow-y-auto divide-y divide-slate-800/30">
                 {liveTrades.map((trade) => {
                   const date = new Date(trade.createdAt);
-                  const timeStr = date.toLocaleString('id-ID', {
-                    day: '2-digit',
-                    month: 'short',
+                  const timeStr = date.toLocaleTimeString('id-ID', {
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit'
                   });
+                  const unitPrice = trade.quantity > 0 ? (trade.money / trade.quantity) : trade.money;
+                  const tradeItemConfig = GAME_ITEMS[trade.code] || GAME_ITEMS[trade.code?.toLowerCase()];
+
                   return (
-                    <div key={trade.id} className="grid grid-cols-3 px-3 py-1.5 hover:bg-slate-900/30 text-[11px] font-mono transition duration-150">
-                      <div className="text-slate-500">{timeStr}</div>
-                      <div className="text-right text-slate-300 font-bold">{trade.quantity.toLocaleString('id-ID')}</div>
-                      <div className="text-right text-emerald-400 font-bold">{trade.money.toFixed(3)}</div>
+                    <div key={trade.id} className="grid grid-cols-12 items-center px-3 py-1 hover:bg-slate-900/30 text-[10.5px] font-mono transition duration-150">
+                      <div className="col-span-3 text-slate-500 text-[10px]">{timeStr}</div>
+                      <div className="col-span-3 flex items-center gap-1 font-bold text-slate-200 truncate">
+                        <ItemIcon itemCode={trade.code} size="sm" className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{tradeItemConfig?.name || trade.code}</span>
+                      </div>
+                      <div className="col-span-2 text-right text-slate-300 font-bold">{trade.quantity.toLocaleString('id-ID')}</div>
+                      <div className="col-span-4 text-right leading-tight">
+                        <span className="text-emerald-400 font-bold">{trade.money.toFixed(2)}</span>
+                        {trade.quantity > 1 && (
+                          <span className="text-[9px] text-slate-500 block">({unitPrice.toFixed(2)}/u)</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

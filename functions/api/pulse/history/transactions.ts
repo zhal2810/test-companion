@@ -1,17 +1,10 @@
 export const onRequestGet: PagesFunction = async (context) => {
   const { request } = context;
   const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const limit = url.searchParams.get("limit") || "50";
+  const limit = url.searchParams.get("limit") || "100";
 
   try {
-    let targetUrl = "https://www.warera-pulse.info/api/transactions";
-    const params = new URLSearchParams();
-    if (code) params.append("code", code);
-    if (limit) params.append("limit", limit);
-    if (params.toString()) {
-      targetUrl += `?${params.toString()}`;
-    }
+    const targetUrl = `https://www.warera-pulse.info/api/transactions?limit=${limit}`;
 
     const response = await fetch(targetUrl, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; EraPlanner/1.0)" },

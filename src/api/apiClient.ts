@@ -236,32 +236,29 @@ export interface LiveTransaction {
 export const getLiveTransactions = async (
   itemCode?: string,
   limit: number = 30
-): Promise<{ success: boolean; error: string | null; data: LiveTransaction[] }> => {
+): Promise<{ success: boolean; error: string | null; data: LiveTransaction[]; isFilteredByItem: boolean }> => {
   try {
-    let formattedCode = itemCode;
-    if (itemCode) {
-      const configItem = GAME_ITEMS[itemCode] || GAME_ITEMS[itemCode.toLowerCase()];
-      formattedCode = configItem?.code || itemCode.toLowerCase();
-    }
-
     const response = await axios.get('/api/pulse/transactions', {
-      params: { code: formattedCode, limit }
+      params: { limit: 100 }
     });
     if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
-      return { success: false, error: 'Response berupa HTML (Endpoint proxy tidak terjangkau)', data: [] };
+      return { success: false, error: 'Response berupa HTML (Endpoint proxy tidak terjangkau)', data: [], isFilteredByItem: false };
     }
-    let items: LiveTransaction[] = Array.isArray(response.data?.items) ? response.data.items : [];
-    if (formattedCode && items.length > 0) {
-      const searchCode = formattedCode.toLowerCase();
-      const rawCode = itemCode ? itemCode.toLowerCase() : searchCode;
-      items = items.filter(it => {
-        const itemCodeLower = it.code ? it.code.toLowerCase() : '';
-        return itemCodeLower === searchCode || itemCodeLower === rawCode;
-      });
+    const items: LiveTransaction[] = Array.isArray(response.data?.items) ? response.data.items : [];
+    
+    if (itemCode && items.length > 0) {
+      const configItem = GAME_ITEMS[itemCode] || GAME_ITEMS[itemCode.toLowerCase()];
+      const targetCode = (configItem?.code || itemCode).toLowerCase();
+      
+      const filtered = items.filter(it => it.code && it.code.toLowerCase() === targetCode);
+      if (filtered.length > 0) {
+        return { success: true, error: null, data: filtered.slice(0, limit), isFilteredByItem: true };
+      }
     }
-    return { success: true, error: null, data: items };
+    
+    return { success: true, error: null, data: items.slice(0, limit), isFilteredByItem: false };
   } catch (error: any) {
-    return { success: false, error: error.message, data: [] };
+    return { success: false, error: error.message, data: [], isFilteredByItem: false };
   }
 };
 
