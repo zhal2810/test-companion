@@ -3,7 +3,9 @@ import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
-import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
+import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance } from '../utils/signalEngine';
+import { SignalBadge } from './SignalBadge';
+import { getItemStats } from '../api/apiClient';
 
 const PriceChartModal = React.lazy(() => import('./PriceChartModal'));
 
@@ -162,6 +164,9 @@ interface PriceEntry {
   topBuy?: string;
   topSell?: string;
   offerText?: string | null;
+  signal?: 'buy' | 'sell' | 'hold';
+  signalReason?: string;
+  marginPercent?: number | null;
 }
 
 function normalizePrices(data: any, previousPrices: Record<string, number> = {}, statsMap: Record<string, any> = {}): PriceEntry[] {
@@ -318,21 +323,71 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         ? normalizePrices(wareraRes.data, previousSnapshot, statsMap)
         : [];
 
-      const enriched = await Promise.all(normalized.map(async (entry) => {
-        try {
-          const orderRes = await fetchWarera('tradingOrder.getTopOrders', { itemCode: entry.item, limit: 3 }, token);
-          const payload = orderRes?.success ? orderRes.data : null;
+    const enriched = await Promise.all(normalized.map(async (entry) => {
+  try {
+    const orderRes = await fetchWarera('tradingOrder.getTopOrders', { itemCode: entry.item, limit: 3 }, token);
+    const payload = orderRes?.success ? orderRes.data : null;
 
-          return {
-            ...entry,
-            topBuy: extractTopOrder(payload, 'buy'),
-            topSell: extractTopOrder(payload, 'sell'),
-            offerText: null,
-          };
-        } catch {
-          return entry;
+    // ✅ CALCULATE SIGNAL
+    let signal: 'buy' | 'sell' | 'hold' = 'hold';
+    let signalReason = 'Data tidak lengkap';
+    let marginPercent: number | null = null;
+
+    try {
+      // Get production margin
+      const priceMapLocal = Object.fromEntries(
+        normalized.map((e) => [e.item, Number(e.price)])
+      );
+      
+      const marginResult = calculateProductionMargin(
+        entry.item,
+        priceMapLocal,
+        averageWagePerPP
+      );
+
+      // Get order book for confirmation
+      let orderBook = null;
+      try {
+        const statsRes = await getItemStats(entry.item);
+        if (statsRes.success && statsRes.data?.orderbook) {
+          const orders: Array<{ type: 'buy' | 'sell'; price: number; quantity: number }> = [];
+          statsRes.data.orderbook.buy.forEach((level: any) => 
+            orders.push({ type: 'buy', price: level.price, quantity: level.quantity })
+          );
+          statsRes.data.orderbook.sell.forEach((level: any) => 
+            orders.push({ type: 'sell', price: level.price, quantity: level.quantity })
+          );
+          orderBook = calculateOrderBookImbalance(orders, entry.price);
         }
-      }));
+      } catch (e) {
+        // Order book optional, signal works without it
+      }
+
+      // Compute final signal
+      const signalResult = computeTradeSignal(marginResult, orderBook);
+      signal = signalResult.signal;
+      signalReason = signalResult.reasons[0] || 'Hold position';
+      marginPercent = marginResult?.marginPercent ?? null;
+    } catch (e) {
+      // Signal calculation failed, use defaults
+      console.error('Signal calc error for', entry.item, e);
+    }
+
+    return {
+      ...entry,
+      topBuy: extractTopOrder(payload, 'buy'),
+      topSell: extractTopOrder(payload, 'sell'),
+      offerText: null,
+      // ✅ ADD SIGNAL FIELDS
+      signal,
+      signalReason,
+      marginPercent,
+    };
+  } catch (e) {
+    console.error('Error enriching item:', entry.item, e);
+    return { ...entry, signal: 'hold' };
+  }
+}));
 
       setPrices(enriched);
 
@@ -505,6 +560,19 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                         : 'border-slate-800/90 bg-[#0B0D14] hover:border-slate-700 hover:bg-[#0F121D]'
                     }`}
                   >
+                    <div className="flex items-center gap-2">
+  {/* ✅ ADD THIS: Display Signal Badge */}
+  {entry.signal && (
+    <div className="flex items-center gap-2">
+      <SignalBadge signal={entry.signal} size="sm" />
+      {entry.marginPercent !== null && (
+        <span className="text-[10px] text-slate-500 font-medium">
+          {entry.marginPercent > 0 ? '+' : ''}{entry.marginPercent.toFixed(1)}%
+        </span>
+      )}
+    </div>
+  )}
+</div>
                     {/* TOP HEADER: ITEM CODE & BID/ASK */}
                     <div className="bg-[#07080E] p-2 border-b border-slate-800/60">
                       <div className="text-[11px] font-black text-white truncate tracking-wider uppercase leading-tight">
