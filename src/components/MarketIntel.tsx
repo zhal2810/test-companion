@@ -6,6 +6,7 @@ import { GAME_ITEMS } from '../data/gameConfig';
 import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance } from '../utils/signalEngine';
 import { SignalBadge } from './SignalBadge';
 import { getItemStats } from '../api/apiClient';
+import { getConsistentPrice, getCacheStats } from '../utils/priceHelper';
 
 const PriceChartModal = React.lazy(() => import('./PriceChartModal'));
 
@@ -46,7 +47,20 @@ function buildOrderSummary(order: any, kind: 'buy' | 'sell'): { price: number | 
   const matchesKind = !side || side.includes(normalizedKind) || 
     (normalizedKind === 'buy' && (side.includes('bid') || side.includes('buy'))) || 
     (normalizedKind === 'sell' && (side.includes('ask') || side.includes('sell')));
+// ✅ Ensure price consistency by updating from cache/candles
+const consistentPrices = await Promise.all(
+  normalized.map(async (entry) => {
+    try {
+      const result = await getConsistentPrice(entry.item, entry.price);
+      return { ...entry, price: result.price };
+    } catch {
+      return entry;
+    }
+  })
+);
 
+// Use consistent prices for further processing
+const finalPrices = consistentPrices;
   if (!matchesKind) return null;
 
   const price = getNumericValue(order.price ?? order.unitPrice ?? order.avg ?? order.value ?? order.cost ?? order.buyPrice ?? order.sellPrice);
