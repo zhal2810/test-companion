@@ -117,19 +117,6 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     }, 15000); // refresh otomatis tiap 15 detik
     return () => clearInterval(interval);
   }, [item.item]);
-  // ✅ Get consistent price from cache/candle (for price source indicator)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (lastCandle) {
-        const result = await getConsistentPrice(item.item, lastCandle.close);
-        if (!cancelled) setPriceSource(result.source);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [item.item, lastCandle]);
 
   // Sort candles chronologically to guarantee correct first/last selection
   const sortedCandles = React.useMemo(() => {
@@ -151,6 +138,20 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const firstCandle = hasCandles ? filteredCandles[0] : null;
 
   const displayPrice = lastCandle ? lastCandle.close : item.price;
+
+  // ✅ Get consistent price from cache/candle (for price source indicator)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (lastCandle) {
+        const result = await getConsistentPrice(item.item, lastCandle.close);
+        if (!cancelled) setPriceSource(result.source);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [item.item, lastCandle]);
   
   // Calculate percentage change over the selected timeframe using the first and last candle
   const displayChange = React.useMemo(() => {
