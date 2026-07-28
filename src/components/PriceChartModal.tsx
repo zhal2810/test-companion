@@ -45,6 +45,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
   const [isFilteredByItem, setIsFilteredByItem] = useState(false);
+  const [priceSource, setPriceSource] = useState<'candle' | 'cache' | 'api' | 'fallback'>('fallback');
 
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
@@ -132,7 +133,27 @@ useEffect(() => {
       priceMap,
       avgWagePerPP
     );
+// ✅ Get consistent price from cache/candle
+useEffect(() => {
+  (async () => {
+    if (lastCandle) {
+      const result = await getConsistentPrice(item.item, lastCandle.close);
+      setPriceSource(result.source);
+      // displayPrice already using lastCandle.close, which matches or is override
+    }
+  })();
+}, [item.item, lastCandle]);
 
+// Display price with source indicator
+const getPriceSourceLabel = () => {
+  const labels = {
+    candle: '📊 Candle Last Price',
+    cache: '⚡ Cached Price',
+    api: '🔌 API Price',
+    fallback: '❓ Fallback Price'
+  };
+  return labels[priceSource];
+};
     let orderBook = null;
     if (orderBookRaw) {
       const orders: Array<{ type: 'buy' | 'sell'; price: number; quantity: number }> = [];
@@ -144,7 +165,18 @@ useEffect(() => {
       );
       orderBook = calculateOrderBookImbalance(orders, displayPrice);
     }
-
+{/* ✅ Display price with source info */}
+<div className="space-y-2">
+  <div className="text-xs text-slate-400 font-medium">
+    Price Source: {getPriceSourceLabel()}
+  </div>
+  <div className="text-2xl font-bold text-white">
+    {displayPrice.toLocaleString('en-US', { 
+      maximumFractionDigits: 2, 
+      minimumFractionDigits: 2 
+    })}
+  </div>
+</div>
     const signalResult = computeTradeSignal(marginResult, orderBook);
     setSignal({
       signal: signalResult.signal,
