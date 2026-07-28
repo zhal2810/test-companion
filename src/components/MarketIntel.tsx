@@ -222,12 +222,27 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
       changeValue = overallChange;
       change = formatChange(changeValue);
 
+      // Hitung perubahan dari points array (Pulse Gateway) — lebih akurat
+      const rawPoints = Array.isArray(statsEntry?.points) ? statsEntry.points : null;
+      const cleanPoints = rawPoints
+        ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
+        : null;
+
+      const calcChangeFromPoints = (windowHours: number): number | null => {
+        if (!cleanPoints || cleanPoints.length < 2) return null;
+        const last = cleanPoints[cleanPoints.length - 1];
+        const baseIdx = Math.max(0, cleanPoints.length - 1 - windowHours);
+        const base = cleanPoints[baseIdx];
+        if (base > 0 && last > 0) return ((last - base) / base) * 100;
+        return null;
+      };
+
       changeByRange = {
         all: overallChange,
-        '24h': resolveChangeValue(statsEntry, ['change24h', 'change24', 'change24H', 'change1d', 'changeDay'], overallChange, '24h'),
-        '7d': resolveChangeValue(statsEntry, ['change7d', 'change7D', 'change7', 'changeWeek'], overallChange, '7d'),
-        '30d': resolveChangeValue(statsEntry, ['change30d', 'change30D', 'change30', 'change1m', 'change1M'], overallChange, '30d'),
-        '90d': resolveChangeValue(statsEntry, ['change90d', 'change90D', 'change90', 'change3m', 'change3M'], overallChange, '90d'),
+        '24h': calcChangeFromPoints(24) ?? resolveChangeValue(statsEntry, ['change24h', 'change24', 'change24H', 'change1d', 'changeDay'], null, '24h'),
+        '7d': calcChangeFromPoints(24 * 7) ?? resolveChangeValue(statsEntry, ['change7d', 'change7D', 'change7', 'changeWeek'], null, '7d'),
+        '30d': calcChangeFromPoints(24 * 30) ?? resolveChangeValue(statsEntry, ['change30d', 'change30D', 'change30', 'change1m', 'change1M'], null, '30d'),
+        '90d': calcChangeFromPoints(24 * 90) ?? resolveChangeValue(statsEntry, ['change90d', 'change90D', 'change90', 'change3m', 'change3M'], null, '90d'),
       };
 
       const numericPrice = Number(price) || 0;
@@ -241,11 +256,6 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         change = '—';
       }
 
-      const rawPoints = Array.isArray(statsEntry?.points) ? statsEntry.points : null;
-      const cleanedPoints = rawPoints
-        ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
-        : undefined;
-
       return {
         item: key,
         name: configItem?.name || (typeof value === 'object' && value && value.name ? value.name : baseName),
@@ -255,7 +265,7 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         changeByRange,
         volumeValue: Number(volume) || 0,
         volume,
-        points: cleanedPoints,
+        points: cleanPoints ?? undefined,
       };
     }).filter(Boolean);
 
@@ -575,19 +585,6 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                         : 'border-slate-800/90 bg-[#0B0D14] hover:border-slate-700 hover:bg-[#0F121D]'
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-  {/* ✅ ADD THIS: Display Signal Badge */}
-  {entry.signal && (
-    <div className="flex items-center gap-2">
-      <SignalBadge signal={entry.signal} />
-      {entry.marginPercent !== null && (
-        <span className="text-[10px] text-slate-500 font-medium">
-          {entry.marginPercent > 0 ? '+' : ''}{entry.marginPercent.toFixed(1)}%
-        </span>
-      )}
-    </div>
-  )}
-</div>
                     {/* TOP HEADER: ITEM CODE & BID/ASK */}
                     <div className="bg-[#07080E] p-2 border-b border-slate-800/60">
                       <div className="text-[11px] font-black text-white truncate tracking-wider uppercase leading-tight">
