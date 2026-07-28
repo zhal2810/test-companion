@@ -3,8 +3,7 @@ import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
-import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance } from '../utils/signalEngine';
-import { SignalBadge } from './SignalBadge';
+import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
 import { getItemStats } from '../api/apiClient';
 import { getConsistentPrice, getCacheStats } from '../utils/priceHelper';
 
@@ -580,7 +579,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
   {/* ✅ ADD THIS: Display Signal Badge */}
   {entry.signal && (
     <div className="flex items-center gap-2">
-      <SignalBadge signal={entry.signal} size="sm" />
+      <SignalBadge signal={entry.signal} />
       {entry.marginPercent !== null && (
         <span className="text-[10px] text-slate-500 font-medium">
           {entry.marginPercent > 0 ? '+' : ''}{entry.marginPercent.toFixed(1)}%
