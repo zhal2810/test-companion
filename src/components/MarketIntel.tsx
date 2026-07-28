@@ -456,7 +456,10 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       default:
         comparison = 0;
     }
-
+{/* ✅ Optional: Show cache stats for debugging */}
+<div className="text-[10px] text-slate-600 text-center">
+  Cache Status: {getCacheStats().hitRate}
+</div>
     return sortDirection === 'desc' ? comparison : -comparison;
   });
 
