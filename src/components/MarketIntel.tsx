@@ -47,20 +47,7 @@ function buildOrderSummary(order: any, kind: 'buy' | 'sell'): { price: number | 
   const matchesKind = !side || side.includes(normalizedKind) || 
     (normalizedKind === 'buy' && (side.includes('bid') || side.includes('buy'))) || 
     (normalizedKind === 'sell' && (side.includes('ask') || side.includes('sell')));
-// ✅ Ensure price consistency by updating from cache/candles
-const consistentPrices = await Promise.all(
-  normalized.map(async (entry) => {
-    try {
-      const result = await getConsistentPrice(entry.item, entry.price);
-      return { ...entry, price: result.price };
-    } catch {
-      return entry;
-    }
-  })
-);
 
-// Use consistent prices for further processing
-const finalPrices = consistentPrices;
   if (!matchesKind) return null;
 
   const price = getNumericValue(order.price ?? order.unitPrice ?? order.avg ?? order.value ?? order.cost ?? order.buyPrice ?? order.sellPrice);
@@ -337,7 +324,19 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         ? normalizePrices(wareraRes.data, previousSnapshot, statsMap)
         : [];
 
-    const enriched = await Promise.all(normalized.map(async (entry) => {
+      // ✅ Ensure price consistency by updating from cache/candles
+      const consistentPrices = await Promise.all(
+        normalized.map(async (entry) => {
+          try {
+            const result = await getConsistentPrice(entry.item, entry.price);
+            return { ...entry, price: result.price };
+          } catch {
+            return entry;
+          }
+        })
+      );
+
+    const enriched = await Promise.all(consistentPrices.map(async (entry) => {
   try {
     const orderRes = await fetchWarera('tradingOrder.getTopOrders', { itemCode: entry.item, limit: 3 }, token);
     const payload = orderRes?.success ? orderRes.data : null;
@@ -350,7 +349,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
     try {
       // Get production margin
       const priceMapLocal = Object.fromEntries(
-        normalized.map((e) => [e.item, Number(e.price)])
+        consistentPrices.map((e) => [e.item, Number(e.price)])
       );
       
       const marginResult = calculateProductionMargin(
