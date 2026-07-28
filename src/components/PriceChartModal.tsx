@@ -41,7 +41,6 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [errorMsg, setErrorMsg] = useState('');
   const [orderBookRaw, setOrderBookRaw] = useState<{ buy: { price: number; quantity: number }[]; sell: { price: number; quantity: number }[] } | null>(null);
   const [orderBookError, setOrderBookError] = useState('');
-  const [signal, setSignal] = useState<{ signal: 'buy' | 'sell' | 'hold'; reasons: string[] } | null>(null);
   const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
   const [isFilteredByItem, setIsFilteredByItem] = useState(false);
@@ -120,73 +119,19 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     }, 15000); // refresh otomatis tiap 15 detik
     return () => clearInterval(interval);
   }, [item.item]);
-  // Calculate trading signal
-useEffect(() => {
-  if (!orderBookRaw || !priceMap) {
-    setSignal(null);
-    return;
-  }
-
-  try {
-    const marginResult = calculateProductionMargin(
-      item.item,
-      priceMap,
-      avgWagePerPP
-    );
-// ✅ Get consistent price from cache/candle
-useEffect(() => {
-  (async () => {
-    if (lastCandle) {
-      const result = await getConsistentPrice(item.item, lastCandle.close);
-      setPriceSource(result.source);
-      // displayPrice already using lastCandle.close, which matches or is override
-    }
-  })();
-}, [item.item, lastCandle]);
-
-// Display price with source indicator
-const getPriceSourceLabel = () => {
-  const labels = {
-    candle: '📊 Candle Last Price',
-    cache: '⚡ Cached Price',
-    api: '🔌 API Price',
-    fallback: '❓ Fallback Price'
-  };
-  return labels[priceSource];
-};
-    let orderBook = null;
-    if (orderBookRaw) {
-      const orders: Array<{ type: 'buy' | 'sell'; price: number; quantity: number }> = [];
-      orderBookRaw.buy.forEach((level) => 
-        orders.push({ type: 'buy', price: level.price, quantity: level.quantity })
-      );
-      orderBookRaw.sell.forEach((level) => 
-        orders.push({ type: 'sell', price: level.price, quantity: level.quantity })
-      );
-      orderBook = calculateOrderBookImbalance(orders, displayPrice);
-    }
-{/* ✅ Display price with source info */}
-<div className="space-y-2">
-  <div className="text-xs text-slate-400 font-medium">
-    Price Source: {getPriceSourceLabel()}
-  </div>
-  <div className="text-2xl font-bold text-white">
-    {displayPrice.toLocaleString('en-US', { 
-      maximumFractionDigits: 2, 
-      minimumFractionDigits: 2 
-    })}
-  </div>
-</div>
-    const signalResult = computeTradeSignal(marginResult, orderBook);
-    setSignal({
-      signal: signalResult.signal,
-      reasons: signalResult.reasons
-    });
-  } catch (e) {
-    console.error('Signal calc error:', e);
-    setSignal(null);
-  }
-}, [item.item, priceMap, avgWagePerPP, orderBookRaw, displayPrice]);
+  // ✅ Get consistent price from cache/candle (for price source indicator)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (lastCandle) {
+        const result = await getConsistentPrice(item.item, lastCandle.close);
+        if (!cancelled) setPriceSource(result.source);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [item.item, lastCandle]);
 
   // Sort candles chronologically to guarantee correct first/last selection
   const sortedCandles = React.useMemo(() => {
@@ -280,24 +225,6 @@ const getPriceSourceLabel = () => {
   }, [displayTf, usingFallback]);
 
   const content = (
-    {/* ✅ TRADING SIGNAL RECOMMENDATION */}
-{signal && (
-  <div className="bg-slate-900/40 border border-slate-800/60 rounded-lg p-4 space-y-3">
-    <div className="flex items-center justify-between">
-      <h4 className="font-bold text-white text-sm uppercase tracking-wide">📊 Trade Signal</h4>
-      <SignalBadge signal={signal.signal} size="md" showIcon={true} />
-    </div>
-    
-    <div className="space-y-1.5 text-xs text-slate-300 leading-relaxed">
-      {signal.reasons.map((reason, i) => (
-        <p key={i} className="flex gap-2">
-          <span className="text-amber-400 flex-shrink-0">•</span>
-          <span>{reason}</span>
-        </p>
-      ))}
-    </div>
-  </div>
-)}
     <div className={`bg-[#0C0D13] border border-slate-800 rounded-2xl w-full shadow-2xl overflow-hidden ${isInline ? '' : 'max-w-2xl max-h-[92vh] overflow-y-auto'}`}>
       {/* HEADER */}
       <div className="flex items-center justify-between p-3 sm:p-4 border-b border-slate-800 bg-[#10121A]">
