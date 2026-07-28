@@ -6,8 +6,6 @@ import CandleChart from './CandleChart';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction } from '../api/apiClient';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
-import { SignalBadge } from './SignalBadge';
-import { calculateOrderBookImbalance, computeTradeSignal } from '../utils/signalEngine';
 import { getConsistentPrice } from '../utils/priceHelper';
 
 interface PriceChartModalProps {
