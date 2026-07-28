@@ -6,6 +6,8 @@ import CandleChart from './CandleChart';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction } from '../api/apiClient';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
+import { SignalBadge } from './SignalBadge';
+import { calculateOrderBookImbalance, computeTradeSignal } from '../utils/signalEngine';
 
 interface PriceChartModalProps {
   item: {
@@ -38,6 +40,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [errorMsg, setErrorMsg] = useState('');
   const [orderBookRaw, setOrderBookRaw] = useState<{ buy: { price: number; quantity: number }[]; sell: { price: number; quantity: number }[] } | null>(null);
   const [orderBookError, setOrderBookError] = useState('');
+  const [signal, setSignal] = useState<{ signal: 'buy' | 'sell' | 'hold'; reasons: string[] } | null>(null);
   const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
   const [isFilteredByItem, setIsFilteredByItem] = useState(false);
@@ -115,6 +118,42 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     }, 15000); // refresh otomatis tiap 15 detik
     return () => clearInterval(interval);
   }, [item.item]);
+  // Calculate trading signal
+useEffect(() => {
+  if (!orderBookRaw || !priceMap) {
+    setSignal(null);
+    return;
+  }
+
+  try {
+    const marginResult = calculateProductionMargin(
+      item.item,
+      priceMap,
+      avgWagePerPP
+    );
+
+    let orderBook = null;
+    if (orderBookRaw) {
+      const orders: Array<{ type: 'buy' | 'sell'; price: number; quantity: number }> = [];
+      orderBookRaw.buy.forEach((level) => 
+        orders.push({ type: 'buy', price: level.price, quantity: level.quantity })
+      );
+      orderBookRaw.sell.forEach((level) => 
+        orders.push({ type: 'sell', price: level.price, quantity: level.quantity })
+      );
+      orderBook = calculateOrderBookImbalance(orders, displayPrice);
+    }
+
+    const signalResult = computeTradeSignal(marginResult, orderBook);
+    setSignal({
+      signal: signalResult.signal,
+      reasons: signalResult.reasons
+    });
+  } catch (e) {
+    console.error('Signal calc error:', e);
+    setSignal(null);
+  }
+}, [item.item, priceMap, avgWagePerPP, orderBookRaw, displayPrice]);
 
   // Sort candles chronologically to guarantee correct first/last selection
   const sortedCandles = React.useMemo(() => {
@@ -208,6 +247,24 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   }, [displayTf, usingFallback]);
 
   const content = (
+    {/* ✅ TRADING SIGNAL RECOMMENDATION */}
+{signal && (
+  <div className="bg-slate-900/40 border border-slate-800/60 rounded-lg p-4 space-y-3">
+    <div className="flex items-center justify-between">
+      <h4 className="font-bold text-white text-sm uppercase tracking-wide">📊 Trade Signal</h4>
+      <SignalBadge signal={signal.signal} size="md" showIcon={true} />
+    </div>
+    
+    <div className="space-y-1.5 text-xs text-slate-300 leading-relaxed">
+      {signal.reasons.map((reason, i) => (
+        <p key={i} className="flex gap-2">
+          <span className="text-amber-400 flex-shrink-0">•</span>
+          <span>{reason}</span>
+        </p>
+      ))}
+    </div>
+  </div>
+)}
     <div className={`bg-[#0C0D13] border border-slate-800 rounded-2xl w-full shadow-2xl overflow-hidden ${isInline ? '' : 'max-w-2xl max-h-[92vh] overflow-y-auto'}`}>
       {/* HEADER */}
       <div className="flex items-center justify-between p-3 sm:p-4 border-b border-slate-800 bg-[#10121A]">
