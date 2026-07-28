@@ -8,6 +8,7 @@ import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransa
 import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
 import { SignalBadge } from './SignalBadge';
 import { calculateOrderBookImbalance, computeTradeSignal } from '../utils/signalEngine';
+import { getConsistentPrice } from '../utils/priceHelper';
 
 interface PriceChartModalProps {
   item: {
