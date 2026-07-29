@@ -228,9 +228,23 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
         : null;
 
+      // Coba ambil change24h native dari Pulse dulu (paling akurat, sama dengan candle)
+      const pulseChange24h = (() => {
+        const candidates = ['change24h', 'change_24h', 'change24', 'change24H', 'change1d', 'changeDay', 'change'];
+        for (const k of candidates) {
+          const v = statsEntry?.[k];
+          if (v !== undefined && v !== null && v !== '') {
+            const n = Number(v);
+            if (!Number.isNaN(n)) return n;
+          }
+        }
+        return null;
+      })();
+
       const calcChangeFromPoints = (windowHours: number): number | null => {
         if (!cleanPoints || cleanPoints.length < 2) return null;
         const last = cleanPoints[cleanPoints.length - 1];
+        // Pulse points bisa berbeda interval — pakai seluruh window yang tersedia jika < windowHours
         const baseIdx = Math.max(0, cleanPoints.length - 1 - windowHours);
         const base = cleanPoints[baseIdx];
         if (base > 0 && last > 0) return ((last - base) / base) * 100;
@@ -239,7 +253,7 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
 
       changeByRange = {
         all: overallChange,
-        '24h': calcChangeFromPoints(24) ?? resolveChangeValue(statsEntry, ['change24h', 'change24', 'change24H', 'change1d', 'changeDay'], null, '24h'),
+        '24h': pulseChange24h ?? calcChangeFromPoints(24) ?? null,
         '7d': calcChangeFromPoints(24 * 7) ?? resolveChangeValue(statsEntry, ['change7d', 'change7D', 'change7', 'changeWeek'], null, '7d'),
         '30d': calcChangeFromPoints(24 * 30) ?? resolveChangeValue(statsEntry, ['change30d', 'change30D', 'change30', 'change1m', 'change1M'], null, '30d'),
         '90d': calcChangeFromPoints(24 * 90) ?? resolveChangeValue(statsEntry, ['change90d', 'change90D', 'change90', 'change3m', 'change3M'], null, '90d'),
@@ -323,9 +337,21 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       }
 
       const statsMap: Record<string, any> = {};
+
+      // Masukkan data dari Pulse snapshot dulu (sebagai base)
+      if (snapshotRes?.success && snapshotRes.data && typeof snapshotRes.data === 'object') {
+        Object.entries(snapshotRes.data).forEach(([key, val]: [string, any]) => {
+          if (val && typeof val === 'object') {
+            statsMap[key.toLowerCase()] = { ...val };
+          }
+        });
+      }
+
+      // Override/merge dengan data dari WarEra stats (lebih prioritas untuk price/volume)
       if (statsRes?.success && Array.isArray(statsRes.data)) {
         statsRes.data.forEach((item: any) => {
-          statsMap[item.itemCode] = item;
+          const k = (item.itemCode || '').toLowerCase();
+          statsMap[k] = { ...(statsMap[k] || {}), ...item };
         });
       }
 
