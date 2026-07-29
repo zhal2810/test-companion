@@ -1,36 +1,62 @@
-// Proxy ke api.warerastats.io — sumber data order book & harga efektif per-qty
-// (effectivePrices), dipakai buat sinyal Buy/Sell/Hold. Pihak ketiga, BUKAN API
-// resmi WarEra.
-export const onRequestGet: PagesFunction = async (context) => {
-  const item = context.params.item as string;
+// functions/api/stats/item/[item].ts
+const ALLOWED_ORIGINS = [
+  'https://test-companion.pages.dev',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
 
-  if (!item) {
-    return Response.json({ success: false, error: "Parameter item wajib diisi" }, { status: 400 });
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get('origin') || '';
+  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
+
+export const onRequestGet: PagesFunction = async (context) => {
+  const { request, params } = context;
+  const item = params.item as string;
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: getCorsHeaders(request) });
   }
 
   try {
-    const targetUrl = `https://api.warerastats.io/item/${encodeURIComponent(item)}`;
-    const response = await fetch(targetUrl, {
-      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0" },
-    });
+    const response = await fetch(
+      `https://api.warerastats.io/item/${encodeURIComponent(item)}`,
+      {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)',
+        },
+      }
+    );
 
     if (!response.ok) {
       return Response.json(
-        { success: false, error: `api.warerastats.io merespons status ${response.status}` },
-        { status: response.status }
+        { success: false, error: `warerastats.io returned ${response.status}` },
+        { status: response.status, headers: getCorsHeaders(request) }
       );
     }
 
     const data = await response.json();
     return Response.json(
       { success: true, data },
-      { headers: { "Cache-Control": "public, max-age=30" } }
+      {
+        headers: {
+          'Cache-Control': 'public, max-age=30',
+          ...getCorsHeaders(request),
+        },
+      }
     );
+
   } catch (err: any) {
-    console.error("[Proxy Error] Failed to fetch warerastats item:", err);
+    console.error('[CF Stats Error]', err);
     return Response.json(
-      { success: false, error: "Gagal mengambil data dari api.warerastats.io", detail: err.message },
-      { status: 502 }
+      { success: false, error: 'warerastats.io unavailable' },
+      { status: 502, headers: getCorsHeaders(request) }
     );
   }
 };
