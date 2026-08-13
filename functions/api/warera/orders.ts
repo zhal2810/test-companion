@@ -1,10 +1,9 @@
 // functions/api/warera/orders.ts
 //
-// Production Cloudflare Pages Function for:
-//   GET /api/warera/orders?itemCode=iron&limit=30
+// Production Cloudflare Pages Function:
+// GET /api/warera/orders?itemCode=iron&limit=30
 //
-// The frontend can request 30 orders, while OrderBook.tsx displays only
-// the first 10 BID + first 10 OFFER.
+// Fetches BID/OFFER orders and resolves WarEra user IDs to usernames.
 
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
@@ -27,7 +26,10 @@ function cors(request: Request): Headers {
   });
 }
 
-async function fetchJson(url: string, extraHeaders: Record<string, string> = {}) {
+async function fetchJson(
+  url: string,
+  extraHeaders: Record<string, string> = {},
+) {
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -44,8 +46,105 @@ async function fetchJson(url: string, extraHeaders: Record<string, string> = {})
   return response.json();
 }
 
+// Small in-memory cache. It prevents calling the user endpoint repeatedly
+// for the same player during a warm Cloudflare isolate.
+type UserInfo = {
+  username: string;
+  avatarUrl: string;
+};
+
+const userCache = new Map<string, UserInfo>();
+
+async function resolveUsername(userId: string): Promise<UserInfo> {
+  if (!userId) {
+    return { username: 'Unknown', avatarUrl: '' };
+  }
+
+  const cached = userCache.get(userId);
+  if (cached) return cached;
+
+  const input = encodeURIComponent(JSON.stringify({ userId }));
+
+  const targets = [
+    {
+      url: `https://gateway.warerastats.io/trpc/user.getUserLite?input=${input}`,
+      headers: { 'X-API-Key': 'warerastats' },
+    },
+    {
+      url: `https://api2.warera.io/trpc/user.getUserLite?input=${input}`,
+      headers: {},
+    },
+    {
+      url: `https://www.warera-pulse.info/api/wr/user.getUserLite?input=${input}`,
+      headers: {},
+    },
+  ];
+
+  for (const target of targets) {
+    try {
+      const json = await fetchJson(target.url, target.headers);
+      const user = json?.result?.data;
+
+      if (user?.username) {
+        const info = {
+          username: String(user.username),
+          avatarUrl: user.avatarUrl ? String(user.avatarUrl) : '',
+        };
+
+        userCache.set(userId, info);
+        return info;
+      }
+    } catch {
+      // Try next provider.
+    }
+  }
+
+  // Important: keep the order even if the username endpoint fails.
+  const fallback = {
+    username: userId,
+    avatarUrl: '',
+  };
+
+  userCache.set(userId, fallback);
+  return fallback;
+}
+
+async function enrichOrders(orders: any[]): Promise<any[]> {
+  if (!Array.isArray(orders) || orders.length === 0) return [];
+
+  const uniqueIds = Array.from(
+    new Set(
+      orders
+        .map((order) => order?.user)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  );
+
+  // Resolve in parallel so 20 orders do not wait one-by-one.
+  await Promise.all(uniqueIds.map((id) => resolveUsername(id)));
+
+  return orders.map((order) => {
+    const userId = typeof order?.user === 'string' ? order.user : '';
+    const user = userCache.get(userId);
+
+    return {
+      ...order,
+
+      // Keep original `user` field for compatibility.
+      user: userId,
+
+      // Frontend can use these directly.
+      username: user?.username || userId || 'Unknown',
+      avatarUrl: user?.avatarUrl || '',
+    };
+  });
+}
+
 export const onRequestOptions: PagesFunction = async ({ request }) => {
-  return new Response(null, { status: 204, headers: cors(request) });
+  return new Response(null, {
+    status: 204,
+    headers: cors(request),
+  });
 };
 
 export const onRequestGet: PagesFunction = async ({ request }) => {
@@ -58,7 +157,10 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
     const requestedLimit = Number(url.searchParams.get('limit') || '30');
     const limit = Math.max(
       1,
-      Math.min(Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 30, 100),
+      Math.min(
+        Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 30,
+        100,
+      ),
     );
 
     if (!itemCode) {
@@ -91,13 +193,19 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
     for (const target of targets) {
       try {
         const candidate = await fetchJson(target.url, target.headers);
+
         if (candidate?.result?.data) {
           data = candidate;
           break;
         }
-        errors.push(`${new URL(target.url).hostname}: invalid JSON shape`);
+
+        errors.push(
+          `${new URL(target.url).hostname}: invalid JSON shape`,
+        );
       } catch (err: any) {
-        errors.push(`${new URL(target.url).hostname}: ${err?.message || 'failed'}`);
+        errors.push(
+          `${new URL(target.url).hostname}: ${err?.message || 'failed'}`,
+        );
       }
     }
 
@@ -112,16 +220,19 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
       );
     }
 
-    const buyOrders = Array.isArray(data.result.data.buyOrders)
+    const rawBuyOrders = Array.isArray(data.result.data.buyOrders)
       ? data.result.data.buyOrders
       : [];
 
-    const sellOrders = Array.isArray(data.result.data.sellOrders)
+    const rawSellOrders = Array.isArray(data.result.data.sellOrders)
       ? data.result.data.sellOrders
       : [];
 
-    // Return the original WarEra order objects. Username/avatar enrichment,
-    // when available from upstream, is preserved.
+    const [buyOrders, sellOrders] = await Promise.all([
+      enrichOrders(rawBuyOrders),
+      enrichOrders(rawSellOrders),
+    ]);
+
     return Response.json(
       {
         result: {
