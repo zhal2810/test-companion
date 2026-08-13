@@ -178,6 +178,58 @@ export const getMarketSnapshot = async (): Promise<{ success: boolean; error: st
   }
 };
 
+export interface MarketOrder {
+  _id?: string;
+  user?: string;
+  username?: string;
+  avatarUrl?: string;
+  itemCode: string;
+  quantity: number;
+  price: number;
+  offerAt: string;
+  type: 'buy' | 'sell';
+}
+
+export interface MarketOrdersResponse {
+  buyOrders: MarketOrder[];
+  sellOrders: MarketOrder[];
+}
+
+export const getMarketOrders = async (
+  itemCode: string,
+  limit: number = 30,
+): Promise<{ success: boolean; error: string | null; data: MarketOrdersResponse }> => {
+  try {
+    const params = new URLSearchParams({
+      itemCode,
+      limit: String(Math.max(1, Math.min(limit, 100))),
+    });
+
+    const response = await fetch(`/api/warera/orders?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Order API returned ${response.status}`);
+    }
+
+    const json = await response.json();
+    const data = json?.result?.data;
+
+    return {
+      success: true,
+      error: null,
+      data: {
+        buyOrders: Array.isArray(data?.buyOrders) ? data.buyOrders : [],
+        sellOrders: Array.isArray(data?.sellOrders) ? data.sellOrders : [],
+      },
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Gagal mengambil order BID/OFFER',
+      data: { buyOrders: [], sellOrders: [] },
+    };
+  }
+};
+
 export const getItemPrices = async (): Promise<{ success: boolean; error: string | null; data: Record<string, number> }> => {
   try {
     const res = await fetchWarera('itemTrading.getPrices', {});

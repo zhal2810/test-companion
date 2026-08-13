@@ -4,7 +4,8 @@ import { X, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import CandleChart from './CandleChart';
 import { GAME_ITEMS } from '../data/gameConfig';
-import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction } from '../api/apiClient';
+import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction, getMarketOrders, type MarketOrder } from '../api/apiClient';
+import OrderBook from './OrderBook';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
 import { getConsistentPrice } from '../utils/priceHelper';
 
@@ -39,6 +40,12 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [errorMsg, setErrorMsg] = useState('');
   const [orderBookRaw, setOrderBookRaw] = useState<{ buy: { price: number; quantity: number }[]; sell: { price: number; quantity: number }[] } | null>(null);
   const [orderBookError, setOrderBookError] = useState('');
+  const [marketOrders, setMarketOrders] = useState<{ buyOrders: MarketOrder[]; sellOrders: MarketOrder[] }>({
+    buyOrders: [],
+    sellOrders: [],
+  });
+  const [marketOrdersLoading, setMarketOrdersLoading] = useState(false);
+  const [marketOrdersError, setMarketOrdersError] = useState('');
   const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
   const [isFilteredByItem, setIsFilteredByItem] = useState(false);
@@ -96,6 +103,42 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
 
     return () => {
       cancelled = true;
+    };
+  }, [item.item]);
+
+  // Load full market orders for the selected commodity.
+  // API mengambil sampai 30 per sisi; UI OrderBook hanya menampilkan 10 per sisi.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMarketOrders = async () => {
+      setMarketOrdersLoading(true);
+      setMarketOrdersError('');
+
+      const res = await getMarketOrders(item.item, 30);
+
+      if (cancelled) return;
+
+      if (res.success) {
+        setMarketOrders(res.data);
+      } else {
+        setMarketOrders({
+          buyOrders: [],
+          sellOrders: [],
+        });
+        setMarketOrdersError(res.error || 'Gagal mengambil data BID/OFFER');
+      }
+
+      setMarketOrdersLoading(false);
+    };
+
+    loadMarketOrders();
+
+    const interval = setInterval(loadMarketOrders, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
     };
   }, [item.item]);
 
@@ -385,6 +428,14 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             <span className="text-xs font-mono font-extrabold text-rose-400">{item.topSell || '—'}</span>
           </div>
         </div>
+
+        {/* BURSA PASAR — BID / OFFER */}
+        <OrderBook
+          buyOrders={marketOrders.buyOrders}
+          sellOrders={marketOrders.sellOrders}
+          loading={marketOrdersLoading}
+          error={marketOrdersError}
+        />
 
         {/* SINYAL EKONOMI & TEKNIKAL - DUAL ENGINE */}
         <div className="border border-slate-800/80 bg-slate-900/10 rounded-xl p-3 space-y-3">

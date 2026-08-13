@@ -113,6 +113,147 @@ async function startServer() {
     }
   });
 
+
+  // 2.5 Market BID/OFFER — proxy + username enrichment
+  app.get('/api/warera/orders', async (req, res) => {
+    try {
+      const itemCode = String(req.query.itemCode || '').trim();
+      const rawLimit = Number(req.query.limit || 30);
+      const limit = Math.max(
+        1,
+        Math.min(Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 30, 100)
+      );
+
+      if (!itemCode) {
+        return res.status(400).json({
+          error: "Query parameter 'itemCode' is required",
+        });
+      }
+
+      const input = encodeURIComponent(JSON.stringify({ itemCode, limit }));
+
+      const fetchTRPC = async (url: string, headers: Record<string, string> = {}) => {
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'WarEra-Companion/1.0',
+            ...headers,
+          },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!response.ok) throw new Error(`Upstream returned ${response.status}`);
+        return await response.json();
+      };
+
+      let data: any = null;
+
+      try {
+        data = await fetchTRPC(
+          `https://gateway.warerastats.io/trpc/tradingOrder.getTopOrders?input=${input}`,
+          { 'X-API-Key': 'warerastats' }
+        );
+      } catch {
+        // fallback
+      }
+
+      if (!data) {
+        try {
+          data = await fetchTRPC(
+            `https://api2.warera.io/trpc/tradingOrder.getTopOrders?input=${input}`
+          );
+        } catch {
+          // fallback berikutnya
+        }
+      }
+
+      if (!data) {
+        data = await fetchTRPC(
+          `https://www.warera-pulse.info/api/wr/tradingOrder.getTopOrders?input=${input}`
+        );
+      }
+
+      const buyOrders = Array.isArray(data?.result?.data?.buyOrders)
+        ? data.result.data.buyOrders
+        : [];
+      const sellOrders = Array.isArray(data?.result?.data?.sellOrders)
+        ? data.result.data.sellOrders
+        : [];
+
+      const userIds = Array.from(
+        new Set(
+          [...buyOrders, ...sellOrders]
+            .map((o: any) => o?.user)
+            .filter(Boolean)
+        )
+      ) as string[];
+
+      const userCache = new Map<string, { username: string; avatarUrl: string }>();
+
+      await Promise.all(
+        userIds.map(async (userId) => {
+          try {
+            const userInput = encodeURIComponent(JSON.stringify({ userId }));
+            let userData: any = null;
+
+            try {
+              userData = await fetchTRPC(
+                `https://gateway.warerastats.io/trpc/user.getUserLite?input=${userInput}`,
+                { 'X-API-Key': 'warerastats' }
+              );
+            } catch {
+              try {
+                userData = await fetchTRPC(
+                  `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`
+                );
+              } catch {
+                userData = null;
+              }
+            }
+
+            const user = userData?.result?.data;
+
+            userCache.set(userId, {
+              username: user?.username || `${userId.slice(0, 8)}...`,
+              avatarUrl: user?.avatarUrl || '',
+            });
+          } catch {
+            userCache.set(userId, {
+              username: `${userId.slice(0, 8)}...`,
+              avatarUrl: '',
+            });
+          }
+        })
+      );
+
+      const enrich = (order: any) => {
+        const user = order?.user ? userCache.get(order.user) : undefined;
+        return {
+          ...order,
+          username:
+            user?.username ||
+            (order?.user ? `${String(order.user).slice(0, 8)}...` : 'Unknown'),
+          avatarUrl: user?.avatarUrl || '',
+        };
+      };
+
+      res.set('Cache-Control', 'public, max-age=5');
+      return res.json({
+        result: {
+          data: {
+            buyOrders: buyOrders.map(enrich),
+            sellOrders: sellOrders.map(enrich),
+          },
+        },
+      });
+    } catch (err: any) {
+      console.error('[Orders Proxy]', err);
+      return res.status(502).json({
+        error: 'Failed to fetch market orders',
+        details: err?.message || 'Unknown error',
+      });
+    }
+  });
+
   // 3. Warera Alternate Proxy
   app.all('/api/warera/:procedure', async (req, res) => {
     const result = await handleWareraProxy({
