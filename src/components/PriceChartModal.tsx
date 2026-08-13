@@ -6,7 +6,7 @@ import CandleChart from './CandleChart';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction, getMarketOrders, type MarketOrder } from '../api/apiClient';
 import OrderBook from './OrderBook';
-import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
+import { calculateProductionMargin, calculateOrderBookImbalance, computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
 import { getConsistentPrice } from '../utils/priceHelper';
 
 interface PriceChartModalProps {
@@ -233,9 +233,25 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return calculateOrderBookImbalance(orders, referencePrice);
   }, [orderBookRaw, displayPrice, item.price]);
 
+  const bestBid = React.useMemo(() => {
+    const prices = orderBookRaw?.buy?.map((o) => Number(o.price)).filter((p) => Number.isFinite(p) && p > 0) || [];
+    return prices.length ? Math.max(...prices) : null;
+  }, [orderBookRaw]);
+
+  const bestOffer = React.useMemo(() => {
+    const prices = orderBookRaw?.sell?.map((o) => Number(o.price)).filter((p) => Number.isFinite(p) && p > 0) || [];
+    return prices.length ? Math.min(...prices) : null;
+  }, [orderBookRaw]);
+
   const signalResult = React.useMemo(
-    () => computeTradeSignal(marginResult, orderBookImbalance),
-    [marginResult, orderBookImbalance]
+    () => computeMarketSignal(
+      sortedCandles.map((c) => Number(c.close)).filter((p) => Number.isFinite(p) && p > 0),
+      Number(displayPrice),
+      orderBookImbalance,
+      bestBid,
+      bestOffer
+    ),
+    [sortedCandles, displayPrice, orderBookImbalance, bestBid, bestOffer]
   );
 
   const signalStyle = {
@@ -243,6 +259,18 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     sell: { label: 'SELL', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
     hold: { label: 'HOLD', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
   }[signalResult.signal];
+
+  const productionStatus = marginResult
+    ? {
+        label: marginResult.marginPercent >= 0 ? 'PRODUKSI MENGUNTUNGKAN' : 'PRODUKSI TIDAK MENGUNTUNGKAN',
+        className: marginResult.marginPercent >= 0
+          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+          : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+      }
+    : {
+        label: 'DATA PRODUKSI TIDAK LENGKAP',
+        className: 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+      };
 
   // Sinyal teknikal dihitung menggunakan data tren yang lebih lengkap (sortedCandles) agar indikator MA/RSI presisi
   const technicalSignalResult = React.useMemo(
@@ -447,8 +475,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                   Ekonomi Produksi
                 </span>
-                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${signalStyle.className}`}>
-                  {signalStyle.label}
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${productionStatus.className}`}>
+                  {productionStatus.label}
                 </span>
               </div>
               
@@ -491,12 +519,32 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
               )}
 
               <ul className="space-y-0.5 mt-1">
-                {signalResult.reasons.map((reason, idx) => (
-                  <li key={idx} className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
+                {marginResult && (
+                  <li className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
                     <span>•</span>
-                    <span>{reason}</span>
+                    <span>
+                      Margin produksi {marginResult.marginPercent >= 0 ? 'positif' : 'negatif'}
+                      ({marginResult.marginPercent >= 0 ? '+' : ''}{marginResult.marginPercent.toFixed(1)}%)
+                      — {marginResult.marginPercent >= 0 ? 'produksi masih ekonomis pada harga saat ini.' : 'harga pasar berada di bawah biaya produksi.'}
+                    </span>
                   </li>
-                ))}
+                )}
+                {orderBookImbalance && (
+                  <li className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
+                    <span>•</span>
+                    <span>
+                      {orderBookImbalance.askVolume > orderBookImbalance.bidVolume
+                        ? `Offer lebih besar dari Bid (${orderBookImbalance.askVolume.toLocaleString('id-ID')} vs ${orderBookImbalance.bidVolume.toLocaleString('id-ID')}) — supply lebih besar daripada demand.`
+                        : `Bid lebih besar atau setara dengan Offer (${orderBookImbalance.bidVolume.toLocaleString('id-ID')} vs ${orderBookImbalance.askVolume.toLocaleString('id-ID')}) — demand relatif lebih kuat.`}
+                    </span>
+                  </li>
+                )}
+                {marginResult?.missingInputPrices?.length ? (
+                  <li className="text-[9.5px] text-amber-500/80 flex gap-1 leading-snug">
+                    <span>•</span>
+                    <span>Harga bahan baku tidak lengkap: {marginResult.missingInputPrices.join(', ')}.</span>
+                  </li>
+                ) : null}
               </ul>
             </div>
 
@@ -559,24 +607,24 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           <div className="p-2.5 bg-slate-950/40 border border-slate-800/40 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
             <div className="w-full">
               <div className="text-[8.5px] uppercase tracking-wider text-slate-500 font-black">
-                Konfirmasi Silang (Dual Engine Planner)
+                Konfirmasi Pasar + Teknikal
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">
                 {signalResult.signal === 'buy' && technicalSignalResult.signal === 'buy' ? (
                   <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    🔥 SINYAL KONFIRMASI BELI KUAT: Kedua engine memberikan rekomendasi BUY.
+                    🔥 BUY terkonfirmasi: Fair Value/order book dan teknikal sama-sama mendukung.
                   </span>
                 ) : signalResult.signal === 'sell' && technicalSignalResult.signal === 'sell' ? (
                   <span className="text-rose-400 font-bold flex items-center gap-1">
-                    🚨 SINYAL KONFIRMASI JUAL KUAT: Kedua engine memberikan rekomendasi SELL.
+                    🚨 SELL terkonfirmasi: Fair Value/order book dan teknikal sama-sama mendukung.
                   </span>
                 ) : (signalResult.signal === 'buy' && technicalSignalResult.signal === 'sell') || (signalResult.signal === 'sell' && technicalSignalResult.signal === 'buy') ? (
                   <span className="text-amber-400 font-bold flex items-center gap-1">
-                    ⚠️ SINYAL KONTRADIKTIF: Engine ekonomi & teknikal bertolak belakang. Disarankan HOLD.
+                    ⚠️ Sinyal pasar dan teknikal bertentangan. Gunakan HOLD sampai arah lebih jelas.
                   </span>
                 ) : (
                   <span className="text-slate-400">
-                    Sinyal bercampur atau salah satu menyarankan HOLD. Ambil tindakan dengan hati-hati.
+                    Sinyal pasar tetap menjadi keputusan utama; RSI/MA hanya berfungsi sebagai konfirmasi.
                   </span>
                 )}
               </div>

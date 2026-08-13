@@ -188,11 +188,186 @@ export function computeTradeSignal(
     }
 
     if (orderBook.excludedOutliers > 0) {
-      reasons.push(`${orderBook.excludedOutliers} order dibuang dari perhitungan karena terindikasi manipulasi harga (outlier).`);
+      reasons.push(`${orderBook.excludedOutliers} order dibuang dari perhitungan karena terdeteksi sebagai outlier.`);
     }
   }
 
   return { signal, marginResult, orderBook, reasons };
+}
+
+
+export interface FairValueResult {
+  fairValue: number;
+  sma20: number | null;
+  ema9: number | null;
+  orderBookMid: number | null;
+  deviationPercent: number;
+}
+
+export interface MarketSignalResult {
+  signal: TradeSignal;
+  fairValue: FairValueResult | null;
+  marketPrice: number;
+  bestBid: number | null;
+  bestOffer: number | null;
+  orderBook: OrderBookImbalance | null;
+  reasons: string[];
+  confidence: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Market signal engine.
+ *
+ * BUY/HOLD/SELL hanya menjawab posisi harga pasar. Margin produksi sengaja
+ * tidak dipakai sebagai penentu sinyal trading.
+ *
+ * Fair value = kombinasi SMA20, EMA9, dan midpoint BID/OFFER (jika tersedia).
+ * Order book dan indikator teknikal hanya menjadi konfirmasi.
+ */
+export function computeMarketSignal(
+  prices: number[],
+  marketPrice: number,
+  orderBook: OrderBookImbalance | null = null,
+  bestBid: number | null = null,
+  bestOffer: number | null = null
+): MarketSignalResult {
+  const reasons: string[] = [];
+  const cleanPrices = (Array.isArray(prices) ? prices : [])
+    .map(Number)
+    .filter((p) => Number.isFinite(p) && p > 0);
+
+  if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
+    return {
+      signal: 'hold',
+      fairValue: null,
+      marketPrice: 0,
+      bestBid,
+      bestOffer,
+      orderBook,
+      reasons: ['Harga pasar tidak tersedia.'],
+      confidence: 'low',
+    };
+  }
+
+  const smaValues = cleanPrices.length >= 20 ? calculateSMA(cleanPrices, 20) : [];
+  const sma20Raw = smaValues.length ? smaValues[smaValues.length - 1] : Number.NaN;
+
+  // EMA9 dihitung dari seluruh seri agar tidak terlalu sensitif terhadap jumlah candle.
+  let ema9Raw = Number.NaN;
+  if (cleanPrices.length > 0) {
+    const k = 2 / (9 + 1);
+    let ema = cleanPrices[0];
+    for (let i = 1; i < cleanPrices.length; i++) {
+      ema = cleanPrices[i] * k + ema * (1 - k);
+    }
+    ema9Raw = ema;
+  }
+
+  const orderBookMid =
+    bestBid != null && bestOffer != null && bestBid > 0 && bestOffer > 0
+      ? (bestBid + bestOffer) / 2
+      : null;
+
+  const components: Array<[number, number]> = [];
+  if (Number.isFinite(sma20Raw) && sma20Raw > 0) components.push([sma20Raw, 0.50]);
+  if (Number.isFinite(ema9Raw) && ema9Raw > 0) components.push([ema9Raw, 0.30]);
+  if (orderBookMid != null) components.push([orderBookMid, 0.20]);
+
+  // Fallback yang stabil jika data candle masih pendek.
+  if (components.length === 0) components.push([marketPrice, 1]);
+
+  const weightSum = components.reduce((sum, [, weight]) => sum + weight, 0);
+  const fairValueRaw = components.reduce((sum, [value, weight]) => sum + value * weight, 0) / weightSum;
+  const fairValue = fairValueRaw > 0 ? fairValueRaw : marketPrice;
+  const deviationPercent = ((marketPrice - fairValue) / fairValue) * 100;
+
+  const fair: FairValueResult = {
+    fairValue,
+    sma20: Number.isFinite(sma20Raw) ? sma20Raw : null,
+    ema9: Number.isFinite(ema9Raw) ? ema9Raw : null,
+    orderBookMid,
+    deviationPercent,
+  };
+
+  const BUY_ZONE = -0.75;
+  const SELL_ZONE = 0.75;
+
+  let score = 0;
+
+  if (deviationPercent <= BUY_ZONE) {
+    score += 2;
+    reasons.push(`Harga pasar ${Math.abs(deviationPercent).toFixed(2)}% di bawah Fair Value.`);
+  } else if (deviationPercent >= SELL_ZONE) {
+    score -= 2;
+    reasons.push(`Harga pasar ${deviationPercent.toFixed(2)}% di atas Fair Value.`);
+  } else {
+    reasons.push(`Harga pasar berada dekat Fair Value (${deviationPercent >= 0 ? '+' : ''}${deviationPercent.toFixed(2)}%).`);
+  }
+
+  if (orderBook) {
+    const ratio = orderBook.imbalanceRatio;
+    if (ratio >= 1.20) {
+      score += 1;
+      reasons.push(`Bid lebih kuat dari Offer (${orderBook.bidVolume.toLocaleString('id-ID')} vs ${orderBook.askVolume.toLocaleString('id-ID')}).`);
+    } else if (ratio <= 0.83) {
+      score -= 1;
+      reasons.push(`Offer lebih besar dari Bid (${orderBook.askVolume.toLocaleString('id-ID')} vs ${orderBook.bidVolume.toLocaleString('id-ID')}).`);
+    } else {
+      reasons.push(`Rasio Bid/Offer relatif seimbang (${Number.isFinite(ratio) ? ratio.toFixed(2) : '∞'}).`);
+    }
+
+    if (orderBook.excludedOutliers > 0) {
+      reasons.push(`${orderBook.excludedOutliers} order dikeluarkan dari perhitungan karena terdeteksi sebagai outlier.`);
+    }
+  }
+
+  // Technical indicators are confirmation only.
+  if (cleanPrices.length >= 22) {
+    const technical = computeTechnicalSignal(
+      cleanPrices.map((close, index) => ({ close, time: index } as Candle))
+    );
+
+    if (technical.signal === 'buy') {
+      score += 1;
+      reasons.push(`Konfirmasi teknikal cenderung BUY (EMA/MA dan RSI).`);
+    } else if (technical.signal === 'sell') {
+      score -= 1;
+      reasons.push(`Konfirmasi teknikal cenderung SELL (EMA/MA dan RSI).`);
+    } else {
+      reasons.push(`Konfirmasi teknikal masih netral (RSI ${technical.rsi.toFixed(1)}).`);
+    }
+  } else {
+    reasons.push('Konfirmasi teknikal terbatas karena data candle belum cukup.');
+  }
+
+  let signal: TradeSignal = 'hold';
+  if (deviationPercent <= BUY_ZONE && score >= 2) {
+    signal = 'buy';
+  } else if (deviationPercent >= SELL_ZONE && score <= -2) {
+    signal = 'sell';
+  }
+
+  // Best bid/offer memperkuat penjelasan tanpa menjadi mesin tunggal.
+  if (signal === 'buy' && bestOffer != null) {
+    reasons.push(`Best Offer ${bestOffer.toFixed(3)} masih menjadi level masuk terdekat.`);
+  } else if (signal === 'sell' && bestBid != null) {
+    reasons.push(`Best Bid ${bestBid.toFixed(3)} menjadi level keluar terdekat.`);
+  }
+
+  const confidence =
+    Math.abs(score) >= 4 ? 'high' :
+    Math.abs(score) >= 3 ? 'medium' : 'low';
+
+  return {
+    signal,
+    fairValue: fair,
+    marketPrice,
+    bestBid,
+    bestOffer,
+    orderBook,
+    reasons,
+    confidence,
+  };
 }
 
 export interface TechnicalSignalResult {
