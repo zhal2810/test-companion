@@ -1,6 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { createChart, ColorType, CandlestickSeries, type IChartApi } from 'lightweight-charts';
+
+import {
+  createChart,
+  ColorType,
+  CandlestickSeries,
+  type IChartApi,
+} from 'lightweight-charts';
+
 import { type Candle } from '../api/apiClient';
+
 import { RefreshCw } from 'lucide-react';
 
 interface CandleChartProps {
@@ -20,7 +28,16 @@ const TIMEFRAMES: { value: string; label: string }[] = [
   { value: '1m', label: '1 Bulan' },
 ];
 
-export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, setTf }: CandleChartProps) {
+
+
+export default function CandleChart({
+  itemCode,
+  candles,
+  loading,
+  errorMsg,
+  tf,
+  setTf,
+}: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
@@ -30,12 +47,13 @@ export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, 
         chartRef.current.remove();
         chartRef.current = null;
       }
+
       return;
     }
 
     if (!containerRef.current) return;
 
-    // Bersihkan chart lama sebelum bikin baru
+    // Bersihkan chart lama sebelum membuat chart baru
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
@@ -43,16 +61,48 @@ export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, 
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
+        background: {
+          type: ColorType.Solid,
+          color: 'transparent',
+        },
         textColor: '#94A3B8',
       },
+
       grid: {
-        vertLines: { color: '#1E293B' },
-        horzLines: { color: '#1E293B' },
+        vertLines: {
+          color: '#1E293B',
+        },
+        horzLines: {
+          color: '#1E293B',
+        },
       },
+
       width: containerRef.current.clientWidth,
       height: 280,
-      timeScale: { timeVisible: true, secondsVisible: false },
+
+      /*
+       * Candle API tetap UTC.
+       *
+       * localization.timeZone membuat label waktu
+       * pada chart mengikuti WIB.
+       */
+      localization: {
+        timeFormatter: (timestamp: number) => {
+          const date = new Date(timestamp * 1000);
+
+          return new Intl.DateTimeFormat('id-ID', {
+            timeZone: 'Asia/Jakarta',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          }).format(date);
+        },
+      },
+
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+      },
     });
 
     const series = chart.addSeries(CandlestickSeries, {
@@ -63,6 +113,12 @@ export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, 
       wickDownColor: '#FB7185',
     });
 
+    /*
+     * JANGAN menambahkan +7 jam ke c.time.
+     *
+     * Timestamp Unix bersifat absolute.
+     * Yang kita ubah hanya formatter tampilannya.
+     */
     const formatted = candles
       .map((c: Candle) => ({
         time: c.time as any,
@@ -71,10 +127,16 @@ export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, 
         low: c.low,
         close: c.close,
       }))
-      .sort((a, b) => (a.time as number) - (b.time as number));
+      .sort(
+        (a, b) =>
+          (a.time as number) -
+          (b.time as number)
+      );
 
     series.setData(formatted);
+
     chart.timeScale().fitContent();
+
     chartRef.current = chart;
 
     return () => {
@@ -85,15 +147,21 @@ export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, 
     };
   }, [candles, loading, errorMsg]);
 
-  // Responsif kalau container-nya resize (misal modal berubah ukuran)
+  // Responsif ketika ukuran container berubah
   useEffect(() => {
     const handleResize = () => {
       if (chartRef.current && containerRef.current) {
-        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+        chartRef.current.applyOptions({
+          width: containerRef.current.clientWidth,
+        });
       }
     };
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   return (
@@ -102,6 +170,7 @@ export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, 
         <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
           Candle · WarEra Pulse Gateway
         </div>
+
         <div className="flex gap-1">
           {TIMEFRAMES.map((t) => (
             <button
@@ -125,16 +194,25 @@ export default function CandleChart({ itemCode, candles, loading, errorMsg, tf, 
             <RefreshCw className="w-5 h-5 text-slate-500 animate-spin" />
           </div>
         )}
+
         {errorMsg ? (
-          <div className="text-center py-16 text-xs text-slate-500">{errorMsg}</div>
+          <div className="text-center py-16 text-xs text-slate-500">
+            {errorMsg}
+          </div>
         ) : (
-          <div ref={containerRef} className="w-full" />
+          <div
+            ref={containerRef}
+            className="w-full"
+          />
         )}
       </div>
 
       <div className="text-[10px] text-slate-600 mt-2">
-        Data candle dari <span className="text-slate-500">warera-pulse.info</span> — sumber pihak ketiga,
-        bukan API resmi WarEra.
+        Data candle dari{' '}
+        <span className="text-slate-500">
+          warera-pulse.info
+        </span>{' '}
+        — sumber pihak ketiga, bukan API resmi WarEra.
       </div>
     </div>
   );
