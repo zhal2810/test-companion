@@ -6,6 +6,7 @@ import CandleChart from './CandleChart';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction } from '../api/apiClient';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
+import { getConsistentPrice } from '../utils/priceHelper';
 
 interface PriceChartModalProps {
   item: {
@@ -41,6 +42,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
   const [isFilteredByItem, setIsFilteredByItem] = useState(false);
+  const [priceSource, setPriceSource] = useState<'candle' | 'cache' | 'api' | 'fallback'>('fallback');
 
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
@@ -136,6 +138,20 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const firstCandle = hasCandles ? filteredCandles[0] : null;
 
   const displayPrice = lastCandle ? lastCandle.close : item.price;
+
+  // ✅ Get consistent price from cache/candle (for price source indicator)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (lastCandle) {
+        const result = await getConsistentPrice(item.item, lastCandle.close);
+        if (!cancelled) setPriceSource(result.source);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [item.item, lastCandle]);
   
   // Calculate percentage change over the selected timeframe using the first and last candle
   const displayChange = React.useMemo(() => {

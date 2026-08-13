@@ -3,7 +3,9 @@ import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
-import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
+import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
+import { getItemStats } from '../api/apiClient';
+import { getConsistentPrice, getCacheStats } from '../utils/priceHelper';
 
 const PriceChartModal = React.lazy(() => import('./PriceChartModal'));
 
@@ -162,6 +164,9 @@ interface PriceEntry {
   topBuy?: string;
   topSell?: string;
   offerText?: string | null;
+  signal?: 'buy' | 'sell' | 'hold';
+  signalReason?: string;
+  marginPercent?: number | null;
 }
 
 function normalizePrices(data: any, previousPrices: Record<string, number> = {}, statsMap: Record<string, any> = {}): PriceEntry[] {
@@ -217,12 +222,41 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
       changeValue = overallChange;
       change = formatChange(changeValue);
 
+      // Hitung perubahan dari points array (Pulse Gateway) — lebih akurat
+      const rawPoints = Array.isArray(statsEntry?.points) ? statsEntry.points : null;
+      const cleanPoints = rawPoints
+        ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
+        : null;
+
+      // Coba ambil change24h native dari Pulse dulu (paling akurat, sama dengan candle)
+      const pulseChange24h = (() => {
+        const candidates = ['change24h', 'change_24h', 'change24', 'change24H', 'change1d', 'changeDay', 'change'];
+        for (const k of candidates) {
+          const v = statsEntry?.[k];
+          if (v !== undefined && v !== null && v !== '') {
+            const n = Number(v);
+            if (!Number.isNaN(n)) return n;
+          }
+        }
+        return null;
+      })();
+
+      const calcChangeFromPoints = (windowHours: number): number | null => {
+        if (!cleanPoints || cleanPoints.length < 2) return null;
+        const last = cleanPoints[cleanPoints.length - 1];
+        // Pulse points bisa berbeda interval — pakai seluruh window yang tersedia jika < windowHours
+        const baseIdx = Math.max(0, cleanPoints.length - 1 - windowHours);
+        const base = cleanPoints[baseIdx];
+        if (base > 0 && last > 0) return ((last - base) / base) * 100;
+        return null;
+      };
+
       changeByRange = {
         all: overallChange,
-        '24h': resolveChangeValue(statsEntry, ['change24h', 'change24', 'change24H', 'change1d', 'changeDay'], overallChange, '24h'),
-        '7d': resolveChangeValue(statsEntry, ['change7d', 'change7D', 'change7', 'changeWeek'], overallChange, '7d'),
-        '30d': resolveChangeValue(statsEntry, ['change30d', 'change30D', 'change30', 'change1m', 'change1M'], overallChange, '30d'),
-        '90d': resolveChangeValue(statsEntry, ['change90d', 'change90D', 'change90', 'change3m', 'change3M'], overallChange, '90d'),
+        '24h': pulseChange24h ?? calcChangeFromPoints(24) ?? null,
+        '7d': calcChangeFromPoints(24 * 7) ?? resolveChangeValue(statsEntry, ['change7d', 'change7D', 'change7', 'changeWeek'], null, '7d'),
+        '30d': calcChangeFromPoints(24 * 30) ?? resolveChangeValue(statsEntry, ['change30d', 'change30D', 'change30', 'change1m', 'change1M'], null, '30d'),
+        '90d': calcChangeFromPoints(24 * 90) ?? resolveChangeValue(statsEntry, ['change90d', 'change90D', 'change90', 'change3m', 'change3M'], null, '90d'),
       };
 
       const numericPrice = Number(price) || 0;
@@ -236,11 +270,6 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         change = '—';
       }
 
-      const rawPoints = Array.isArray(statsEntry?.points) ? statsEntry.points : null;
-      const cleanedPoints = rawPoints
-        ? rawPoints.map(Number).filter((p: number) => !Number.isNaN(p) && p > 0)
-        : undefined;
-
       return {
         item: key,
         name: configItem?.name || (typeof value === 'object' && value && value.name ? value.name : baseName),
@@ -250,7 +279,7 @@ function normalizePrices(data: any, previousPrices: Record<string, number> = {},
         changeByRange,
         volumeValue: Number(volume) || 0,
         volume,
-        points: cleanedPoints,
+        points: cleanPoints ?? undefined,
       };
     }).filter(Boolean);
 
@@ -308,9 +337,21 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       }
 
       const statsMap: Record<string, any> = {};
+
+      // Masukkan data dari Pulse snapshot dulu (sebagai base)
+      if (snapshotRes?.success && snapshotRes.data && typeof snapshotRes.data === 'object') {
+        Object.entries(snapshotRes.data).forEach(([key, val]: [string, any]) => {
+          if (val && typeof val === 'object') {
+            statsMap[key.toLowerCase()] = { ...val };
+          }
+        });
+      }
+
+      // Override/merge dengan data dari WarEra stats (lebih prioritas untuk price/volume)
       if (statsRes?.success && Array.isArray(statsRes.data)) {
         statsRes.data.forEach((item: any) => {
-          statsMap[item.itemCode] = item;
+          const k = (item.itemCode || '').toLowerCase();
+          statsMap[k] = { ...(statsMap[k] || {}), ...item };
         });
       }
 
@@ -318,21 +359,83 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         ? normalizePrices(wareraRes.data, previousSnapshot, statsMap)
         : [];
 
-      const enriched = await Promise.all(normalized.map(async (entry) => {
-        try {
-          const orderRes = await fetchWarera('tradingOrder.getTopOrders', { itemCode: entry.item, limit: 3 }, token);
-          const payload = orderRes?.success ? orderRes.data : null;
+      // ✅ Ensure price consistency by updating from cache/candles
+      const consistentPrices = await Promise.all(
+        normalized.map(async (entry) => {
+          try {
+            const result = await getConsistentPrice(entry.item, entry.price);
+            return { ...entry, price: result.price };
+          } catch {
+            return entry;
+          }
+        })
+      );
 
-          return {
-            ...entry,
-            topBuy: extractTopOrder(payload, 'buy'),
-            topSell: extractTopOrder(payload, 'sell'),
-            offerText: null,
-          };
-        } catch {
-          return entry;
+    const enriched = await Promise.all(consistentPrices.map(async (entry) => {
+  try {
+    const orderRes = await fetchWarera('tradingOrder.getTopOrders', { itemCode: entry.item, limit: 3 }, token);
+    const payload = orderRes?.success ? orderRes.data : null;
+
+    // ✅ CALCULATE SIGNAL
+    let signal: 'buy' | 'sell' | 'hold' = 'hold';
+    let signalReason = 'Data tidak lengkap';
+    let marginPercent: number | null = null;
+
+    try {
+      // Get production margin
+      const priceMapLocal = Object.fromEntries(
+        consistentPrices.map((e) => [e.item, Number(e.price)])
+      );
+      
+      const marginResult = calculateProductionMargin(
+        entry.item,
+        priceMapLocal,
+        averageWagePerPP
+      );
+
+      // Get order book for confirmation
+      let orderBook = null;
+      try {
+        const statsRes = await getItemStats(entry.item);
+        if (statsRes.success && statsRes.data?.orderbook) {
+          const orders: Array<{ type: 'buy' | 'sell'; price: number; quantity: number }> = [];
+          statsRes.data.orderbook.buy.forEach((level: any) => 
+            orders.push({ type: 'buy', price: level.price, quantity: level.quantity })
+          );
+          statsRes.data.orderbook.sell.forEach((level: any) => 
+            orders.push({ type: 'sell', price: level.price, quantity: level.quantity })
+          );
+          orderBook = calculateOrderBookImbalance(orders, entry.price);
         }
-      }));
+      } catch (e) {
+        // Order book optional, signal works without it
+      }
+
+      // Compute final signal
+      const signalResult = computeTradeSignal(marginResult, orderBook);
+      signal = signalResult.signal;
+      signalReason = signalResult.reasons[0] || 'Hold position';
+      marginPercent = marginResult?.marginPercent ?? null;
+    } catch (e) {
+      // Signal calculation failed, use defaults
+      console.error('Signal calc error for', entry.item, e);
+    }
+
+    return {
+      ...entry,
+      topBuy: extractTopOrder(payload, 'buy'),
+      topSell: extractTopOrder(payload, 'sell'),
+      offerText: null,
+      // ✅ ADD SIGNAL FIELDS
+      signal,
+      signalReason,
+      marginPercent,
+    };
+  } catch (e) {
+    console.error('Error enriching item:', entry.item, e);
+    return { ...entry, signal: 'hold' };
+  }
+}));
 
       setPrices(enriched);
 
@@ -387,7 +490,10 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       default:
         comparison = 0;
     }
-
+{/* ✅ Optional: Show cache stats for debugging */}
+<div className="text-[10px] text-slate-600 text-center">
+  Cache Status: {getCacheStats().hitRate}
+</div>
     return sortDirection === 'desc' ? comparison : -comparison;
   });
 

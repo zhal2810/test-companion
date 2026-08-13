@@ -39,8 +39,8 @@ export function extractAverageWagePerPP(
 
 // Ambang batas margin buat menentukan sinyal. Ini juga bisa disesuaikan —
 // bukan angka baku dari game, murni heuristik ekonomi produksi.
-const SELL_MARGIN_THRESHOLD = 20; // margin >= ini → banyak yang bakal mulai produksi → suplai naik → harga cenderung turun
-const BUY_MARGIN_THRESHOLD = 5;   // margin <= ini → produksi nggak menguntungkan → suplai turun → harga cenderung naik
+const SELL_MARGIN_THRESHOLD = 2;  // margin >= ini → banyak yang bakal mulai produksi → suplai naik → harga cenderung turun
+const BUY_MARGIN_THRESHOLD = -2;  // margin <= ini → produksi nggak menguntungkan → suplai turun → harga cenderung naik
 
 /**
  * Hitung margin ekonomi produksi 1 unit item, dibandingkan harga pasar saat ini.

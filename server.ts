@@ -2,30 +2,78 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs/promises';
 import { handleWareraProxy, handleLiveMarketStats } from './src/utils/proxyHandler';
 
+// ─── Simple File Cache ─────────────────────────────────────────────
+const CACHE_DIR = path.join(process.cwd(), 'cache');
+const CACHE_FILE = path.join(CACHE_DIR, 'market_prices.json');
+const CACHE_TTL_MS = 60_000; // 60 detik
+
+interface MarketResponse {
+  [key: string]: any;
+  _meta?: {
+    fetchedAt?: string;
+    source?: string;
+    cached?: boolean;
+    [key: string]: any;
+  };
+}
+
+interface MarketCache {
+  data: any;
+  fetchedAt: string;
+  source: string;
+}
+
+async function getCachedMarketData(): Promise<MarketCache | null> {
+  try {
+    const raw = await fs.readFile(CACHE_FILE, 'utf-8');
+    const cache: MarketCache = JSON.parse(raw);
+    const age = Date.now() - new Date(cache.fetchedAt).getTime();
+    return age < CACHE_TTL_MS ? cache : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedMarketData(data: any, source: string) {
+  await fs.mkdir(CACHE_DIR, { recursive: true });
+  await fs.writeFile(CACHE_FILE, JSON.stringify({
+    data,
+    fetchedAt: new Date().toISOString(),
+    source,
+  }, null, 2));
+}
+
+// ─── Server ────────────────────────────────────────────────────────
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
 
-  // CORS Configuration
+  // ✅ FIX #1: CORS yang aman (jangan wildcard + credentials)
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
   app.use(cors({
-    origin: '*',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
-    credentials: true
+    credentials: true,
   }));
 
   app.use(express.json());
 
-  // API ENDPOINTS
-
-  // 1. Health & Server Info
+  // 1. Health
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'WarEra Companion Proxy Server is running.' });
   });
 
-  // 2. /api/players/:procedure (Matching functions/api/players/[procedure].ts)
+  // 2. Players Proxy
   app.all('/api/players/:procedure', async (req, res) => {
     const { procedure } = req.params;
     const apiKey = req.headers['x-api-key'] || req.headers['authorization'];
@@ -38,23 +86,17 @@ async function startServer() {
     }
 
     const input: Record<string, any> = { ...rawInput };
-
-    // Convert numeric string values to numbers for Zod compatibility
     for (const key in input) {
       if (typeof input[key] === 'string' && input[key].trim() !== '') {
         const num = Number(input[key]);
-        if (!Number.isNaN(num)) {
-          input[key] = num;
-        }
+        if (!Number.isNaN(num)) input[key] = num;
       }
     }
 
     try {
       const targetUrl = `https://api2.warera.io/trpc/${procedure}`;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (apiKey) {
-        headers['X-API-Key'] = String(apiKey);
-      }
+      if (apiKey) headers['X-API-Key'] = String(apiKey);
 
       const response = await fetch(targetUrl, {
         method: 'POST',
@@ -66,11 +108,12 @@ async function startServer() {
       res.status(response.status).json(json);
     } catch (err: any) {
       console.error(`[Proxy Error] Failed to fetch procedure ${procedure}:`, err);
-      res.status(500).json({ error: 'Gagal memanggil API WarEra', detail: err.message });
+      // ✅ FIX #2: Jangan kirim detail error ke client
+      res.status(502).json({ error: 'Upstream API unavailable' });
     }
   });
 
-  // 3. /api/warera/:procedure (Alternate proxy, keeping compatibility)
+  // 3. Warera Alternate Proxy
   app.all('/api/warera/:procedure', async (req, res) => {
     const result = await handleWareraProxy({
       procedure: req.params.procedure,
@@ -82,25 +125,98 @@ async function startServer() {
     res.status(result.status).json(result.payload);
   });
 
-  // 4. Live Market Stats
+  // 4. Live Market Stats (warerastats.io)
   app.get('/api/market/stats', async (req, res) => {
     const result = await handleLiveMarketStats();
     res.status(result.status).json(result.payload);
   });
 
-  // 5. Market Items (getPrices shortcut)
+  // 5. Market Items — ✅ FIX #3: GET + Cache + Fallback
   app.get('/api/market/items', async (req, res) => {
+    // Cek cache dulu
+    const cached = await getCachedMarketData();
+    if (cached) {
+      return res.json({
+        ...cached.data,
+        _meta: {
+          fetchedAt: cached.fetchedAt,
+          source: cached.source,
+          cached: true,
+          nextRefresh: new Date(new Date(cached.fetchedAt).getTime() + CACHE_TTL_MS).toISOString(),
+        }
+      });
+    }
+
+    // Fetch dari official API
     try {
       const targetUrl = 'https://api2.warera.io/trpc/itemTrading.getPrices';
       const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        method: 'GET',                          // ✅ FIX: GET, bukan POST
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        // ✅ FIX: NO body untuk GET
       });
+
+      if (!response.ok) {
+        throw new Error(`WarEra API returned ${response.status}`);
+      }
+
       const json = await response.json();
-      res.status(response.status).json(json);
+
+      // Enrich dengan metadata
+      const json = await response.json() as Record<string, any>; // ✅ tambahkan `as Record<string, any>`
+      const enriched = {
+        ...json, // sekarang bisa di-spread
+        _meta: {
+          fetchedAt: new Date().toISOString(),
+          source: 'api2.warera.io',
+          cached: false,
+          nextRefresh: new Date(Date.now() + CACHE_TTL_MS).toISOString(),
+        }
+      };
+
+      // Simpan ke cache
+      await setCachedMarketData(json, 'api2.warera.io');
+
+      res.set('Cache-Control', 'public, max-age=30');
+      res.status(200).json(enriched);
+
     } catch (err: any) {
-      res.status(502).json({ error: 'Gagal mengambil data market', detail: err.message });
+      console.error('[Market Proxy] Official API failed:', err);
+
+      // ✅ FIX #4: Fallback ke warerastats.io
+      try {
+        const fallback = await fetch('https://api.warerastats.io/items', {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)',
+          },
+        });
+
+        if (!fallback.ok) throw new Error(`Fallback returned ${fallback.status}`);
+
+        const data = await fallback.json() as Record<string, any>; // ✅ tambahkan `as Record<string, any>`
+        const enriched = {
+          ...data, // sekarang bisa di-spread
+          _meta: {
+            fetchedAt: new Date().toISOString(),
+            source: 'api.warerastats.io (fallback)',
+            warning: 'Official API unavailable, showing mirror data',
+          }
+        };
+
+        await setCachedMarketData(data, 'api.warerastats.io');
+        res.json(enriched);
+
+      } catch (fallbackErr: any) {
+        console.error('[Market Proxy] Fallback also failed:', fallbackErr);
+        res.status(502).json({
+          error: 'Market data currently unavailable',
+          _meta: { fetchedAt: new Date().toISOString() },
+        });
+      }
     }
   });
 
@@ -111,13 +227,17 @@ async function startServer() {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)' },
       });
       if (!response.ok) {
-        return res.status(response.status).json({ success: false, error: 'Gagal mengambil snapshot market', status: response.status });
+        return res.status(response.status).json({
+          success: false,
+          error: 'Failed to fetch snapshot',
+        });
       }
       const data = await response.json();
       res.set('Cache-Control', 'public, max-age=60');
       res.json({ success: true, data });
     } catch (err: any) {
-      res.status(502).json({ success: false, error: 'Gagal terhubung ke WarEra Pulse', detail: err.message });
+      console.error('[Pulse Snapshot Error]', err);
+      res.status(502).json({ success: false, error: 'WarEra Pulse unavailable' });
     }
   });
 
@@ -126,17 +246,22 @@ async function startServer() {
     const { item } = req.params;
     const tf = req.query.tf || 'week';
     try {
-      const response = await fetch(`https://www.warera-pulse.info/api/history/${item}?tf=${encodeURIComponent(String(tf))}`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)' },
-      });
+      const response = await fetch(
+        `https://www.warera-pulse.info/api/history/${encodeURIComponent(item)}?tf=${encodeURIComponent(String(tf))}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)' } }
+      );
       if (!response.ok) {
-        return res.status(response.status).json({ error: 'Gagal mengambil data candle dari WarEra Pulse', status: response.status });
+        return res.status(response.status).json({
+          success: false,
+          error: 'Failed to fetch candle data',
+        });
       }
       const data = await response.json();
       res.set('Cache-Control', 'public, max-age=60');
       res.json(data);
     } catch (err: any) {
-      res.status(502).json({ error: 'Gagal terhubung ke WarEra Pulse', detail: err.message });
+      console.error('[Pulse History Error]', err);
+      res.status(502).json({ success: false, error: 'WarEra Pulse unavailable' });
     }
   });
 
@@ -144,19 +269,22 @@ async function startServer() {
   app.get('/api/pulse/transactions', async (req, res) => {
     const limit = req.query.limit || 100;
     try {
-      const url = `https://www.warera-pulse.info/api/transactions?limit=${limit}`;
-
+      const url = `https://www.warera-pulse.info/api/transactions?limit=${encodeURIComponent(String(limit))}`;
       const response = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)' },
       });
       if (!response.ok) {
-        return res.status(response.status).json({ error: 'Gagal mengambil data transaksi dari WarEra Pulse', status: response.status });
+        return res.status(response.status).json({
+          success: false,
+          error: 'Failed to fetch transactions',
+        });
       }
       const data = await response.json();
-      res.set('Cache-Control', 'public, max-age=5'); // Cache sangat singkat karena real-time
+      res.set('Cache-Control', 'public, max-age=5');
       res.json(data);
     } catch (err: any) {
-      res.status(502).json({ error: 'Gagal terhubung ke WarEra Pulse', detail: err.message });
+      console.error('[Pulse Transactions Error]', err);
+      res.status(502).json({ success: false, error: 'WarEra Pulse unavailable' });
     }
   });
 
@@ -164,22 +292,31 @@ async function startServer() {
   app.get('/api/stats/item/:item', async (req, res) => {
     const { item } = req.params;
     try {
-      const response = await fetch(`https://api.warerastats.io/item/${encodeURIComponent(item)}`, {
-        headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' },
-      });
+      const response = await fetch(
+        `https://api.warerastats.io/item/${encodeURIComponent(item)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)',
+          },
+        }
+      );
       if (!response.ok) {
-        return res.status(response.status).json({ success: false, error: `api.warerastats.io merespons status ${response.status}` });
+        return res.status(response.status).json({
+          success: false,
+          error: `warerastats.io returned ${response.status}`,
+        });
       }
       const data = await response.json();
       res.set('Cache-Control', 'public, max-age=30');
       res.json({ success: true, data });
     } catch (err: any) {
-      res.status(502).json({ success: false, error: 'Gagal mengambil data dari api.warerastats.io', detail: err.message });
+      console.error('[Stats Error]', err);
+      res.status(502).json({ success: false, error: 'warerastats.io unavailable' });
     }
   });
 
   // INTEGRATE VITE MIDDLEWARE
-
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
