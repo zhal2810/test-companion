@@ -141,7 +141,7 @@ export const getWorkersByUserId = async (userId: string, token: string | null = 
   }
 };
 
-export const getUserEcoSkills = async (userId: string, token: string | null = null): Promise<{ success: boolean; error: string | null; data: { energyValue: number; productionValue: number } }> => {
+export const getUserEcoSkills = async (userId: string, token: string | null = null): Promise<{ success: boolean; error: string | null; data: { energyValue: number; productionValue: number; username?: string; avatarUrl?: string } }> => {
   try {
     const result = await fetchWarera('user.getUserById', { userId }, token);
     if (!result.success) throw new Error(result.error || 'Gagal mengambil data user');
@@ -152,7 +152,7 @@ export const getUserEcoSkills = async (userId: string, token: string | null = nu
 
     return { success: true, error: null, data: { energyValue, productionValue } };
   } catch (err: any) {
-    return { success: false, error: err.message, data: { energyValue: 0, productionValue: 0 } };
+    return { success: false, error: err.message, data: { energyValue: 0, productionValue: 0, username: '', avatarUrl: '' } };
   }
 };
 

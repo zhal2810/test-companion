@@ -3,7 +3,7 @@ import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient
 import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
-import { calculateProductionMargin, computeTradeSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
+import { computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
 import { getItemStats } from '../api/apiClient';
 import { getConsistentPrice, getCacheStats } from '../utils/priceHelper';
 
@@ -167,6 +167,12 @@ interface PriceEntry {
   signal?: 'buy' | 'sell' | 'hold';
   signalReason?: string;
   marginPercent?: number | null;
+  fairValue?: number | null;
+  bestBid?: number | null;
+  bestOffer?: number | null;
+  bidVolume?: number;
+  offerVolume?: number;
+  imbalanceRatio?: number;
 }
 
 function normalizePrices(data: any, previousPrices: Record<string, number> = {}, statsMap: Record<string, any> = {}): PriceEntry[] {
@@ -294,9 +300,9 @@ interface MarketIntelProps {
 
 function SignalBadge({ signal }: { signal: TradeSignal }) {
   const config = {
-    buy: { label: 'Buy', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
-    sell: { label: 'Sell', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
-    hold: { label: 'Hold', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
+    buy: { label: 'BUY', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+    sell: { label: 'SELL', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
+    hold: { label: 'HOLD', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' },
   }[signal];
 
   return (
@@ -376,48 +382,51 @@ export default function MarketIntel({ token }: MarketIntelProps) {
     const orderRes = await fetchWarera('tradingOrder.getTopOrders', { itemCode: entry.item, limit: 3 }, token);
     const payload = orderRes?.success ? orderRes.data : null;
 
-    // ✅ CALCULATE SIGNAL
+    // Fair Value + BID/OFFER + posisi harga adalah mesin utama.
     let signal: 'buy' | 'sell' | 'hold' = 'hold';
     let signalReason = 'Data tidak lengkap';
-    let marginPercent: number | null = null;
+    let fairValue: number | null = null;
+    let bestBid: number | null = null;
+    let bestOffer: number | null = null;
+    let bidVolume = 0;
+    let offerVolume = 0;
+    let imbalanceRatio = 1;
 
     try {
-      // Get production margin
-      const priceMapLocal = Object.fromEntries(
-        consistentPrices.map((e) => [e.item, Number(e.price)])
-      );
-      
-      const marginResult = calculateProductionMargin(
-        entry.item,
-        priceMapLocal,
-        averageWagePerPP
-      );
-
-      // Get order book for confirmation
       let orderBook = null;
       try {
         const statsRes = await getItemStats(entry.item);
         if (statsRes.success && statsRes.data?.orderbook) {
+          const buys = statsRes.data.orderbook.buy || [];
+          const sells = statsRes.data.orderbook.sell || [];
+          bestBid = buys.length ? Math.max(...buys.map((o: any) => Number(o.price)).filter((n: number) => Number.isFinite(n))) : null;
+          bestOffer = sells.length ? Math.min(...sells.map((o: any) => Number(o.price)).filter((n: number) => Number.isFinite(n))) : null;
           const orders: Array<{ type: 'buy' | 'sell'; price: number; quantity: number }> = [];
-          statsRes.data.orderbook.buy.forEach((level: any) => 
-            orders.push({ type: 'buy', price: level.price, quantity: level.quantity })
-          );
-          statsRes.data.orderbook.sell.forEach((level: any) => 
-            orders.push({ type: 'sell', price: level.price, quantity: level.quantity })
-          );
+          buys.forEach((level: any) => orders.push({ type: 'buy', price: Number(level.price), quantity: Number(level.quantity) }));
+          sells.forEach((level: any) => orders.push({ type: 'sell', price: Number(level.price), quantity: Number(level.quantity) }));
           orderBook = calculateOrderBookImbalance(orders, entry.price);
+          bidVolume = orderBook.bidVolume;
+          offerVolume = orderBook.askVolume;
+          imbalanceRatio = orderBook.imbalanceRatio;
         }
       } catch (e) {
-        // Order book optional, signal works without it
+        // Order book optional.
       }
 
-      // Compute final signal
-      const signalResult = computeTradeSignal(marginResult, orderBook);
+      const pricesForEngine = Array.isArray(entry.points) && entry.points.length > 0
+        ? entry.points
+        : [Number(entry.price)];
+      const signalResult = computeMarketSignal(
+        pricesForEngine,
+        Number(entry.price),
+        orderBook,
+        bestBid,
+        bestOffer
+      );
       signal = signalResult.signal;
       signalReason = signalResult.reasons[0] || 'Hold position';
-      marginPercent = marginResult?.marginPercent ?? null;
+      fairValue = signalResult.fairValue?.fairValue ?? null;
     } catch (e) {
-      // Signal calculation failed, use defaults
       console.error('Signal calc error for', entry.item, e);
     }
 
@@ -426,10 +435,14 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       topBuy: extractTopOrder(payload, 'buy'),
       topSell: extractTopOrder(payload, 'sell'),
       offerText: null,
-      // ✅ ADD SIGNAL FIELDS
       signal,
       signalReason,
-      marginPercent,
+      fairValue,
+      bestBid,
+      bestOffer,
+      bidVolume,
+      offerVolume,
+      imbalanceRatio,
     };
   } catch (e) {
     console.error('Error enriching item:', entry.item, e);
@@ -623,6 +636,10 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                         <span className="text-rose-400/90 font-bold truncate ml-1">
                           <span className="text-[7.5px] text-slate-500">A</span> {entry.topSell || '—'}
                         </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[7.5px] font-mono mt-1 text-slate-600">
+                        <span>FV {entry.fairValue != null ? entry.fairValue.toFixed(3) : '—'}</span>
+                        <span>R {entry.imbalanceRatio != null ? (Number.isFinite(entry.imbalanceRatio) ? entry.imbalanceRatio.toFixed(2) : '∞') : '—'}</span>
                       </div>
                     </div>
 
