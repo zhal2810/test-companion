@@ -130,7 +130,7 @@ export default function ApiConfigModal({ isOpen, onClose }: ApiConfigModalProps)
               type="text"
               value={username}
               onChange={(e) => { setUsername(e.target.value); setStatus(null); }}
-              placeholder="e.g. zxz"
+              placeholder="e.g. Siapa Gitu"
               className="w-full bg-[#08090C] border border-slate-800 focus:border-emerald-500/50 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 placeholder-slate-600 outline-none transition duration-200 text-sm"
             />
           </div>
