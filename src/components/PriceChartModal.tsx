@@ -7,7 +7,7 @@ import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction, getMarketOrders, type MarketOrder } from '../api/apiClient';
 import OrderBook from './OrderBook';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
-import { getConsistentPrice, formatPriceAdaptive } from '../utils/priceHelper';
+import { getConsistentPrice } from '../utils/priceHelper';
 
 interface PriceChartModalProps {
   item: {
@@ -467,7 +467,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             {loading && !hasCandles ? (
               <div className="h-5 w-16 bg-slate-800/60 rounded animate-pulse" />
             ) : (
-              <div className="text-sm font-mono font-black text-white">{formatPriceAdaptive(Number(displayPrice))}</div>
+              <div className="text-sm font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
             )}
           </div>
           <div>
@@ -486,7 +486,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             {loading && !hasCandles ? (
               <div className="h-5 w-20 bg-slate-800/60 rounded animate-pulse" />
             ) : (
-              <div className="text-xs font-mono font-bold text-slate-300">{formatPriceAdaptive(displayHigh)} / {formatPriceAdaptive(displayLow)}</div>
+              <div className="text-xs font-mono font-bold text-slate-300">{displayHigh.toFixed(3)} / {displayLow.toFixed(3)}</div>
             )}
           </div>
           <div>

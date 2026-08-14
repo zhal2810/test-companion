@@ -14,25 +14,6 @@ interface PriceCache {
 }
 
 /**
- * Format harga dengan presisi otomatis mengikuti besaran nilainya.
- *
- * Item mahal (mis. ~3.675) cukup 2 desimal supaya tidak berkedip di digit
- * terakhir; item murah (mis. iron 0.0877) tetap perlu 3-4 desimal agar
- * pergerakan harga tidak hilang.
- */
-export function formatPriceAdaptive(value: number): string {
-  const abs = Math.abs(value);
-
-  if (abs >= 1000) return value.toFixed(1);
-  if (abs >= 100) return value.toFixed(2);
-  if (abs >= 1) return value.toFixed(2);
-  if (abs >= 0.1) return value.toFixed(3);
-  if (abs >= 0.01) return value.toFixed(3);
-  if (abs >= 0.001) return value.toFixed(4);
-  return value.toFixed(5);
-}
-
-/**
  * Get cached price if exists and still valid
  */
 export function getCachedPrice(itemCode: string): CachedPrice | null {

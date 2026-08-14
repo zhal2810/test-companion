@@ -9,8 +9,6 @@ import {
 
 import { type Candle } from '../api/apiClient';
 
-import { formatPriceAdaptive } from '../utils/priceHelper';
-
 import { RefreshCw } from 'lucide-react';
 
 // Format waktu ke WIB (UTC+7) untuk label sumbu bawah chart dan crosshair.
@@ -127,8 +125,8 @@ export default function CandleChart({
       wickUpColor: '#34D399',
       wickDownColor: '#FB7185',
       priceFormat: {
-        type: 'custom',
-        formatter: (price: number) => formatPriceAdaptive(price),
+        type: 'price',
+        precision: 3,
       },
     });
 
