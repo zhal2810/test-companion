@@ -50,6 +50,10 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
   const [isFilteredByItem, setIsFilteredByItem] = useState(false);
   const [priceSource, setPriceSource] = useState<'candle' | 'cache' | 'api' | 'fallback'>('fallback');
+  const [manualWagePerPP, setManualWagePerPP] = useState<string>(() => {
+    const saved = localStorage.getItem('warera_wage_per_pp');
+    return saved !== null ? saved : '';
+  });
 
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
@@ -235,9 +239,16 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
 
   const usingFallback = !hasCandles && !loading;
 
+  // Upah/PP efektif: manual (0 = tanpa pekerja) jika diisi, else fallback ke snapshot/auto
+  const effectiveWagePerPP = React.useMemo(() => {
+    if (manualWagePerPP.trim() === '') return avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP;
+    const num = Number(manualWagePerPP);
+    return Number.isFinite(num) && num >= 0 ? num : (avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP);
+  }, [manualWagePerPP, avgWagePerPP]);
+
   const marginResult = React.useMemo(
-    () => calculateProductionMargin(item.item, priceMap, avgWagePerPP),
-    [item.item, priceMap, avgWagePerPP]
+    () => calculateProductionMargin(item.item, priceMap, effectiveWagePerPP),
+    [item.item, priceMap, effectiveWagePerPP]
   );
 
   const orderBookImbalance = React.useMemo(() => {
@@ -498,9 +509,40 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                   {productionStatus.label}
                 </span>
               </div>
+
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-[8.5px] uppercase text-slate-500 font-bold">Upah/PP</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.001}
+                  value={manualWagePerPP}
+                  onChange={(e) => {
+                    setManualWagePerPP(e.target.value);
+                    localStorage.setItem('warera_wage_per_pp', e.target.value);
+                  }}
+                  placeholder={Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)}
+                  title="Upah per PP untuk hitung biaya produksi. Kosongkan = otomatis (snapshot). Isi 0 = tanpa pekerja."
+                  className="w-16 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] font-mono text-white text-center outline-none focus:border-indigo-500"
+                />
+                {manualWagePerPP.trim() !== '' ? (
+                  <button
+                    onClick={() => {
+                      setManualWagePerPP('');
+                      localStorage.removeItem('warera_wage_per_pp');
+                    }}
+                    className="text-[8.5px] text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
+                  >
+                    reset
+                  </button>
+                ) : (
+                  <span className="text-[8.5px] text-slate-600">auto (snapshot)</span>
+                )}
+              </div>
               
               {marginResult ? (
-                <div className="grid grid-cols-3 gap-1.5 mb-2 text-[10px]">
+                <>
+                  <div className="grid grid-cols-3 gap-1.5 mb-2 text-[10px]">
                   <div>
                     <div className="text-[8.5px] uppercase text-slate-500 font-bold">Cost/Unit</div>
                     <div className="font-mono font-bold text-slate-300">{marginResult.costPerUnit.toFixed(3)}</div>
@@ -515,7 +557,11 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                       {marginResult.marginPercent >= 0 ? '+' : ''}{marginResult.marginPercent.toFixed(1)}%
                     </div>
                   </div>
-                </div>
+                  </div>
+                  <div className="text-[8.5px] text-slate-600 mb-2 -mt-1">
+                    Bahan baku: {marginResult.materialCost.toFixed(3)} • Upah: {marginResult.laborCost.toFixed(3)}
+                  </div>
+                </>
               ) : null}
 
               {orderBookImbalance && (
@@ -651,7 +697,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           </div>
 
           <div className="text-[8.5px] text-slate-600">
-            ⚠️ Bukan saran finansial — biaya produksi memakai upah rata-rata {Number(avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP).toFixed(3)} cc/PP snapshot WarEra Pulse.
+            ⚠️ Bukan saran finansial — biaya produksi memakai upah {effectiveWagePerPP.toFixed(3)} cc/PP {manualWagePerPP.trim() !== '' ? '(manual)' : 'snapshot WarEra Pulse'}.
           </div>
         </div>
 
