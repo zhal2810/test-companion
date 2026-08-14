@@ -111,6 +111,10 @@ export default function CandleChart({
       borderVisible: false,
       wickUpColor: '#34D399',
       wickDownColor: '#FB7185',
+      priceFormat: {
+        type: 'price',
+        precision: 4,
+      },
     });
 
     /*
