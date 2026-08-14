@@ -73,11 +73,13 @@ export function computeCompanyDailyProduction({
   productionBonus,
   workers = [],
   itemsConfig = {},
+  entrepreneurshipPP = 0,
 }: {
   comp: any;
   productionBonus: any;
   workers?: any[];
   itemsConfig?: Record<string, any>;
+  entrepreneurshipPP?: number;
 }) {
   const isDisabled = Boolean(comp?.disabledAt || comp?.isDisabled || comp?.disabled);
 
@@ -98,7 +100,8 @@ export function computeCompanyDailyProduction({
   }));
   const workersBoostedPPPerDay = isDisabled ? 0 : workerBreakdowns.reduce((sum, w) => sum + w.boostedPPPerDay, 0);
   const workersWagePerDay = isDisabled ? 0 : workerBreakdowns.reduce((sum, w) => sum + w.wagePerDay, 0);
-  const totalPP = isDisabled ? 0 : (enginePPWithBonus + workersBoostedPPPerDay);
+  const entPP = isDisabled ? 0 : (Number(entrepreneurshipPP) || 0);
+  const totalPP = isDisabled ? 0 : (enginePPWithBonus + workersBoostedPPPerDay + entPP);
 
   const itemCode = comp?.itemCode;
   const itemMeta = itemsConfig?.[itemCode] || {};
@@ -108,7 +111,7 @@ export function computeCompanyDailyProduction({
   return {
     isDisabled,
     aeLevel, basePP, bonusPercent, enginePPWithBonus,
-    workerBreakdowns, workersBoostedPPPerDay, workersWagePerDay, totalPP,
+    workerBreakdowns, workersBoostedPPPerDay, workersWagePerDay, entrepreneurshipPP: entPP, totalPP,
     itemCode, itemType: itemMeta.type || 'raw', productionNeeds: itemMeta.productionNeeds || null,
     ppPerUnit, dailyProduction,
   };

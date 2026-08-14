@@ -254,6 +254,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
           productionBonus: productionBonusDict[c._id],
           workers: workersByCompanyId[c._id] || [],
           itemsConfig,
+          entrepreneurshipPP: entrepreneurshipLevel,
         }),
       }));
 
@@ -404,8 +405,8 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
           {data?.playerData?.username ? `Pemain: ${data.playerData.username}` : 'Company Analysis'}
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span className="uppercase tracking-wider text-[10px] font-bold">Entrepreneurship</span>
+          <label className="flex items-center gap-2 text-[11px] text-slate-400" title="PP/day tambahan dari skill Entrepreneurship, ditambahkan ke Total PP. Diisi manual.">
+            <span className="uppercase tracking-wider text-[10px] font-bold">Entrepreneurship PP</span>
             <input
               type="number"
               min={0}
@@ -702,7 +703,8 @@ function CompanyListItem({
 
             const workersBoostedPPPerDay = workerBreakdowns.reduce((sum, w) => sum + w.boostedPPPerDay, 0);
             const workersWagePerDay = workerBreakdowns.reduce((sum, w) => sum + w.wagePerDay, 0);
-            const totalPP = enginePPWithBonus + workersBoostedPPPerDay;
+            const entPP = isDisabled ? 0 : (Number(entrepreneurshipLevel) || 0);
+            const totalPP = enginePPWithBonus + workersBoostedPPPerDay + entPP;
 
             const ppPerUnit = itemsConfig?.[comp?.itemCode]?.productionPoints || 1;
             const dailyProduction = ppPerUnit > 0 ? (totalPP || 0) / ppPerUnit : 0;
@@ -834,7 +836,7 @@ function CompanyListItem({
                       </label>
 
                       <DetailRow label="Total PP / day" value={`${totalPP.toFixed(2)} PP`} />
-                      <DetailRow label="Entrepreneurship" value={`${entrepreneurshipLevel}`} />
+                      <DetailRow label="Entrepreneurship PP" value={entPP > 0 ? `+${entPP} PP` : '0 PP'} valueColor={entPP > 0 ? 'text-[#f5c542]' : undefined} />
 
                       {excludedFromInternal ? (
                         <>
@@ -873,7 +875,7 @@ function CompanyListItem({
                   ) : (
                     <>
                       <DetailRow label="Total PP / day" value={`${totalPP.toFixed(1)} PP`} />
-                      <DetailRow label="Entrepreneurship" value={`${entrepreneurshipLevel}`} />
+                      <DetailRow label="Entrepreneurship PP" value={entPP > 0 ? `+${entPP} PP` : '0 PP'} valueColor={entPP > 0 ? 'text-[#f5c542]' : undefined} />
                       <DetailRow label="Units produced" value={`${shownDailyProduction} ${itemName}`} />
                       <DetailRow label="Market price / unit" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
 
