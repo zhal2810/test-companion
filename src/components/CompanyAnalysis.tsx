@@ -800,6 +800,7 @@ function CompanyListItem({
                   {workerBreakdowns.length > 0 && (
                     <div className="pt-2 border-t border-slate-900 mt-2">
                       <DetailRow label="Total Worker PP" value={`${workersBoostedPPPerDay.toFixed(1)} PP`} isBold={true} />
+                      <DetailRow label="Total Wage/day" value={<>-${workersWagePerDay.toFixed(3)}</>} valueColor="text-rose-400" />
                     </div>
                   )}
                 </div>
