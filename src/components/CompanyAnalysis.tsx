@@ -797,18 +797,23 @@ function CompanyListItem({
                     </label>
                   )}
 
-                  {/* Raw material: tetap bisa dipaksa 100% dijual ke market. */}
+                  {/* Raw material: supply ke pabrik internal (produksi sendiri) vs jual ke market. */}
                   {itemsConfig?.[comp?.itemCode]?.type === 'raw' && (
                     <label
                       className="flex items-center justify-between gap-2 mt-2 py-1.5 px-2 bg-slate-900/40 border border-slate-800/60 rounded cursor-pointer select-none"
-                      title="Kalau dicentang, hasil produksi company ini SELALU dianggap 100% dijual ke market — tidak dipakai sebagai bahan baku company lain."
+                      title="Centang: hasil produksi dipakai sebagai bahan baku pabrik internal (supply ke pabrik). Tidak dicentang: seluruh produksi dihitung terjual ke market."
                     >
-                      <span className="text-[10px] text-slate-400 font-medium leading-tight">
-                        Selalu jual ke market (bukan buat produksi internal)
+                      <span className="leading-tight">
+                        <span className="block text-[10px] text-slate-300 font-medium">Supply ke pabrik</span>
+                        <span className="block text-[8.5px] text-slate-500 mt-0.5">
+                          {excludedFromInternal
+                            ? 'Seluruh produksi dihitung terjual ke market'
+                            : 'Produksi dipakai untuk bahan baku pabrik internal'}
+                        </span>
                       </span>
                       <input
                         type="checkbox"
-                        checked={!!excludedFromInternal}
+                        checked={!excludedFromInternal}
                         onChange={onToggleExcludeFromInternal}
                         onClick={(e) => e.stopPropagation()}
                         className="accent-indigo-500 w-3.5 h-3.5 cursor-pointer shrink-0"
