@@ -99,7 +99,7 @@ function extractTopOrder(payload: any, kind: 'buy' | 'sell'): string {
   if (!summaries.length) return '—';
 
   const first = summaries[0];
-  const priceText = first.price === null ? '—' : first.price.toFixed(2);
+  const priceText = first.price === null ? '—' : first.price.toFixed(3);
   const qtyText = first.quantity === null ? '—' : formatVolume(first.quantity);
   return `${priceText} × ${qtyText}`;
 }

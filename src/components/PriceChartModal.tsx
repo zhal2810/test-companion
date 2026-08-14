@@ -430,7 +430,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                 domain={['auto', 'auto']}
                 tick={{ fill: '#64748B', fontSize: 10 }}
                 width={50}
-                tickFormatter={(v) => Number(v).toFixed(2)}
+                tickFormatter={(v) => Number(v).toFixed(3)}
               />
               <Tooltip
                 contentStyle={{ background: '#0C0D13', border: '1px solid #1E293B', borderRadius: 8, fontSize: 12 }}
