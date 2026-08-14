@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchWarera } from '../api/apiClient';
+import { fetchWarera, refreshGameConfig } from '../api/apiClient';
 import ApiConfigModal from './ApiConfigModal';
 import TransactionLedger from './TransactionLedger';
 import CompanyAnalysis, { WealthSummary } from './CompanyAnalysis';
@@ -36,6 +36,14 @@ export default function Dashboard() {
       }
     })();
   }, [config?.userId, config?.token]);
+
+  // Sinkronkan data item game config (GAME_ITEMS) dengan API saat config aktif,
+  // supaya seluruh tab memakai data terbaru (fallback: snapshot bawaan).
+  useEffect(() => {
+    if (config?.token) {
+      refreshGameConfig(config.token);
+    }
+  }, [config?.token]);
 
   // Swipe gesture support for mobile
   const [touchStartX, setTouchStartX] = useState<number | null>(null);

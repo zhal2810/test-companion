@@ -8,9 +8,12 @@ export interface GameItem {
   productionPoints: number;
   productionNeeds?: Record<string, number>;
   flatStats?: Record<string, number>;
+  dynamicStats?: Record<string, number[]>;
   isConsumable?: boolean;
   isTradable?: boolean;
   iconImg?: string;
+  usage?: string;
+  skinSlot?: string;
 }
 
 export interface Company {

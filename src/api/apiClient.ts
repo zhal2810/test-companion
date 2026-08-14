@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { normalizeWareraPayload, extractCompanyReferences, normalizeCompanyDetail } from './companyData';
 import { GAME_ITEMS } from '../data/gameConfig';
+import { applyGameConfigItems } from '../data/gameConfigStore';
 
 const api = axios.create({
   baseURL: '/api/players',
@@ -135,6 +136,17 @@ export const getGameConfig = async (token: string | null = null): Promise<{ succ
   } catch (err: any) {
     return { success: false, error: err.message, data: null };
   }
+};
+
+// Ambil gameConfig.getGameConfig dan terapkan item-data ke store global
+// (GAME_ITEMS ikut ter-update karena dibaca lewat Proxy).
+export const refreshGameConfig = async (token: string | null = null): Promise<boolean> => {
+  const result = await getGameConfig(token);
+  if (result.success && result.data?.items) {
+    applyGameConfigItems(result.data.items);
+    return true;
+  }
+  return false;
 };
 
 export const getProductionBonus = async (companyId: string, token: string | null = null): Promise<{ success: boolean; error: string | null; data: any }> => {

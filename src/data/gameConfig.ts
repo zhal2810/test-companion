@@ -1,184 +1,24 @@
 import { GameItem } from '../types';
+import { getGameItems } from './gameConfigStore';
 
-export const GAME_ITEMS: Record<string, GameItem> = {
-  // --- RAW MATERIALS ---
-  limestone: {
-    code: 'limestone',
-    name: 'Limestone',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 1,
-    isTradable: true,
+// Data item otoritatif dari gameConfig.getGameConfig (API WarEra).
+// Di-bundle lewat snapshot di gameConfigSnapshot.ts dan bisa di-refresh
+// runtime lewat refreshGameConfig(token) (apiClient) / applyGameConfigItems().
+//
+// Proxy dipakai supaya setiap akses (termasuk Object.keys/Object.values)
+// selalu membaca store terkini — komponen lama yang import GAME_ITEMS
+// langsung otomatis melihat data real tanpa refactor.
+export const GAME_ITEMS: Record<string, GameItem> = new Proxy({} as Record<string, GameItem>, {
+  get: (_target, prop) => {
+    if (typeof prop === 'string') {
+      return getGameItems()[prop];
+    }
+    return undefined;
   },
-  grain: {
-    code: 'grain',
-    name: 'Grain',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 1,
-    isTradable: true,
-  },
-  livestock: {
-    code: 'livestock',
-    name: 'Livestock',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 20,
-    isTradable: true,
-  },
-  fish: {
-    code: 'fish',
-    name: 'Fish',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 40,
-    isTradable: true,
-  },
-  iron: {
-    code: 'iron',
-    name: 'Iron',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 1,
-    isTradable: true,
-  },
-  coca: {
-    code: 'coca',
-    name: 'Mysterious Plant',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 1,
-    isTradable: true,
-  },
-  lead: {
-    code: 'lead',
-    name: 'Lead',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 1,
-    isTradable: true,
-  },
-  petroleum: {
-    code: 'petroleum',
-    name: 'Petroleum',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 1,
-    isTradable: true,
-  },
-  wood: {
-    code: 'wood',
-    name: 'Wood',
-    type: 'raw',
-    rarity: 'common',
-    productionPoints: 1,
-    isTradable: true,
-  },
-
-  // --- FINISHED PRODUCTS ---
-  concrete: {
-    code: 'concrete',
-    name: 'Concrete',
-    type: 'product',
-    rarity: 'uncommon',
-    productionPoints: 10,
-    productionNeeds: { limestone: 10 },
-    isTradable: true,
-  },
-  steel: {
-    code: 'steel',
-    name: 'Steel',
-    type: 'product',
-    rarity: 'uncommon',
-    productionPoints: 10,
-    productionNeeds: { iron: 10 },
-    isTradable: true,
-  },
-  bread: {
-    code: 'bread',
-    name: 'Bread',
-    type: 'product',
-    rarity: 'uncommon',
-    productionPoints: 10,
-    productionNeeds: { grain: 10 },
-    isConsumable: true,
-    isTradable: true,
-  },
-  steak: {
-    code: 'steak',
-    name: 'Steak',
-    type: 'product',
-    rarity: 'rare',
-    productionPoints: 20,
-    productionNeeds: { livestock: 1 },
-    isConsumable: true,
-    isTradable: true,
-  },
-  cookedFish: {
-    code: 'cookedFish',
-    name: 'Cooked Fish',
-    type: 'product',
-    rarity: 'epic',
-    productionPoints: 40,
-    productionNeeds: { fish: 1 },
-    isConsumable: true,
-    isTradable: true,
-  },
-  lightAmmo: {
-    code: 'lightAmmo',
-    name: 'Light Ammo',
-    type: 'product',
-    rarity: 'uncommon',
-    productionPoints: 1,
-    productionNeeds: { lead: 1 },
-    isTradable: true,
-  },
-  ammo: {
-    code: 'ammo',
-    name: 'Ammo',
-    type: 'product',
-    rarity: 'rare',
-    productionPoints: 4,
-    productionNeeds: { lead: 4 },
-    isTradable: true,
-  },
-  heavyAmmo: {
-    code: 'heavyAmmo',
-    name: 'Heavy Ammo',
-    type: 'product',
-    rarity: 'epic',
-    productionPoints: 16,
-    productionNeeds: { lead: 16 },
-    isTradable: true,
-  },
-  cocain: {
-    code: 'cocain',
-    name: 'Pill',
-    type: 'product',
-    rarity: 'epic',
-    productionPoints: 200,
-    productionNeeds: { coca: 200 },
-    isTradable: true,
-  },
-  oil: {
-    code: 'oil',
-    name: 'Oil',
-    type: 'product',
-    rarity: 'uncommon',
-    productionPoints: 1,
-    productionNeeds: { petroleum: 1 },
-    isTradable: true,
-  },
-  paper: {
-    code: 'paper',
-    name: 'Paper',
-    type: 'product',
-    rarity: 'uncommon',
-    productionPoints: 1,
-    productionNeeds: { wood: 1 },
-    isTradable: true,
-  },
-};
+  ownKeys: () => Reflect.ownKeys(getGameItems()),
+  getOwnPropertyDescriptor: (_target, prop) => Reflect.getOwnPropertyDescriptor(getGameItems(), prop),
+  has: (_target, prop) => prop in getGameItems(),
+});
 
 // Skill production values (Level 0 to 10)
 export const PRODUCTION_SKILL_VALUES = [10, 13, 16, 19, 22, 25, 28, 31, 34, 37, 40];

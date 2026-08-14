@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getCompaniesByUserId, getProductionBonus, getWorkersByUserId, getUserEcoSkills, getGameConfig, fetchWarera } from '../api/apiClient';
+import { getCompaniesByUserId, getProductionBonus, getWorkersByUserId, getUserEcoSkills, refreshGameConfig, fetchWarera } from '../api/apiClient';
+import { getGameItems } from '../data/gameConfigStore';
 import { AE_PP_PER_DAY, calculateWorkerDailyOutput, computeCompanyDailyProduction } from './production';
 import { Cpu, Users, Percent, MapPin, Coins, Building2, TrendingUp, ChevronDown, RefreshCw, AlertCircle, Package, Wallet, Landmark, Sword, Shirt, PowerOff } from 'lucide-react';
 import ItemIcon from './ItemIcon';
@@ -178,14 +179,10 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
 
   useEffect(() => {
     (async () => {
-      const cfgRes = await getGameConfig(token);
-      const apiItems = cfgRes?.success ? cfgRes.data?.items : null;
-      setItemsConfig((prev) => ({
-        ...GAME_ITEMS,
-        ...(apiItems && typeof apiItems === 'object' ? apiItems : {}),
-      }));
+      await refreshGameConfig(token);
+      setItemsConfig({ ...getGameItems() });
     })();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!userId) {
