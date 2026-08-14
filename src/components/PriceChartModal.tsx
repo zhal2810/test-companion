@@ -41,7 +41,7 @@ function formatVolume(value: any): string {
 
 export default function PriceChartModal({ item, onClose, priceMap = {}, avgWagePerPP, isInline = false }: PriceChartModalProps) {
   const [chartView, setChartView] = React.useState<'line' | 'candle'>('candle');
-  const [displayTf, setDisplayTf] = useState('1w'); // '6h', '12h', '1d', '1w', '1m'
+  const [displayTf, setDisplayTf] = useState('week'); // 'week' (7D·1H) | 'month' (30D·12H)
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
@@ -65,8 +65,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
 
-  // Deteksi timeframe fetch di API: 'day' (1 jam interval, isi 168) atau 'month' (12 jam interval, isi 61)
-  const fetchTf = displayTf === '1m' ? 'month' : 'day';
+  // WarEra Pulse hanya mendukung 'week' (7D · 1H, 168 candle) dan 'month' (30D · 12H, 61 candle)
+  const fetchTf = displayTf;
 
   useEffect(() => {
     let cancelled = false;
@@ -200,11 +200,9 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   // Saring candle sesuai timeframe visual yang dipilih (slice)
   const filteredCandles = React.useMemo(() => {
     if (sortedCandles.length === 0) return [];
-    if (displayTf === '6h') return sortedCandles.slice(-6);
-    if (displayTf === '12h') return sortedCandles.slice(-12);
-    if (displayTf === '1d') return sortedCandles.slice(-24);
-    return sortedCandles; // '1w' dan '1m' menampilkan semua candle yang ditarik
-  }, [sortedCandles, displayTf]);
+    // 'week' (7D · 1H) dan 'month' (30D · 12H) menampilkan semua candle yang ditarik
+    return sortedCandles;
+  }, [sortedCandles]);
 
   const hasCandles = filteredCandles.length > 0;
   const lastCandle = hasCandles ? filteredCandles[filteredCandles.length - 1] : null;
@@ -352,12 +350,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
 
   const tfLabel = React.useMemo(() => {
     if (usingFallback) return 'All-time, data candle kosong';
-    if (displayTf === '6h') return '6 Jam';
-    if (displayTf === '12h') return '12 Jam';
-    if (displayTf === '1d') return '1 Hari';
-    if (displayTf === '1w') return '1 Minggu';
-    if (displayTf === '1m') return '1 Bulan';
-    return 'Rentang Waktu';
+    if (displayTf === 'month') return '30D · 12H';
+    return '7D · 1H';
   }, [displayTf, usingFallback]);
 
   const content = (

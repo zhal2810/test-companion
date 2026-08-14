@@ -34,11 +34,8 @@ interface CandleChartProps {
 }
 
 const TIMEFRAMES: { value: string; label: string }[] = [
-  { value: '6h', label: '6 Jam' },
-  { value: '12h', label: '12 Jam' },
-  { value: '1d', label: '1 Hari' },
-  { value: '1w', label: '1 Minggu' },
-  { value: '1m', label: '1 Bulan' },
+  { value: 'week', label: '7D · 1H' },
+  { value: 'month', label: '30D · 12H' },
 ];
 
 
