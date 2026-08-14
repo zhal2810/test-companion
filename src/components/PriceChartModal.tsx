@@ -263,6 +263,17 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return calculateOrderBookImbalance(orders, referencePrice);
   }, [orderBookRaw, displayPrice, item.price]);
 
+  // Item raw (bahan mentah): analisis lebih fokus supply & demand
+  const isRaw = (GAME_ITEMS[item.item] || GAME_ITEMS[item.item.toLowerCase()])?.type === 'raw';
+
+  // Persentase volume beli terhadap total volume (untuk penjelasan tekanan jual/beli)
+  const bidSharePercent = React.useMemo(() => {
+    if (!orderBookImbalance) return null;
+    const total = orderBookImbalance.bidVolume + orderBookImbalance.askVolume;
+    if (total <= 0) return 50;
+    return (orderBookImbalance.bidVolume / total) * 100;
+  }, [orderBookImbalance]);
+
   const bestBid = React.useMemo(() => {
     const prices = orderBookRaw?.buy?.map((o) => Number(o.price)).filter((p) => Number.isFinite(p) && p > 0) || [];
     return prices.length ? Math.max(...prices) : null;
@@ -595,14 +606,45 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                   </li>
                 )}
                 {orderBookImbalance && (
-                  <li className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
-                    <span>•</span>
-                    <span>
-                      {orderBookImbalance.askVolume > orderBookImbalance.bidVolume
-                        ? `Offer lebih besar dari Bid (${orderBookImbalance.askVolume.toLocaleString('id-ID')} vs ${orderBookImbalance.bidVolume.toLocaleString('id-ID')}) — supply lebih besar daripada demand.`
-                        : `Bid lebih besar atau setara dengan Offer (${orderBookImbalance.bidVolume.toLocaleString('id-ID')} vs ${orderBookImbalance.askVolume.toLocaleString('id-ID')}) — demand relatif lebih kuat.`}
-                    </span>
-                  </li>
+                  isRaw ? (
+                    <>
+                      <li className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
+                        <span>•</span>
+                        <span>
+                          {orderBookImbalance.askVolume > orderBookImbalance.bidVolume
+                            ? `Ask ${orderBookImbalance.askVolume.toLocaleString('id-ID')} vs Bid ${orderBookImbalance.bidVolume.toLocaleString('id-ID')} (Ratio ${Number.isFinite(orderBookImbalance.imbalanceRatio) ? orderBookImbalance.imbalanceRatio.toFixed(2) : '∞'}) — supply lebih besar daripada demand → harga cenderung turun.`
+                            : orderBookImbalance.bidVolume > orderBookImbalance.askVolume
+                              ? `Bid ${orderBookImbalance.bidVolume.toLocaleString('id-ID')} vs Ask ${orderBookImbalance.askVolume.toLocaleString('id-ID')} (Ratio ${Number.isFinite(orderBookImbalance.imbalanceRatio) ? orderBookImbalance.imbalanceRatio.toFixed(2) : '∞'}) — demand lebih besar daripada supply → harga cenderung naik.`
+                              : `Bid & Ask seimbang (${orderBookImbalance.bidVolume.toLocaleString('id-ID')} masing-masing) — harga cenderung sideways.`}
+                        </span>
+                      </li>
+                      {bidSharePercent != null && (
+                        <li className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
+                          <span>•</span>
+                          <span>
+                            {bidSharePercent < 40
+                              ? `Bid share hanya ${bidSharePercent.toFixed(0)}% dari total volume — tekanan jual sangat mendominasi pasar item ini.`
+                              : bidSharePercent < 50
+                                ? `Bid share ${bidSharePercent.toFixed(0)}% dari total volume — tekanan jual lebih mendominasi pasar item ini.`
+                                : bidSharePercent > 60
+                                  ? `Bid share ${bidSharePercent.toFixed(0)}% dari total volume — tekanan beli sangat mendominasi pasar item ini.`
+                                  : bidSharePercent > 50
+                                    ? `Bid share ${bidSharePercent.toFixed(0)}% dari total volume — tekanan beli lebih mendominasi pasar item ini.`
+                                    : `Bid share ${bidSharePercent.toFixed(0)}% dari total volume — pasokan & permintaan relatif seimbang.`}
+                          </span>
+                        </li>
+                      )}
+                    </>
+                  ) : (
+                    <li className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
+                      <span>•</span>
+                      <span>
+                        {orderBookImbalance.askVolume > orderBookImbalance.bidVolume
+                          ? `Offer lebih besar dari Bid (${orderBookImbalance.askVolume.toLocaleString('id-ID')} vs ${orderBookImbalance.bidVolume.toLocaleString('id-ID')}) — supply lebih besar daripada demand.`
+                          : `Bid lebih besar atau setara dengan Offer (${orderBookImbalance.bidVolume.toLocaleString('id-ID')} vs ${orderBookImbalance.askVolume.toLocaleString('id-ID')}) — demand relatif lebih kuat.`}
+                      </span>
+                    </li>
+                  )
                 )}
                 {marginResult?.missingInputPrices?.length ? (
                   <li className="text-[9.5px] text-amber-500/80 flex gap-1 leading-snug">
