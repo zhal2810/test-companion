@@ -118,6 +118,21 @@ export default function CandleChart({
       },
     });
 
+    // Derive precision/minMove dari magnitude harga aktual candle, bukan
+    // hardcode. Tanpa minMove, lightweight-charts memakai default 0.01 —
+    // untuk item sub-1 (iron ~0.081, grain ~0.076) seluruh range lebih kecil
+    // dari satu step 0.01 sehingga skala harga collapse & crosshair beku.
+    const maxAbsPrice = Math.max(
+      1e-9,
+      ...candles.map((c) => Math.max(Math.abs(c.high), Math.abs(c.low)))
+    );
+    let pricePrecision: number;
+    let minMove: number;
+    if (maxAbsPrice < 0.1) { pricePrecision = 5; minMove = 0.00001; }
+    else if (maxAbsPrice < 1) { pricePrecision = 4; minMove = 0.0001; }
+    else if (maxAbsPrice < 10) { pricePrecision = 3; minMove = 0.001; }
+    else { pricePrecision = 2; minMove = 0.01; }
+
     const series = chart.addSeries(CandlestickSeries, {
       upColor: '#34D399',
       downColor: '#FB7185',
@@ -126,7 +141,8 @@ export default function CandleChart({
       wickDownColor: '#FB7185',
       priceFormat: {
         type: 'price',
-        precision: 3,
+        precision: pricePrecision,
+        minMove,
       },
     });
 
