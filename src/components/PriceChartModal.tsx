@@ -681,9 +681,10 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             <div className="grid grid-cols-12 gap-2 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
               <div className="col-span-2">Waktu</div>
               <div className="col-span-2">Tipe</div>
-              <div className="col-span-3 text-left">Pemain</div>
+              <div className="col-span-2 text-left">Pembeli</div>
+              <div className="col-span-2 text-left">Penjual</div>
               <div className="col-span-2 text-right">Qty</div>
-              <div className="col-span-3 text-right">Harga/u</div>
+              <div className="col-span-2 text-right">Harga/u</div>
             </div>
 
             {liveTradesLoading && liveTrades.length === 0 ? (
@@ -708,7 +709,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                       <div className={`col-span-2 font-bold text-[8.5px] uppercase ${typeColor}`}>
                         {offerType === 'buy' ? 'BELI' : offerType === 'sell' ? 'JUAL' : offerType}
                       </div>
-                      <div className="col-span-3 flex items-center gap-1.5 truncate">
+                      <div className="col-span-2 flex items-center gap-1.5 min-w-0">
                         {offer.avatarUrl && (
                           <img 
                             src={offer.avatarUrl} 
@@ -718,8 +719,18 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                         )}
                         <span className="text-slate-300 truncate text-[8.5px]">{offer.username || 'Unknown'}</span>
                       </div>
+                      <div className="col-span-2 flex items-center gap-1.5 min-w-0">
+                        {offer.avatarUrlSeller && (
+                          <img 
+                            src={offer.avatarUrlSeller} 
+                            alt={offer.usernameSeller} 
+                            className="w-4 h-4 rounded-full shrink-0 bg-slate-800"
+                          />
+                        )}
+                        <span className="text-slate-300 truncate text-[8.5px]">{offer.usernameSeller || 'Unknown'}</span>
+                      </div>
                       <div className="col-span-2 text-right text-slate-300 font-bold text-[9px]">{(offer.quantity || 0).toLocaleString('id-ID')}</div>
-                      <div className="col-span-3 text-right leading-tight">
+                      <div className="col-span-2 text-right leading-tight">
                         <span className="text-emerald-400 font-bold text-[9px]">{(offer.price || 0).toFixed(3)}</span>
                       </div>
                     </div>
