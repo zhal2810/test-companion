@@ -75,7 +75,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
   const [workersByCompanyId, setWorkersByCompanyId] = useState<Record<string, any[]>>({});
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
   const [marketPrices, setMarketPrices] = useState<Record<string, any>>({});
-  const [itemsConfig, setItemsConfig] = useState<Record<string, any>>({});
+  const [itemsConfig, setItemsConfig] = useState<Record<string, any>>(() => ({ ...GAME_ITEMS }));
 
   // Per-company: bahan mentah memakai supply internal MFG atau dibeli dari market.
   const internalSupplyStorageKey = `warera_internal_mfg_${userId || 'anon'}`;
@@ -174,9 +174,11 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
   useEffect(() => {
     (async () => {
       const cfgRes = await getGameConfig(token);
-      if (cfgRes.success && cfgRes.data?.items) {
-        setItemsConfig(cfgRes.data.items);
-      }
+      const apiItems = cfgRes?.success ? cfgRes.data?.items : null;
+      setItemsConfig((prev) => ({
+        ...GAME_ITEMS,
+        ...(apiItems && typeof apiItems === 'object' ? apiItems : {}),
+      }));
     })();
   }, []);
 
