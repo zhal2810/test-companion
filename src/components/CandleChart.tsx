@@ -134,7 +134,7 @@ export default function CandleChart({
     const priceScale = series.priceScale();
     priceScale.applyOptions({
       autoScale: true,
-      mode: 1, // 1 = normal mode
+      mode: 0, // 0 = Normal (linear). Jangan 1 — itu Logarithmic.
       invertScale: false,
       alignLabels: true,
       borderVisible: true,
