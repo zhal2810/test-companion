@@ -1,5 +1,6 @@
 import React from 'react';
 import type { MarketOrder } from '../api/apiClient';
+import { formatPrice } from '../utils/priceHelper';
 
 interface OrderBookProps {
   buyOrders: MarketOrder[];
@@ -12,10 +13,6 @@ function formatNumber(value: number, maximumFractionDigits = 0) {
   return Number(value || 0).toLocaleString('id-ID', {
     maximumFractionDigits,
   });
-}
-
-function formatPrice(value: number) {
-  return `$${Number(value || 0).toFixed(3)}`;
 }
 
 function formatTime(value: string) {

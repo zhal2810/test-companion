@@ -1,5 +1,18 @@
 import { getCandleHistory } from '../api/apiClient';
 
+/**
+ * Format harga item: item kecil (di bawah 1) 4 digit (0.0805),
+ * item besar 3 digit (7.502, 22.429, 36.291).
+ */
+export function formatPrice(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs < 1) return n.toFixed(4);
+  return n.toFixed(3);
+}
+
 const PRICE_CACHE_KEY = 'warera_price_cache';
 const CACHE_VALIDITY_MS = 5 * 60 * 1000; // 5 minutes
 

@@ -5,7 +5,7 @@ import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
 import { getItemStats } from '../api/apiClient';
-import { getConsistentPrice, getCacheStats } from '../utils/priceHelper';
+import { getConsistentPrice, getCacheStats, formatPrice } from '../utils/priceHelper';
 
 const PriceChartModal = React.lazy(() => import('./PriceChartModal'));
 
@@ -99,7 +99,7 @@ function extractTopOrder(payload: any, kind: 'buy' | 'sell'): string {
   if (!summaries.length) return '—';
 
   const first = summaries[0];
-  const priceText = first.price === null ? '—' : first.price.toFixed(3);
+  const priceText = first.price === null ? '—' : formatPrice(first.price);
   const qtyText = first.quantity === null ? '—' : formatVolume(first.quantity);
   return `${priceText} × ${qtyText}`;
 }
@@ -638,7 +638,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-[7.5px] font-mono mt-1 text-slate-600">
-                        <span>FV {entry.fairValue != null ? entry.fairValue.toFixed(3) : '—'}</span>
+                        <span>FV {entry.fairValue != null ? formatPrice(entry.fairValue) : '—'}</span>
                         <span>R {entry.imbalanceRatio != null ? (Number.isFinite(entry.imbalanceRatio) ? entry.imbalanceRatio.toFixed(2) : '∞') : '—'}</span>
                       </div>
                     </div>

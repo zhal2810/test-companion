@@ -7,7 +7,7 @@ import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction, getMarketOrders, type MarketOrder } from '../api/apiClient';
 import OrderBook from './OrderBook';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
-import { getConsistentPrice } from '../utils/priceHelper';
+import { getConsistentPrice, formatPrice } from '../utils/priceHelper';
 
 interface PriceChartModalProps {
   item: {
@@ -224,20 +224,30 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     };
   }, [item.item, lastCandle]);
   
-  // % perubahan konsisten dengan kartu grid: selalu 24 jam (changeByRange['24h']),
-  // fallback ke changeValue seperti getDisplayChangeValue di MarketIntel, lalu
-  // candle sebagai cadangan terakhir — bukan perubahan antar candle pada timeframe.
+  // % perubahan 24 jam — dihitung dari candle (candle terakhir vs candle ~24 jam
+  // lalu), sumber yang sama dengan warera-pulse. changeByRange['24h'] hanya dipakai
+  // bila tersedia; jangan jatuh ke changeValue (perbandingan cache antar-fetch
+  // yang nilainya ~0 dan tidak merepresentasikan perubahan 24 jam sesungguhnya).
   const displayChange = React.useMemo(() => {
     const change24h = item.changeByRange?.['24h'];
-    if (change24h !== null && change24h !== undefined && Number.isFinite(Number(change24h))) {
+    if (change24h !== null && change24h !== undefined && Number.isFinite(Number(change24h)) && Math.abs(Number(change24h)) > 0.05) {
       return Number(change24h);
     }
+    if (lastCandle && sortedCandles.length > 1) {
+      const targetTime = Number(lastCandle.time) - 86400;
+      let base: Candle | null = null;
+      for (let i = sortedCandles.length - 2; i >= 0; i--) {
+        if (Number(sortedCandles[i].time) <= targetTime) {
+          base = sortedCandles[i];
+          break;
+        }
+      }
+      const basePrice = base ? Number(base.close) : Number(sortedCandles[0].close);
+      if (basePrice > 0) return ((Number(lastCandle.close) - basePrice) / basePrice) * 100;
+    }
     if (Number.isFinite(Number(item.changeValue))) return Number(item.changeValue);
-    if (!lastCandle || !firstCandle) return 0;
-    const basePrice = firstCandle.open || firstCandle.close;
-    if (!basePrice || basePrice === 0) return 0;
-    return ((lastCandle.close - basePrice) / basePrice) * 100;
-  }, [item.changeByRange, item.changeValue, lastCandle, firstCandle]);
+    return 0;
+  }, [item.changeByRange, item.changeValue, lastCandle, sortedCandles]);
 
   const displayHigh = hasCandles 
     ? Math.max(...filteredCandles.map(c => c.high)) 
@@ -376,7 +386,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
         <div className="flex items-center gap-3">
           {/* PRICE & CHANGE BADGE IN HEADER */}
           <div className="text-right">
-            <div className="text-sm font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
+            <div className="text-sm font-mono font-black text-white">{formatPrice(displayPrice)}</div>
             <div className={`text-[10px] font-mono font-bold flex items-center justify-end gap-0.5 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
               {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{displayChange.toFixed(2)}%
             </div>
@@ -438,12 +448,12 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                 domain={['auto', 'auto']}
                 tick={{ fill: '#64748B', fontSize: 10 }}
                 width={50}
-                tickFormatter={(v) => Number(v).toFixed(3)}
+                tickFormatter={(v) => formatPrice(v)}
               />
               <Tooltip
                 contentStyle={{ background: '#0C0D13', border: '1px solid #1E293B', borderRadius: 8, fontSize: 12 }}
                 labelFormatter={() => ''}
-                formatter={(value) => [Number(value ?? 0).toFixed(3), 'Harga']}
+                formatter={(value) => [formatPrice(Number(value ?? 0)), 'Harga']}
               />
               <Line
                 type="monotone"
@@ -475,7 +485,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             {loading && !hasCandles ? (
               <div className="h-5 w-16 bg-slate-800/60 rounded animate-pulse" />
             ) : (
-              <div className="text-sm font-mono font-black text-white">{Number(displayPrice).toFixed(3)}</div>
+              <div className="text-sm font-mono font-black text-white">{formatPrice(displayPrice)}</div>
             )}
           </div>
           <div>
@@ -494,7 +504,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             {loading && !hasCandles ? (
               <div className="h-5 w-20 bg-slate-800/60 rounded animate-pulse" />
             ) : (
-              <div className="text-xs font-mono font-bold text-slate-300">{displayHigh.toFixed(3)} / {displayLow.toFixed(3)}</div>
+              <div className="text-xs font-mono font-bold text-slate-300">{formatPrice(displayHigh)} / {formatPrice(displayLow)}</div>
             )}
           </div>
           <div>
@@ -575,11 +585,11 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                   <div className="grid grid-cols-3 gap-1.5 mb-2 text-[10px]">
                   <div>
                     <div className="text-[8.5px] uppercase text-slate-500 font-bold">Cost/Unit</div>
-                    <div className="font-mono font-bold text-slate-300">{marginResult.costPerUnit.toFixed(3)}</div>
+                    <div className="font-mono font-bold text-slate-300">{formatPrice(marginResult.costPerUnit)}</div>
                   </div>
                   <div>
                     <div className="text-[8.5px] uppercase text-slate-500 font-bold">Harga Pasar</div>
-                    <div className="font-mono font-bold text-slate-300">{marginResult.marketPrice.toFixed(3)}</div>
+                    <div className="font-mono font-bold text-slate-300">{formatPrice(marginResult.marketPrice)}</div>
                   </div>
                   <div>
                     <div className="text-[8.5px] uppercase text-slate-500 font-bold">Margin</div>
@@ -589,7 +599,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                   </div>
                   </div>
                   <div className="text-[8.5px] text-slate-600 mb-2 -mt-1">
-                    Bahan baku: {marginResult.materialCost.toFixed(3)} • Upah: {marginResult.laborCost.toFixed(3)}
+                    Bahan baku: {formatPrice(marginResult.materialCost)} • Upah: {formatPrice(marginResult.laborCost)}
                   </div>
                 </>
               ) : null}
@@ -695,13 +705,13 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                   <div>
                     <div className="text-[8.5px] uppercase text-slate-500 font-bold">MA9 / MA21</div>
                     <div className="font-mono font-bold text-slate-300">
-                      {technicalSignalResult.ma9.toFixed(3)} / {technicalSignalResult.ma21.toFixed(3)}
+                      {formatPrice(technicalSignalResult.ma9)} / {formatPrice(technicalSignalResult.ma21)}
                     </div>
                   </div>
                   <div>
                     <div className="text-[8.5px] uppercase text-slate-500 font-bold">MA20 Trend</div>
                     <div className={`font-mono font-bold ${technicalSignalResult.trend === 'uptrend' ? 'text-emerald-400' : technicalSignalResult.trend === 'downtrend' ? 'text-rose-400' : 'text-slate-400'}`}>
-                      {technicalSignalResult.ma20.toFixed(3)}
+                      {formatPrice(technicalSignalResult.ma20)}
                     </div>
                   </div>
                   <div>
@@ -838,7 +848,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                       </div>
                       <div className="col-span-2 text-right text-slate-300 font-bold text-[9px]">{(offer.quantity || 0).toLocaleString('id-ID')}</div>
                       <div className="col-span-2 text-right leading-tight">
-                        <span className="text-emerald-400 font-bold text-[9px]">{(offer.price || 0).toFixed(3)}</span>
+                        <span className="text-emerald-400 font-bold text-[9px]">{formatPrice(offer.price || 0)}</span>
                       </div>
                     </div>
                   );
