@@ -860,6 +860,12 @@ function CompanyListItem({
                               valueColor="text-amber-400"
                             />
                           )}
+                          {shownSoldQty > 0 && (
+                            <DetailRow
+                              label="→ Surplus sold to market"
+                              value={<>{shownSoldQty} units × {itemPrice.toFixed(3)} = <span className="text-emerald-400">+{shownGrossRevenue.toFixed(3)}</span> <CurrencyIcon /></>}
+                            />
+                          )}
                           {mfgRefund > 0.0001 && (
                             <DetailRow
                               label="→ MFG at-cost refund"
