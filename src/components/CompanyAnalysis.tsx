@@ -268,7 +268,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
         pool[r.itemCode] = (pool[r.itemCode] || 0) + r.dailyProduction;
       }
 
-      if (internalSupplyIds[r.companyId] && r.productionNeeds) {
+      if (internalSupplyIds[r.companyId] !== false && r.productionNeeds) {
         Object.entries(r.productionNeeds as Record<string, number>).forEach(([rawCode, ratio]) => {
           consumedTotal[rawCode] = (consumedTotal[rawCode] || 0) + r.dailyProduction * ratio;
         });
@@ -350,7 +350,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
           // OFF = semua bahan dari market.
           // ON = ambil supply internal yang tersedia, sisanya market.
           let internalQty = 0;
-          if (internalSupplyIds[r.companyId]) {
+          if (internalSupplyIds[r.companyId] !== false) {
             const rawPoolProduced = pool[rawCode] || 0;
             const rawTotalConsumed = consumedTotal[rawCode] || 0;
             const totalInternalAvailable = Math.min(rawPoolProduced, rawTotalConsumed);
@@ -381,7 +381,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
         materialBreakdown,
         materialCost,
         itemType: r.itemType,
-        supplyInternalMfg: !!internalSupplyIds[r.companyId],
+        supplyInternalMfg: internalSupplyIds[r.companyId] !== false,
       };
     });
 
@@ -450,7 +450,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
                 companyFinancials={comp?._id ? financialsByCompanyId[comp._id] : undefined}
                 excludedFromInternal={comp?._id ? !!excludedIds[comp._id] : false}
                 onToggleExcludeFromInternal={() => comp?._id && toggleExcludeFromInternal(comp._id)}
-                supplyInternalMfg={comp?._id ? !!internalSupplyIds[comp._id] : false}
+                supplyInternalMfg={comp?._id ? internalSupplyIds[comp._id] !== false : true}
                 onToggleInternalSupply={() => comp?._id && toggleInternalSupply(comp._id)}
               />
             );
@@ -735,7 +735,12 @@ function CompanyListItem({
             const shownUsedInternallyQty = floorQty(usedInternallyQty);
             const shownSoldQty = floorQty(soldQty);
             const shownGrossRevenue = shownSoldQty * itemPrice;
-            const shownNetProfit = shownGrossRevenue - upkeep;
+            // At-cost refund dari pabrik: unit yang dipasok internal dibayar sebesar
+            // biaya produksinya (upah per unit), bukan harga market. Jadi saat produksi
+            // dijadikan bahan baku pabrik, uang tidak "hilang" dan net profit berubah.
+            const rawUnitCost = dailyProduction > 0 ? workersWagePerDay / dailyProduction : 0;
+            const mfgRefund = shownUsedInternallyQty > 0 ? shownUsedInternallyQty * rawUnitCost : 0;
+            const shownNetProfit = shownGrossRevenue - upkeep + mfgRefund;
 
             const isRawCompany = itemsConfig?.[comp?.itemCode]?.type === 'raw';
             const itemConfig = itemsConfig?.[comp?.itemCode] || GAME_ITEMS[comp?.itemCode];
@@ -859,6 +864,13 @@ function CompanyListItem({
                             <DetailRow
                               label="→ Surplus sold to market"
                               value={<>{shownSoldQty} units × {itemPrice.toFixed(3)} = <span className="text-emerald-400">+{shownGrossRevenue.toFixed(3)}</span> <CurrencyIcon /></>}
+                            />
+                          )}
+                          {mfgRefund > 0.0001 && (
+                            <DetailRow
+                              label="→ MFG at-cost refund"
+                              value={<>+{mfgRefund.toFixed(3)} <CurrencyIcon /></>}
+                              valueColor="text-emerald-400"
                             />
                           )}
                         </>
