@@ -319,6 +319,17 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     [sortedCandles]
   );
 
+  // Periode data yang benar-benar dipakai untuk indikator teknikal (MA/RSI),
+  // dihitung dari rentang waktu candle asli — bukan timeframe tampilan chart.
+  const techDataPeriod = React.useMemo(() => {
+    if (sortedCandles.length === 0) return 'Tanpa Data';
+    const times = sortedCandles.map((c) => Number(c.time));
+    const spanHours = (Math.max(...times) - Math.min(...times)) / 3600;
+    if (spanHours < 24) return `${Math.max(1, Math.round(spanHours))} Jam`;
+    if (spanHours < 720) return `${Math.round(spanHours / 24)} Hari`;
+    return `${Math.round(spanHours / 720)} Bulan`;
+  }, [sortedCandles]);
+
   const techSignalStyle = {
     buy: { label: 'BUY', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
     sell: { label: 'SELL', className: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
@@ -663,7 +674,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                     Teknikal (MA & RSI)
                   </span>
                   <span className="text-[8.5px] bg-slate-800 text-slate-400 px-1 rounded font-mono font-bold uppercase">
-                    {displayTf.toUpperCase()}
+                    {techDataPeriod}
                   </span>
                 </div>
                 <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${techSignalStyle.className}`}>

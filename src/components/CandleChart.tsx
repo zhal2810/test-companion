@@ -84,7 +84,8 @@ export default function CandleChart({
        * Candle API tetap UTC.
        *
        * localization.timeZone membuat label waktu
-       * pada chart mengikuti WIB.
+       * pada chart mengikuti WIB (UTC+7). Tanggal juga
+       * ditampilkan supaya sumbu bawah terbaca jelas.
        */
       localization: {
         timeFormatter: (timestamp: number) => {
@@ -92,6 +93,8 @@ export default function CandleChart({
 
           return new Intl.DateTimeFormat('id-ID', {
             timeZone: 'Asia/Jakarta',
+            day: '2-digit',
+            month: 'short',
             hour: '2-digit',
             minute: '2-digit',
             hour12: false,
