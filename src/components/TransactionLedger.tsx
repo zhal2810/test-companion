@@ -1,6 +1,7 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownLeft, Calendar, FileText, AlertCircle } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
+import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
 
 function formatMoney(value: number): string {
@@ -262,11 +263,13 @@ export default function TransactionLedger({ transactions, userId, filterActive =
           <>
             {/* Desktop View Table */}
             <div className="hidden sm:block">
-              <div className="grid grid-cols-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 px-2">
-                <span>Item</span>
-                <span>Arah</span>
-                <span className="text-right">Rata-Rata</span>
-                <span className="text-right">Kumulatif</span>
+              <div className="grid grid-cols-7 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 px-2">
+                <span className="col-span-2">Item</span>
+                <span className="text-right">Qty Beli</span>
+                <span className="text-right">Harga Beli</span>
+                <span className="text-right">Qty Jual</span>
+                <span className="text-right">Harga Jual</span>
+                <span className="text-right">Laba</span>
               </div>
               <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-1.5 custom-scrollbar">
                 {itemBreakdown.map((item) => {
@@ -275,17 +278,29 @@ export default function TransactionLedger({ transactions, userId, filterActive =
                   return (
                     <div 
                       key={item.itemCode} 
-                      className="grid grid-cols-4 text-xs py-2 px-2.5 bg-slate-900/20 border border-slate-800/40 rounded-lg hover:border-slate-700/50 transition duration-150 items-center"
+                      className="grid grid-cols-7 text-xs py-2 px-2.5 bg-slate-900/20 border border-slate-800/40 rounded-lg hover:border-slate-700/50 transition duration-150 items-center"
                     >
-                      <span className="font-bold text-slate-200 uppercase">{displayName}</span>
-                      <span className={`text-[10px] font-bold ${item.totalBoughtQty > 0 ? 'text-amber-500/90' : 'text-sky-500/90'}`}>
-                        {item.totalBoughtQty > 0 ? 'BELI' : 'JUAL'}
+                      <span className="col-span-2 flex items-center gap-2 min-w-0">
+                        <ItemIcon itemCode={item.itemCode} size="sm" />
+                        <span className="font-bold text-slate-200 uppercase truncate">{displayName}</span>
                       </span>
                       <span className="text-right text-slate-300 font-mono">
-                        {formatMoney(item.totalBoughtQty > 0 ? (item.totalBoughtMoney / item.totalBoughtQty) : (item.totalSoldMoney / item.totalSoldQty))}
+                        {item.totalBoughtQty > 0 ? item.totalBoughtQty.toLocaleString('id-ID') : '—'}
                       </span>
-                      <span className="text-right text-white font-mono font-bold">
-                        {formatMoney(item.totalBoughtQty > 0 ? item.totalBoughtMoney : item.totalSoldMoney)}
+                      <span className="text-right text-amber-500/90 font-mono">
+                        {item.totalBoughtQty > 0 ? formatMoney(item.totalBoughtMoney / item.totalBoughtQty) : '—'}
+                      </span>
+                      <span className="text-right text-slate-300 font-mono">
+                        {item.totalSoldQty > 0 ? item.totalSoldQty.toLocaleString('id-ID') : '—'}
+                      </span>
+                      <span className="text-right text-sky-400/90 font-mono">
+                        {item.totalSoldQty > 0 ? formatMoney(item.totalSoldMoney / item.totalSoldQty) : '—'}
+                      </span>
+                      <span
+                        className={`text-right font-mono font-bold ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+                        title={item.hasUnknownCost ? 'Harga pokok sebagian tidak diketahui (item dibeli sebelum data dimuat)' : undefined}
+                      >
+                        {item.profit >= 0 ? '+' : ''}{formatMoney(item.profit)}{item.hasUnknownCost ? '*' : ''}
                       </span>
                     </div>
                   );
@@ -296,26 +311,41 @@ export default function TransactionLedger({ transactions, userId, filterActive =
             {/* Mobile View Stacked List */}
             <div className="sm:hidden space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
               {itemBreakdown.map((item) => {
-                const isBuy = item.totalBoughtQty > 0;
                 const configItem = GAME_ITEMS[item.itemCode] || GAME_ITEMS[item.itemCode.toLowerCase()];
                 const displayName = configItem?.name || item.itemCode;
                 return (
                   <div 
                     key={item.itemCode}
-                    className="bg-slate-900/20 border border-slate-800/40 rounded-lg p-3 hover:border-slate-700/50 transition duration-150 flex justify-between items-center text-xs"
+                    className="bg-slate-900/20 border border-slate-800/40 rounded-lg p-3 hover:border-slate-700/50 transition duration-150 text-xs"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-200 uppercase">{displayName}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-extrabold ${isBuy ? 'text-amber-500 bg-amber-500/10 border border-amber-500/10' : 'text-sky-400 bg-sky-400/10 border border-sky-400/10'}`}>
-                        {isBuy ? 'BELI' : 'JUAL'}
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <ItemIcon itemCode={item.itemCode} size="sm" />
+                        <span className="font-bold text-slate-200 uppercase truncate">{displayName}</span>
+                      </span>
+                      <span
+                        className={`shrink-0 font-mono font-bold ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+                        title={item.hasUnknownCost ? 'Harga pokok sebagian tidak diketahui (item dibeli sebelum data dimuat)' : undefined}
+                      >
+                        {item.profit >= 0 ? '+' : ''}{formatMoney(item.profit)}{item.hasUnknownCost ? '*' : ''}
                       </span>
                     </div>
-                    <div className="text-right space-y-0.5">
-                      <div className="text-[10px] text-slate-400">
-                        Avg: <span className="font-mono text-slate-200 font-semibold">{formatMoney(isBuy ? (item.totalBoughtMoney / item.totalBoughtQty) : (item.totalSoldMoney / item.totalSoldQty))}</span>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="bg-amber-500/5 border border-amber-500/15 rounded-lg p-1.5">
+                        <div className="text-slate-500 font-bold uppercase tracking-wider mb-0.5">Beli</div>
+                        <div className="text-amber-400 font-mono font-semibold truncate">
+                          {item.totalBoughtQty > 0
+                            ? `${item.totalBoughtQty}u × ${formatMoney(item.totalBoughtMoney / item.totalBoughtQty)}`
+                            : '—'}
+                        </div>
                       </div>
-                      <div className="font-mono font-bold text-white text-xs flex items-center justify-end gap-1">
-                        {formatMoney(isBuy ? item.totalBoughtMoney : item.totalSoldMoney)} <CurrencyIcon />
+                      <div className="bg-sky-500/5 border border-sky-500/15 rounded-lg p-1.5">
+                        <div className="text-slate-500 font-bold uppercase tracking-wider mb-0.5">Jual</div>
+                        <div className="text-sky-400 font-mono font-semibold truncate">
+                          {item.totalSoldQty > 0
+                            ? `${item.totalSoldQty}u × ${formatMoney(item.totalSoldMoney / item.totalSoldQty)}`
+                            : '—'}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -328,10 +358,17 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         {/* Footer Total Kumulatif */}
         <div className="mt-3.5 py-2.5 px-3 bg-slate-950/40 border border-slate-800/60 rounded-lg flex flex-col xs:flex-row justify-between items-start xs:items-center gap-2 text-xs font-mono">
           <span className="text-slate-500">Total Modal Niaga:</span>
-          <div className="flex gap-4">
+          <div className="flex gap-3 flex-wrap">
             <span className="inline-flex items-center gap-1">Beli: <strong className="text-amber-500 inline-flex items-center gap-1">{formatMoney(totalBoughtMoney)} <CurrencyIcon /></strong></span>
             <span className="text-slate-700">|</span>
             <span className="inline-flex items-center gap-1">Jual: <strong className="text-sky-400 inline-flex items-center gap-1">{formatMoney(totalSoldMoney)} <CurrencyIcon /></strong></span>
+            <span className="text-slate-700">|</span>
+            <span className="inline-flex items-center gap-1">
+              Net:
+              <strong className={`inline-flex items-center gap-1 ${totalSoldMoney - totalBoughtMoney >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {totalSoldMoney - totalBoughtMoney >= 0 ? '+' : ''}{formatMoney(totalSoldMoney - totalBoughtMoney)} <CurrencyIcon />
+              </strong>
+            </span>
           </div>
         </div>
       </div>

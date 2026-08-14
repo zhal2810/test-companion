@@ -38,6 +38,133 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
 
   // --- FALLBACK BEAUTIFUL CUSTOM SVG ICONS ---
   // Each SVG represents a premium visual fallback that mimics the uploaded assets
+
+  // Ikon senjata militer (knife, gun, rifle, sniper, tank, jet) — kode API bisa
+  // bertier seperti "sniper1..6", jadi trailing digit dibuang dulu.
+  const renderWeaponIcon = (base: string) => {
+    switch (base) {
+      case 'knife': // Combat knife
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="knifeBlade" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#E2E8F0" />
+                <stop offset="60%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#475569" />
+              </linearGradient>
+            </defs>
+            <path d="M8 56 L34 22 L44 26 L18 58 Z" fill="url(#knifeBlade)" stroke="#1E293B" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M16 52 L40 26" stroke="#FFFFFF" strokeWidth="1.5" opacity="0.5" />
+            <path d="M26 30 L30 24 L38 29 L34 35 Z" fill="#1E293B" />
+            <rect x="32" y="18" width="26" height="7" rx="2" fill="#334155" stroke="#0F172A" strokeWidth="2" transform="rotate(45 45 21)" />
+            <rect x="42" y="4" width="13" height="32" rx="6" fill="#78350F" stroke="#451A03" strokeWidth="2" transform="rotate(45 48 20)" />
+            <circle cx="47" cy="21" r="1.5" fill="#FCD34D" />
+          </svg>
+        );
+
+      case 'gun': // Handgun / pistol
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="gunGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#64748B" />
+                <stop offset="100%" stopColor="#1E293B" />
+              </linearGradient>
+            </defs>
+            <rect x="6" y="26" width="20" height="8" rx="2" fill="url(#gunGrad)" stroke="#0F172A" strokeWidth="2" />
+            <rect x="20" y="21" width="24" height="15" rx="3" fill="url(#gunGrad)" stroke="#0F172A" strokeWidth="2" />
+            <rect x="20" y="17" width="5" height="5" rx="1" fill="#1E293B" />
+            <rect x="39" y="17" width="5" height="5" rx="1" fill="#1E293B" />
+            <path d="M44 27 L58 35 L56 48 L47 52 L38 48 L38 31 Z" fill="#3F3F46" stroke="#0F172A" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M44 32 C44 39, 54 39, 54 32" stroke="#0F172A" strokeWidth="2" fill="none" />
+            <path d="M40 23 L40 34" stroke="#111827" strokeWidth="1.5" />
+          </svg>
+        );
+
+      case 'rifle': // Assault rifle
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="rifleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#64748B" />
+                <stop offset="100%" stopColor="#1E293B" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="26" width="26" height="6" rx="2" fill="url(#rifleGrad)" stroke="#0F172A" strokeWidth="1.5" />
+            <rect x="8" y="20" width="3" height="6" fill="#1E293B" />
+            <rect x="28" y="22" width="18" height="12" rx="2" fill="#3F3F46" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M34 34 L38 46 L46 46 L44 34 Z" fill="#27272A" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M46 24 L60 26 L62 32 L52 34 L46 34 Z" fill="#78350F" stroke="#451A03" strokeWidth="1.5" />
+            <path d="M40 22 C40 15, 45 15, 45 22 Z" fill="#27272A" stroke="#0F172A" strokeWidth="1.5" />
+            <rect x="16" y="24" width="12" height="10" rx="1" fill="#52525B" stroke="#0F172A" strokeWidth="1" />
+          </svg>
+        );
+
+      case 'sniper': // Sniper rifle with scope
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="sniperGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#64748B" />
+                <stop offset="100%" stopColor="#1E293B" />
+              </linearGradient>
+            </defs>
+            <rect x="2" y="28" width="30" height="5" rx="2" fill="url(#sniperGrad)" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M12 33 L8 45 M17 33 L21 45" stroke="#27272A" strokeWidth="2" strokeLinecap="round" />
+            <rect x="20" y="15" width="18" height="10" rx="3" fill="#27272A" stroke="#0F172A" strokeWidth="1.5" />
+            <ellipse cx="21" cy="20" rx="3" ry="5" fill="#111827" stroke="#0F172A" strokeWidth="1.5" />
+            <ellipse cx="37" cy="20" rx="3" ry="5" fill="#111827" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M28 20 L36 20" stroke="#38BDF8" strokeWidth="1" />
+            <rect x="26" y="25" width="5" height="4" fill="#3F3F46" />
+            <rect x="30" y="26" width="15" height="9" rx="2" fill="#3F3F46" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M34 35 L37 46 L45 46 L43 35 Z" fill="#27272A" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M45 27 L61 29 L62 35 L53 37 L45 36 Z" fill="#78350F" stroke="#451A03" strokeWidth="1.5" />
+          </svg>
+        );
+
+      case 'tank': // Tank side view
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="tankGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#65A30D" />
+                <stop offset="100%" stopColor="#3F6212" />
+              </linearGradient>
+            </defs>
+            <rect x="8" y="40" width="48" height="14" rx="7" fill="#292524" stroke="#0F172A" strokeWidth="2" />
+            <circle cx="16" cy="47" r="4" fill="#1C1917" stroke="#0F172A" strokeWidth="1.5" />
+            <circle cx="26" cy="47" r="4" fill="#1C1917" stroke="#0F172A" strokeWidth="1.5" />
+            <circle cx="36" cy="47" r="4" fill="#1C1917" stroke="#0F172A" strokeWidth="1.5" />
+            <circle cx="46" cy="47" r="4" fill="#1C1917" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M6 40 L58 40 L58 32 L40 32 L40 22 L20 22 L8 32 Z" fill="url(#tankGrad)" stroke="#0F172A" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M20 22 L40 22 L36 12 L24 12 Z" fill="#4D7C0F" stroke="#0F172A" strokeWidth="2" strokeLinejoin="round" />
+            <rect x="38" y="14" width="22" height="5" rx="2" fill="#1F2937" stroke="#0F172A" strokeWidth="1.5" />
+            <rect x="56" y="13" width="5" height="7" rx="1" fill="#0F172A" />
+            <circle cx="28" cy="16" r="2.5" fill="#1F2937" stroke="#0F172A" strokeWidth="1.5" />
+          </svg>
+        );
+
+      case 'jet': // Fighter jet
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="jetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#334155" />
+              </linearGradient>
+            </defs>
+            <path d="M6 30 L30 24 L30 38 L6 40 Z" fill="#475569" stroke="#0F172A" strokeWidth="1.5" />
+            <path d="M6 30 L30 24 L30 38 L6 40 Z" fill="#475569" stroke="#0F172A" strokeWidth="1.5" transform="translate(64,0) scale(-1,1)" />
+            <path d="M28 24 L42 18 L50 22 L56 28 L50 30 L56 40 L46 42 L38 40 L32 46 L26 46 L32 38 L24 36 Z" fill="url(#jetGrad)" stroke="#0F172A" strokeWidth="2" strokeLinejoin="round" />
+            <ellipse cx="36" cy="27" rx="5" ry="3" fill="#38BDF8" stroke="#0F172A" strokeWidth="1.5" />
+          </svg>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   const renderFallbackSVG = () => {
     switch (code) {
       case 'limestone': // Light grey stone/rock
@@ -544,7 +671,14 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
-      default: // Default generic pack/crate icon
+      default: {
+        // Senjata militer bisa ber-tier ("sniper1..6"); buang angka, render ikon senjata
+        const weaponBase = code.replace(/[0-9]+$/, '');
+        if (['knife', 'gun', 'rifle', 'sniper', 'tank', 'jet'].includes(weaponBase)) {
+          const weaponIcon = renderWeaponIcon(weaponBase);
+          if (weaponIcon) return weaponIcon;
+        }
+        // Default generic pack/crate icon
         return (
           <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -557,6 +691,7 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
             <path d="M12 28 L52 28 M12 40 L52 40 M28 16 L28 52 M40 16 L40 52" stroke="#025A87" strokeWidth="1.5" />
           </svg>
         );
+      }
     }
   };
 
