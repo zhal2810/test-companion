@@ -20,6 +20,7 @@ interface CachedPrice {
   price: number;
   timestamp: number;
   source: 'candle' | 'api';
+  change24h?: number | null;
 }
 
 interface PriceCache {
