@@ -142,7 +142,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     };
   }, [item.item]);
 
-  // Load live transaction feed from itemOffer.getAll (with user data)
+  // Load realized market trades (sudah dibeli/dijual, bukan pending) dengan user data
   const loadLiveTrades = async () => {
     setLiveTradesLoading(true);
     try {
@@ -689,7 +689,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             {liveTradesLoading && liveTrades.length === 0 ? (
               <div className="text-center py-4 text-xs text-slate-600 animate-pulse">Menghubungkan ke WarEra API...</div>
             ) : liveTrades.length === 0 ? (
-              <div className="text-center py-4 text-xs text-slate-600">Tidak ada penawaran aktif untuk item ini.</div>
+              <div className="text-center py-4 text-xs text-slate-600">Tidak ada transaksi terbaru untuk item ini.</div>
             ) : (
               <div className="max-h-[140px] overflow-y-auto divide-y divide-slate-800/30">
                 {liveTrades.map((offer: any, idx) => {
@@ -706,7 +706,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                     <div key={offer._id || offer.offerId || idx} className="grid grid-cols-12 gap-2 items-center px-3 py-1 hover:bg-slate-900/30 text-[9.5px] font-mono transition duration-150">
                       <div className="col-span-2 text-slate-500 text-[9px]">{timeStr}</div>
                       <div className={`col-span-2 font-bold text-[8.5px] uppercase ${typeColor}`}>
-                        {offerType === 'buy' ? 'BID' : offerType === 'sell' ? 'ASK' : offerType}
+                        {offerType === 'buy' ? 'BELI' : offerType === 'sell' ? 'JUAL' : offerType}
                       </div>
                       <div className="col-span-3 flex items-center gap-1.5 truncate">
                         {offer.avatarUrl && (

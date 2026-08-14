@@ -254,7 +254,7 @@ async function startServer() {
     }
   });
 
-  // 2.6 Item Offers — get recent offers with user enrichment
+  // 2.6 Item Offers — realized trading transactions (not pending) with user enrichment
   app.get('/api/market/offers/:itemCode', async (req, res) => {
     try {
       const { itemCode } = req.params;
@@ -297,104 +297,111 @@ async function startServer() {
       let data: any = null;
       let dataSource = 'none';
 
-      // Try itemOffer.getAll first
-      try {
-        const input = encodeURIComponent(JSON.stringify({ itemCode }));
-        console.log(`[Offers] Trying itemOffer.getAll: https://api2.warera.io/trpc/itemOffer.getAll?input=${input}`);
-        data = await fetchTRPC(
-          `https://api2.warera.io/trpc/itemOffer.getAll?input=${input}`
-        );
-        dataSource = 'itemOffer.getAll';
-        console.log('[Offers] Success from itemOffer.getAll');
-      } catch (err) {
-        console.warn('[Offers] itemOffer.getAll failed, trying tradingOrder.getTopOrders as fallback:', err);
-        
-        // Fallback to tradingOrder.getTopOrders
+      const input = encodeURIComponent(
+        JSON.stringify({ itemCode, limit, transactionType: 'trading' })
+      );
+
+      const providers: Array<{ url: string; headers: Record<string, string> }> = [
+        {
+          url: `https://gateway.warerastats.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
+          headers: { 'X-API-Key': 'warerastats' },
+        },
+        {
+          url: `https://api2.warera.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
+          headers: {},
+        },
+        {
+          url: `https://www.warera-pulse.info/api/wr/transaction.getPaginatedTransactions?input=${input}`,
+          headers: {},
+        },
+      ];
+
+      for (const provider of providers) {
         try {
-          const input = encodeURIComponent(JSON.stringify({ itemCode, limit: 30 }));
-          console.log(`[Offers] Trying tradingOrder.getTopOrders as fallback`);
-          data = await fetchTRPC(
-            `https://api2.warera.io/trpc/tradingOrder.getTopOrders?input=${input}`
-          );
-          dataSource = 'tradingOrder.getTopOrders';
-          console.log('[Offers] Success from tradingOrder.getTopOrders');
-        } catch (fallbackErr) {
-          console.error('[Offers] Both endpoints failed:', fallbackErr);
-          // No more fallbacks
+          const candidate = await fetchTRPC(provider.url, provider.headers);
+          if (Array.isArray(candidate?.result?.data?.items)) {
+            data = candidate;
+            dataSource = new URL(provider.url).hostname;
+            break;
+          }
+        } catch (err) {
+          console.warn(`[Offers] ${new URL(provider.url).hostname} failed:`, err);
         }
       }
 
-      // Extract offers from either source
-      let offers: any[] = [];
-      if (dataSource === 'itemOffer.getAll') {
-        offers = Array.isArray(data?.result?.data) ? data.result.data : [];
-      } else if (dataSource === 'tradingOrder.getTopOrders') {
-        // Combine buy and sell orders
-        const buyOrders = Array.isArray(data?.result?.data?.buyOrders) ? data.result.data.buyOrders : [];
-        const sellOrders = Array.isArray(data?.result?.data?.sellOrders) ? data.result.data.sellOrders : [];
-        offers = [...buyOrders, ...sellOrders];
-      }
-      
-      if (offers.length === 0) {
-        console.warn(`[Offers] No offers found for ${itemCode} from ${dataSource || 'any source'}`);
+      const rawTransactions = Array.isArray(data?.result?.data?.items)
+        ? data.result.data.items
+        : [];
+
+      if (rawTransactions.length === 0) {
+        console.warn(`[Offers] No trades found for ${itemCode} from ${dataSource || 'any source'}`);
         res.set('Cache-Control', 'public, max-age=5');
         return res.json({
           success: true,
           data: [],
           count: 0,
-          warning: 'No offers found or API unavailable',
+          warning: 'No trades found or API unavailable',
           source: dataSource,
         });
       }
 
-      // Extract user IDs
+      const userCache = new Map<string, { username: string; avatarUrl: string }>();
+
+      const resolveUser = async (userId: string) => {
+        if (userCache.has(userId)) return;
+        const userInput = encodeURIComponent(JSON.stringify({ userId }));
+        try {
+          const userData = await fetchTRPC(
+            `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`
+          );
+          const user = userData?.result?.data;
+          userCache.set(userId, {
+            username: user?.username || `${userId.slice(0, 8)}...`,
+            avatarUrl: user?.avatarUrl || '',
+          });
+        } catch {
+          userCache.set(userId, {
+            username: `${userId.slice(0, 8)}...`,
+            avatarUrl: '',
+          });
+        }
+      };
+
       const userIds = Array.from(
         new Set(
-          offers
-            .map((o: any) => o?.user)
+          rawTransactions
+            .flatMap((tx: any) => [tx?.buyerId, tx?.sellerId])
             .filter(Boolean)
         )
       ) as string[];
 
-      const userCache = new Map<string, { username: string; avatarUrl: string }>();
+      await Promise.all(userIds.map(resolveUser));
 
-      // Fetch user data in parallel
-      await Promise.all(
-        userIds.map(async (userId) => {
-          try {
-            const userInput = encodeURIComponent(JSON.stringify({ userId }));
-            let userData: any = null;
+      const trades = rawTransactions
+        .map((tx: any) => {
+          const buyerId = typeof tx?.buyerId === 'string' ? tx.buyerId : '';
+          const sellerId = typeof tx?.sellerId === 'string' ? tx.sellerId : '';
+          const buyer = buyerId ? userCache.get(buyerId) : undefined;
+          const seller = sellerId ? userCache.get(sellerId) : undefined;
+          const money = Number(tx?.money) || 0;
+          const quantity = Number(tx?.quantity) || 0;
 
-            try {
-              userData = await fetchTRPC(
-                `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`
-              );
-            } catch {
-              userData = null;
-            }
-
-            const user = userData?.result?.data;
-            userCache.set(userId, {
-              username: user?.username || `${userId.slice(0, 8)}...`,
-              avatarUrl: user?.avatarUrl || '',
-            });
-          } catch {
-            userCache.set(userId, {
-              username: `${userId.slice(0, 8)}...`,
-              avatarUrl: '',
-            });
-          }
-        })
-      );
-
-      // Enrich offers with user data
-      const enrichedOffers = offers
-        .map((o: any) => {
-          const user = o?.user ? userCache.get(o.user) : undefined;
           return {
-            ...o,
-            username: user?.username || 'Unknown',
-            avatarUrl: user?.avatarUrl || '',
+            _id: tx?._id || tx?.id,
+            id: tx?._id || tx?.id,
+            itemCode: tx?.itemCode || itemCode,
+            quantity,
+            money,
+            price: quantity > 0 ? money / quantity : 0,
+            createdAt: tx?.createdAt,
+            transactionType: tx?.transactionType || 'trading',
+            type: 'buy',
+            buyerId,
+            sellerId,
+            username: buyer?.username || 'Unknown',
+            avatarUrl: buyer?.avatarUrl || '',
+            usernameSeller: seller?.username || '',
+            avatarUrlSeller: seller?.avatarUrl || '',
           };
         })
         .slice(0, limit);
@@ -402,8 +409,8 @@ async function startServer() {
       res.set('Cache-Control', 'public, max-age=5');
       res.json({
         success: true,
-        data: enrichedOffers,
-        count: enrichedOffers.length,
+        data: trades,
+        count: trades.length,
         source: dataSource,
       });
     } catch (err: any) {

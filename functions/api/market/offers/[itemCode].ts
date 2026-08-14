@@ -3,9 +3,9 @@
 // Production Cloudflare Pages Function:
 // GET /api/market/offers/:itemCode?limit=20
 //
-// Mirrors the Express route (server.ts) so the Live Market Offers feed works
-// on the deployed site. itemOffer.getAll/getById are not exposed on the public
-// API hosts, so this uses tradingOrder.getTopOrders + username enrichment.
+// Returns REALIZED trading transactions (not pending orders) for an item,
+// enriched with the buyer's username + avatar. Uses
+// transaction.getPaginatedTransactions (filtered by itemCode + 'trading').
 
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
@@ -113,32 +113,6 @@ async function resolveUsername(userId: string): Promise<UserInfo> {
   return fallback;
 }
 
-async function enrichOffers(offers: any[]): Promise<any[]> {
-  if (!Array.isArray(offers) || offers.length === 0) return [];
-
-  const uniqueIds = Array.from(
-    new Set(
-      offers
-        .map((offer) => offer?.user)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0),
-    ),
-  );
-
-  await Promise.all(uniqueIds.map((id) => resolveUsername(id)));
-
-  return offers.map((offer) => {
-    const userId = typeof offer?.user === 'string' ? offer.user : '';
-    const user = userCache.get(userId);
-
-    return {
-      ...offer,
-      user: userId,
-      username: user?.username || userId || 'Unknown',
-      avatarUrl: user?.avatarUrl || '',
-    };
-  });
-}
-
 export const onRequestOptions: PagesFunction = async ({ request }) => {
   return new Response(null, {
     status: 204,
@@ -169,19 +143,21 @@ export const onRequestGet: PagesFunction = async ({ request, params }) => {
       );
     }
 
-    const input = encodeURIComponent(JSON.stringify({ itemCode, limit }));
+    const input = encodeURIComponent(
+      JSON.stringify({ itemCode, limit, transactionType: 'trading' }),
+    );
 
     const targets: Array<{ url: string; headers: Record<string, string> }> = [
       {
-        url: `https://gateway.warerastats.io/trpc/tradingOrder.getTopOrders?input=${input}`,
+        url: `https://gateway.warerastats.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
         headers: { 'X-API-Key': 'warerastats' },
       },
       {
-        url: `https://api2.warera.io/trpc/tradingOrder.getTopOrders?input=${input}`,
+        url: `https://api2.warera.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
         headers: {},
       },
       {
-        url: `https://www.warera-pulse.info/api/wr/tradingOrder.getTopOrders?input=${input}`,
+        url: `https://www.warera-pulse.info/api/wr/transaction.getPaginatedTransactions?input=${input}`,
         headers: {},
       },
     ];
@@ -193,7 +169,7 @@ export const onRequestGet: PagesFunction = async ({ request, params }) => {
       try {
         const candidate = await fetchJson(target.url, target.headers);
 
-        if (candidate?.result?.data) {
+        if (Array.isArray(candidate?.result?.data?.items)) {
           data = candidate;
           dataSource = new URL(target.url).hostname;
           break;
@@ -203,35 +179,65 @@ export const onRequestGet: PagesFunction = async ({ request, params }) => {
       }
     }
 
-    if (!data?.result?.data) {
+    const rawTransactions = Array.isArray(data?.result?.data?.items)
+      ? data.result.data.items
+      : [];
+
+    if (rawTransactions.length === 0) {
       return Response.json(
         {
           success: true,
           data: [],
           count: 0,
-          warning: 'No offers found or API unavailable',
+          warning: 'No trades found or API unavailable',
           source: dataSource,
         },
         { status: 200, headers },
       );
     }
 
-    const buyOrders = Array.isArray(data.result.data.buyOrders)
-      ? data.result.data.buyOrders
-      : [];
+    const userIds: string[] = Array.from(
+      new Set<string>(
+        rawTransactions
+          .flatMap((tx: any) => [tx?.buyerId, tx?.sellerId])
+          .filter(Boolean),
+      ),
+    );
 
-    const sellOrders = Array.isArray(data.result.data.sellOrders)
-      ? data.result.data.sellOrders
-      : [];
+    await Promise.all(userIds.map((id) => resolveUsername(id)));
 
-    const rawOffers = [...buyOrders, ...sellOrders];
-    const enrichedOffers = await enrichOffers(rawOffers);
+    const trades = rawTransactions.map((tx: any) => {
+      const buyerId = typeof tx?.buyerId === 'string' ? tx.buyerId : '';
+      const sellerId = typeof tx?.sellerId === 'string' ? tx.sellerId : '';
+      const buyer = buyerId ? userCache.get(buyerId) : undefined;
+      const seller = sellerId ? userCache.get(sellerId) : undefined;
+      const money = Number(tx?.money) || 0;
+      const quantity = Number(tx?.quantity) || 0;
+
+      return {
+        _id: tx?._id || tx?.id,
+        id: tx?._id || tx?.id,
+        itemCode: tx?.itemCode || itemCode,
+        quantity,
+        money,
+        price: quantity > 0 ? money / quantity : 0,
+        createdAt: tx?.createdAt,
+        transactionType: tx?.transactionType || 'trading',
+        type: 'buy',
+        buyerId,
+        sellerId,
+        username: buyer?.username || 'Unknown',
+        avatarUrl: buyer?.avatarUrl || '',
+        usernameSeller: seller?.username || '',
+        avatarUrlSeller: seller?.avatarUrl || '',
+      };
+    });
 
     return Response.json(
       {
         success: true,
-        data: enrichedOffers.slice(0, limit),
-        count: Math.min(enrichedOffers.length, limit),
+        data: trades.slice(0, limit),
+        count: Math.min(trades.length, limit),
         source: dataSource,
       },
       { status: 200, headers },
