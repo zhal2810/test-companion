@@ -73,7 +73,11 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
   const [regionsDict, setRegionsDict] = useState<Record<string, any>>({});
   const [productionBonusDict, setProductionBonusDict] = useState<Record<string, any>>({});
   const [workersByCompanyId, setWorkersByCompanyId] = useState<Record<string, any[]>>({});
-  const [ownerEntrepreneurship, setOwnerEntrepreneurship] = useState(0);
+  const [entrepreneurshipLevel, setEntrepreneurshipLevel] = useState<number>(() => {
+    const saved = localStorage.getItem('warera_entrepreneurship');
+    const num = Number(saved);
+    return Number.isFinite(num) && num > 0 ? num : 0;
+  });
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
   const [marketPrices, setMarketPrices] = useState<Record<string, any>>({});
   const [itemsConfig, setItemsConfig] = useState<Record<string, any>>(() => ({ ...GAME_ITEMS }));
@@ -200,9 +204,6 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
       const priceRes = await fetchWarera('itemTrading.getPrices', {}, token);
       if (priceRes.success && priceRes.data) setMarketPrices(priceRes.data);
       await loadProductionBonuses(result.companies || []);
-
-      const ownerRes = await getUserEcoSkills(userId, token);
-      setOwnerEntrepreneurship(ownerRes?.data?.entrepreneurshipValue ?? 0);
 
       const workersRes = await getWorkersByUserId(userId, token);
       if (workersRes.success) {
@@ -398,18 +399,34 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
     <div className="animate-fade-in text-slate-200">
       
       {/* HEADER CONTROLS */}
-      <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+      <div className="flex justify-between items-center gap-3 mb-4 pb-2 border-b border-slate-800 flex-wrap">
         <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
           {data?.playerData?.username ? `Pemain: ${data.playerData.username}` : 'Company Analysis'}
         </div>
-        <button 
-          onClick={handleAnalyse} 
-          disabled={isLoading} 
-          className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-[#e67e22] hover:text-[#f39c12] text-xs font-bold px-3 py-1.5 rounded-lg transition duration-200 cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          {isLoading ? 'MEMUAT...' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-[11px] text-slate-400">
+            <span className="uppercase tracking-wider text-[10px] font-bold">Entrepreneurship</span>
+            <input
+              type="number"
+              min={0}
+              value={entrepreneurshipLevel}
+              onChange={(e) => {
+                const num = Number(e.target.value);
+                setEntrepreneurshipLevel(Number.isFinite(num) ? num : 0);
+                localStorage.setItem('warera_entrepreneurship', String(num));
+              }}
+              className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center outline-none focus:border-indigo-500"
+            />
+          </label>
+          <button 
+            onClick={handleAnalyse} 
+            disabled={isLoading} 
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-[#e67e22] hover:text-[#f39c12] text-xs font-bold px-3 py-1.5 rounded-lg transition duration-200 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'MEMUAT...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {/* COMPANIES LIST */}
@@ -423,7 +440,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
                 comp={comp}
                 regionsDict={regionsDict}
                 productionBonus={comp?._id ? productionBonusDict[comp._id] : undefined}
-                entrepreneurshipLevel={ownerEntrepreneurship}
+                entrepreneurshipLevel={entrepreneurshipLevel}
                 workers={comp?._id ? (workersByCompanyId[comp._id] || []) : []}
                 isExpanded={expandedId === id}
                 onToggle={() => setExpandedId(prev => prev === id ? null : id)}
@@ -708,6 +725,16 @@ function CompanyListItem({
             const upkeep = workersWagePerDay + materialCost;
             const netProfit = grossRevenue - upkeep;
 
+            // Tampilkan jumlah unit dengan pembulatan ke bawah supaya konsisten
+            // (produksi 5.76 -> 5 Fish), dan hitung revenue/profit dari unit bulat
+            // itu agar baris "N units × harga = +X" selalu akurat.
+            const floorQty = (q: number) => Math.max(0, Math.floor(q));
+            const shownDailyProduction = floorQty(dailyProduction);
+            const shownUsedInternallyQty = floorQty(usedInternallyQty);
+            const shownSoldQty = floorQty(soldQty);
+            const shownGrossRevenue = shownSoldQty * itemPrice;
+            const shownNetProfit = shownGrossRevenue - upkeep;
+
             const isRawCompany = itemsConfig?.[comp?.itemCode]?.type === 'raw';
             const itemConfig = itemsConfig?.[comp?.itemCode] || GAME_ITEMS[comp?.itemCode];
             const itemName = itemConfig?.name || comp?.itemCode || '';
@@ -811,24 +838,24 @@ function CompanyListItem({
 
                       {excludedFromInternal ? (
                         <>
-                          <DetailRow label="Units produced" value={`${Math.floor(dailyProduction)} ${itemName}`} />
+                          <DetailRow label="Units produced" value={`${shownDailyProduction} ${itemName}`} />
                           <DetailRow label="Market price / unit" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
-                          <DetailRow label="Revenue" value={<>+{grossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
+                          <DetailRow label="Revenue" value={<>+{shownGrossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
                         </>
                       ) : (
                         <>
-                          <DetailRow label="Production" value={`${Math.floor(dailyProduction)} ${itemName}/day`} />
-                          {usedInternallyQty > 0.001 && (
+                          <DetailRow label="Production" value={`${shownDailyProduction} ${itemName}/day`} />
+                          {shownUsedInternallyQty > 0 && (
                             <DetailRow
                               label="→ Supplied to MFG (at-cost)"
-                              value={`${usedInternallyQty.toFixed(0)} units`}
+                              value={`${shownUsedInternallyQty} units`}
                               valueColor="text-amber-400"
                             />
                           )}
-                          {soldQty > 0.001 && (
+                          {shownSoldQty > 0 && (
                             <DetailRow
                               label="→ Surplus sold to market"
-                              value={<>{soldQty.toFixed(0)} units × {itemPrice.toFixed(3)} = <span className="text-emerald-400">+{grossRevenue.toFixed(3)}</span> <CurrencyIcon /></>}
+                              value={<>{shownSoldQty} units × {itemPrice.toFixed(3)} = <span className="text-emerald-400">+{shownGrossRevenue.toFixed(3)}</span> <CurrencyIcon /></>}
                             />
                           )}
                         </>
@@ -838,8 +865,8 @@ function CompanyListItem({
                       <div className="border-t border-slate-900 my-1.5"></div>
                       <DetailRow
                         label="Net Profit / day"
-                        value={<>{netProfit >= 0 ? '+' : ''}{netProfit.toFixed(3)} <CurrencyIcon /></>}
-                        valueColor={netProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
+                        value={<>{shownNetProfit >= 0 ? '+' : ''}{shownNetProfit.toFixed(3)} <CurrencyIcon /></>}
+                        valueColor={shownNetProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
                         isBold={true}
                       />
                     </>
@@ -847,7 +874,7 @@ function CompanyListItem({
                     <>
                       <DetailRow label="Total PP / day" value={`${totalPP.toFixed(1)} PP`} />
                       <DetailRow label="Entrepreneurship" value={`${entrepreneurshipLevel}`} />
-                      <DetailRow label="Units produced" value={`${Math.floor(dailyProduction)} ${itemName}`} />
+                      <DetailRow label="Units produced" value={`${shownDailyProduction} ${itemName}`} />
                       <DetailRow label="Market price / unit" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
 
                       {/* Finished goods: pilih supply internal atau market. */}
@@ -872,12 +899,12 @@ function CompanyListItem({
                         </label>
                       )}
 
-                      {usedInternallyQty > 0.001 && (
-                        <DetailRow label="Untuk Produksi" value={`-${usedInternallyQty.toFixed(1)}/day`} valueColor="text-amber-400" />
+                      {shownUsedInternallyQty > 0 && (
+                        <DetailRow label="Untuk Produksi" value={`-${shownUsedInternallyQty}/day`} valueColor="text-amber-400" />
                       )}
 
                       <div className="border-t border-slate-900 my-2"></div>
-                      <DetailRow label="Revenue" value={<>+{grossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
+                      <DetailRow label="Revenue" value={<>+{shownGrossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
                       <DetailRow label="Wage costs" value={<>-{workersWagePerDay.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
 
                       {materialBreakdown.length > 0 && (
@@ -914,8 +941,8 @@ function CompanyListItem({
                       <div className="border-t border-slate-900 my-1.5"></div>
                       <DetailRow 
                         label="Net Profit / day" 
-                        value={<>{netProfit >= 0 ? '+' : ''}{netProfit.toFixed(3)} <CurrencyIcon /></>} 
-                        valueColor={netProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
+                        value={<>{shownNetProfit >= 0 ? '+' : ''}{shownNetProfit.toFixed(3)} <CurrencyIcon /></>} 
+                        valueColor={shownNetProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
                         isBold={true}
                       />
                     </>
