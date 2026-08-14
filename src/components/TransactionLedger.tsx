@@ -194,16 +194,19 @@ function calculateLedger(transactions: Transaction[], userId: string): LedgerRes
 interface TransactionLedgerProps {
   transactions: Transaction[];
   userId: string;
+  filterActive?: boolean;
 }
 
-export default function TransactionLedger({ transactions, userId }: TransactionLedgerProps) {
+export default function TransactionLedger({ transactions, userId, filterActive = false }: TransactionLedgerProps) {
   if (!transactions || transactions.length === 0) {
     return (
       <div className="bg-[#12141C] border border-slate-800 rounded-xl p-6 text-center">
         <FileText className="w-10 h-10 text-slate-600 mx-auto mb-2.5" />
         <h3 className="text-sm font-bold text-slate-300">DOMPET EKONOMI</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-          Belum ada data transaksi. Hubungkan akun di menu Config untuk sinkronisasi.
+          {filterActive
+            ? 'Tidak ada transaksi untuk periode/jenis terpilih. Coba ubah filter Periode/Jenis atau klik Load More untuk riwayat yang lebih dalam.'
+            : 'Belum ada data transaksi. Hubungkan akun di menu Config untuk sinkronisasi.'}
         </p>
       </div>
     );
@@ -253,7 +256,7 @@ export default function TransactionLedger({ transactions, userId }: TransactionL
         {itemBreakdown.length === 0 ? (
           <div className="flex items-start gap-2 p-3 bg-slate-900/40 border border-slate-800/40 rounded-lg text-xs text-slate-500">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>Belum ada transaksi niaga di halaman yang aktif. Naikkan opsi jumlah tampilan atau klik Load More untuk riwayat yang lebih dalam.</span>
+            <span>Belum ada transaksi niaga pada periode/filter terpilih. Coba ubah filter Periode/Jenis atau klik Load More untuk riwayat yang lebih dalam.</span>
           </div>
         ) : (
           <>

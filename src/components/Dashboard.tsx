@@ -9,9 +9,12 @@ import Logo from './Logo';
 import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+function formatRangeDate(date: Date): string {
+  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+}
+
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'news'>('company');
-  const [config, setConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'news'>('company');  const [config, setConfig] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [playerWealth, setPlayerWealth] = useState<any>(null);
 
@@ -81,8 +84,11 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [txLoading, setTxLoading] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [perPage, setPerPage] = useState(25);
+  const [perPage, setPerPage] = useState(100);
   const [hasMore, setHasMore] = useState(true);
+  // Mingguan: rolling 7 hari mundur dari hari ini + filter jenis transaksi
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [txTypeFilter, setTxTypeFilter] = useState('all');
 
   // Load Saved config
   const loadSavedConfig = () => {
@@ -178,6 +184,27 @@ export default function Dashboard() {
       }
     })();
   };
+
+  // Filter ledger: mingguan (rolling 7 hari) + jenis transaksi
+  const ledgerFilter = React.useMemo(() => {
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() - weekOffset * 7);
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - 7);
+
+    const periodLabel = `${formatRangeDate(startDate)} – ${formatRangeDate(endDate)}`;
+
+    const filtered = (transactions as any[]).filter((tx) => {
+      const t = new Date(tx.createdAt).getTime();
+      if (t >= endDate.getTime() || t < startDate.getTime()) return false;
+      if (txTypeFilter === 'all') return true;
+      if (txTypeFilter === 'trade') return tx.transactionType === 'trading' || tx.transactionType === 'itemMarket';
+      if (txTypeFilter === 'wage') return tx.transactionType === 'wage';
+      return tx.transactionType !== 'trading' && tx.transactionType !== 'itemMarket' && tx.transactionType !== 'wage';
+    });
+
+    return { filtered, periodLabel };
+  }, [transactions, weekOffset, txTypeFilter]);
 
   return (
     <div className="min-h-screen bg-[#07080D] text-slate-200 font-sans selection:bg-emerald-500/20 selection:text-emerald-400">
@@ -362,22 +389,36 @@ export default function Dashboard() {
                       {config?.userId && transactions.length > 0 && (
                         <div className="flex justify-between items-center bg-[#0C0D13] p-3 border border-slate-800/60 rounded-xl flex-wrap gap-2">
                           <div className="flex gap-2 items-center">
-                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tampilkan per halaman:</span>
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Periode:</span>
                             <select
-                              value={perPage}
-                              onChange={(e) => {
-                                setPerPage(Number(e.target.value));
-                                setTransactions([]);
-                                setCursor(null);
-                              }}
+                              value={weekOffset}
+                              onChange={(e) => setWeekOffset(Number(e.target.value))}
                               className="bg-[#08090C] text-slate-300 border border-slate-800 hover:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold cursor-pointer outline-none"
                             >
-                              <option value="10">10 Baris</option>
-                              <option value="25">25 Baris</option>
-                              <option value="50">50 Baris</option>
-                              <option value="100">100 Baris</option>
+                              <option value={0}>7 Hari Terakhir</option>
+                              <option value={1}>Minggu Lalu (7–14 hr)</option>
+                              <option value={2}>2 Minggu Lalu</option>
+                              <option value={3}>3 Minggu Lalu</option>
                             </select>
                           </div>
+
+                          <div className="flex gap-2 items-center">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jenis:</span>
+                            <select
+                              value={txTypeFilter}
+                              onChange={(e) => setTxTypeFilter(e.target.value)}
+                              className="bg-[#08090C] text-slate-300 border border-slate-800 hover:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold cursor-pointer outline-none"
+                            >
+                              <option value="all">Semua Tipe</option>
+                              <option value="trade">Trading (Beli/Jual)</option>
+                              <option value="wage">Gaji</option>
+                              <option value="other">Lainnya</option>
+                            </select>
+                          </div>
+
+                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                            {ledgerFilter.periodLabel}
+                          </span>
 
                           <button 
                             onClick={() => loadTransactions(true)}
@@ -391,8 +432,9 @@ export default function Dashboard() {
                       )}
 
                       <TransactionLedger 
-                        transactions={transactions} 
+                        transactions={ledgerFilter.filtered} 
                         userId={config?.userId} 
+                        filterActive={transactions.length > 0}
                       />
 
                       {/* LOAD MORE */}
