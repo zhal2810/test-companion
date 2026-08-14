@@ -132,6 +132,21 @@ export default function CandleChart({
       },
     });
 
+    // Configure price scale untuk konsisten
+    const priceScale = series.priceScale();
+    priceScale.applyOptions({
+      autoScale: true,
+      mode: 1, // 1 = normal mode
+      invertScale: false,
+      alignLabels: true,
+      borderVisible: true,
+      borderColor: '#1E293B',
+      textColor: '#94A3B8',
+      entireTextOnly: false,
+      ticksVisible: true,
+    });
+
+
     
     const formatted = candles
       .map((c: Candle) => ({
@@ -149,7 +164,27 @@ export default function CandleChart({
 
     series.setData(formatted);
 
+    // Auto-scroll ke candle terakhir
     chart.timeScale().fitContent();
+    
+    // Tunggu sebentar untuk render, lalu sync price axis dengan visible range
+    setTimeout(() => {
+      try {
+        // Dapatkan visible range
+        const visibleRange = chart.timeScale().getVisibleRange();
+        if (visibleRange) {
+          // Update autoscale berdasarkan visible range
+          series.priceScale().applyOptions({
+            autoScale: true,
+          });
+        }
+        
+        // Scroll ke right (last candle) dan center price
+        chart.timeScale().scrollToRealTime();
+      } catch (err) {
+        console.warn('[CandleChart] Auto-scroll error:', err);
+      }
+    }, 50);
 
     chartRef.current = chart;
 
