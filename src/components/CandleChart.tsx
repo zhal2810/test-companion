@@ -113,7 +113,7 @@ export default function CandleChart({
       wickDownColor: '#FB7185',
       priceFormat: {
         type: 'price',
-        precision: 4,
+        precision: 3,
       },
     });
 
