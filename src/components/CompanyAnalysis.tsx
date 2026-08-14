@@ -855,14 +855,14 @@ function CompanyListItem({
                           <DetailRow label="Production" value={`${shownDailyProduction} ${itemName}/day`} />
                           {shownUsedInternallyQty > 0 && (
                             <DetailRow
-                              label="→ Supplied to MFG (at-cost)"
+                              label="→ Bahan yang dipakai untuk produksi pabrik internal"
                               value={`${shownUsedInternallyQty} units`}
                               valueColor="text-amber-400"
                             />
                           )}
                           {shownSoldQty > 0 && (
                             <DetailRow
-                              label="→ Surplus sold to market"
+                              label="→ Surplus Untuk Dijual ke Market"
                               value={<>{shownSoldQty} units × {itemPrice.toFixed(3)} = <span className="text-emerald-400">+{shownGrossRevenue.toFixed(3)}</span> <CurrencyIcon /></>}
                             />
                           )}

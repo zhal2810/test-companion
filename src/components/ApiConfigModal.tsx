@@ -135,7 +135,7 @@ export default function ApiConfigModal({ isOpen, onClose }: ApiConfigModalProps)
             />
           </div>
           <span className="block text-[10px] text-slate-500 mt-1.5">
-            Public username to load player profile & company structure
+            Cari Nama Anda Di sini 
           </span>
         </div>
 
@@ -155,7 +155,7 @@ export default function ApiConfigModal({ isOpen, onClose }: ApiConfigModalProps)
             />
           </div>
           <span className="block text-[10px] text-slate-500 mt-1.5">
-            Required for secure/private endpoints like tracking transactions
+            Profile ke Setting Scroll Create APi Key
           </span>
         </div>
 

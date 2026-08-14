@@ -550,7 +550,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: defName } = getCountryNameAndFlag(defId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Front pertempuran baru <span className="text-orange-500 font-bold bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-500/10 mr-1">🔥 BATTLE OPENED</span> di wilayah strategis <span className="font-bold text-white">🏔️ {renderFlagsForIds(ev.countries || data.countries || data.regionCountry)} {regionName}</span>! <span className="text-slate-400">({attName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(attId)} /> {attName}</> : 'Penyerang'} menyerang {defName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(defId)} /> {defName}</> : 'Bertahan'})</span>
+            Front pertempuran baru <span className="text-orange-500 font-bold bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-500/10 mr-1">🔥 BATTLE OPENED</span> di wilayah  <span className="font-bold text-white"> {renderFlagsForIds(ev.countries || data.countries || data.regionCountry)} {regionName}</span>! <span className="text-slate-400">({attName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(attId)} /> {attName}</> : 'Penyerang'} menyerang {defName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(defId)} /> {defName}</> : 'Bertahan'})</span>
           </span>
         );
       }
@@ -561,7 +561,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: winnerName } = getCountryNameAndFlag(winnerId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Pertempuran sengit di wilayah <span className="font-semibold text-white">🏔️ {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> dinyatakan selesai <span className="text-emerald-400">🛡️</span>. Pihak <span className="font-bold text-emerald-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(winnerId)} /> {winnerName} ({data.wonBy})</span> keluar sebagai pemenang!
+            Pertempuran sengit di wilayah <span className="font-semibold text-white"> {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> dinyatakan selesai <span className="text-emerald-400"></span>. Pihak <span className="font-bold text-emerald-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(winnerId)} /> {winnerName} ({data.wonBy})</span> keluar sebagai pemenang!
           </span>
         );
       }
@@ -574,7 +574,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: toName } = getCountryNameAndFlag(toId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Wilayah penting <span className="font-bold text-white">🏔️ {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> secara resmi diserahterahkan dari negara <span className="font-bold text-rose-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(fromId)} /> {fromName}</span> kepada negara <span className="font-bold text-emerald-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(toId)} /> {toName}</span> 🗺️.
+            Wilayah penting <span className="font-bold text-white"> {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> secara resmi diserahterahkan dari negara <span className="font-bold text-rose-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(fromId)} /> {fromName}</span> kepada negara <span className="font-bold text-emerald-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(toId)} /> {toName}</span> 🗺️.
           </span>
         );
       }
@@ -583,7 +583,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { regionName } = getRegionNameAndCountry(regionId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Pemberontakan massal <span className="text-yellow-500 font-bold bg-yellow-950/40 px-1.5 py-0.5 rounded mr-1">🛑 REVOLT</span> pecah di wilayah <span className="font-bold text-white">🏔️ {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> akibat ketegangan politik!
+            Pemberontakan massal <span className="text-yellow-500 font-bold bg-yellow-950/40 px-1.5 py-0.5 rounded mr-1"> REVOLT</span> pecah di wilayah <span className="font-bold text-white">{renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> akibat ketegangan politik!
           </span>
         );
       }
@@ -601,7 +601,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { regionName } = getRegionNameAndCountry(regionId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Kebebasan! ✊ Wilayah <span className="font-bold text-emerald-400">🏔️ {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> telah berhasil dibebaskan dari pendudukan militer asing!
+            Kebebasan!  Wilayah <span className="font-bold text-emerald-400"> {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> telah berhasil dibebaskan dari pendudukan militer asing!
           </span>
         );
       }
