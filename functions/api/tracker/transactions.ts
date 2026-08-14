@@ -7,7 +7,7 @@ const ALLOWED_ORIGINS = [
 ];
 
 const DEFAULT_COUNTRY_ID = '6813b6d546e731854c7ac829'; // Indonesia
-const MAX_PAGES = 30;
+const MAX_PAGES = 500; // amankan dari infinite loop (~50.000 transaksi)
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('origin') || '';
@@ -68,7 +68,8 @@ function toNumber(value: unknown): number {
 export const onRequestOptions: PagesFunction = async ({ request }) =>
   new Response(null, { status: 204, headers: getCorsHeaders(request) });
 
-export const onRequestGet: PagesFunction = async ({ request }) => {
+export const onRequestGet: PagesFunction = async (context) => {
+  const { request } = context;
   const headers = getCorsHeaders(request);
   const url = new URL(request.url);
   const countryId = url.searchParams.get('countryId') || DEFAULT_COUNTRY_ID;
@@ -76,8 +77,23 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
   const apiKey = request.headers.get('x-api-key');
 
   try {
+    // Cache agregat per negara (5 menit) supaya refresh tidak mengulang ratusan request.
+    const cacheKey = `tracker:${countryId}:${transactionType || 'all'}`;
+    const cache = caches.default;
+    const cacheUrl = new URL(request.url);
+    cacheUrl.search = '';
+    cacheUrl.pathname = `/__tracker_cache/${cacheKey.replace(/[^a-zA-Z0-9:_-]/g, '_')}`;
+
+    const cachedRes = await cache.match(cacheUrl);
+    if (cachedRes) {
+      return new Response(cachedRes.body, {
+        headers: { 'Content-Type': 'application/json', ...headers },
+      });
+    }
+
     const all: any[] = [];
     let cursor: string | null = null;
+    let pagesFetched = 0;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       const input: Record<string, any> = { countryId, limit: 100 };
@@ -88,6 +104,7 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
       const data = json?.result?.data;
       const items = Array.isArray(data?.items) ? data.items : [];
       all.push(...items);
+      pagesFetched++;
 
       cursor = data?.nextCursor || null;
       if (!cursor) break;
@@ -106,7 +123,7 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
     await Promise.all(
       userIds.map(async (uid) => {
         if (userMap.has(uid)) return;
-        const json = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey, 4000);
+        const json = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
         const user = json?.result?.data;
         if (user?.username) {
           userMap.set(uid, user.username);
@@ -132,23 +149,40 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
       createdAt: t?.createdAt || t?.offerCreatedAt || '',
     }));
 
-    return Response.json(
-      {
+    const response = new Response(
+      JSON.stringify({
         success: true,
         data: {
           countryId,
           fetchedAt: new Date().toISOString(),
           total: transactions.length,
+          pagesFetched,
           transactions,
         },
-      },
+      }),
       {
         headers: {
+          'Content-Type': 'application/json',
           'Cache-Control': 'public, max-age=300',
           ...headers,
         },
       },
     );
+
+    // Simpan ke cache Cloudflare. `caches.default` tidak tersedia di semua
+    // lingkungan (misal dev server) — tangkap exception-nya.
+    try {
+      const ctx = (context as any);
+      if (ctx?.waitUntil) {
+        ctx.waitUntil(cache.put(cacheUrl, response.clone()));
+      } else {
+        await cache.put(cacheUrl, response.clone());
+      }
+    } catch {
+      // Cache tidak tersedia — return response apa adanya.
+    }
+
+    return response;
   } catch (err: any) {
     console.error('[CF Tracker Transactions Error]', err);
     return Response.json(
