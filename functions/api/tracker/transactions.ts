@@ -120,18 +120,33 @@ export const onRequestGet: PagesFunction = async (context) => {
     );
 
     const userMap = new Map<string, string>();
-    await Promise.all(
-      userIds.map(async (uid) => {
-        if (userMap.has(uid)) return;
-        const json = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
-        const user = json?.result?.data;
-        if (user?.username) {
-          userMap.set(uid, user.username);
-        } else {
-          userMap.set(uid, uid.slice(0, 8));
-        }
-      }),
-    );
+
+    // Resolve username secara batch (concurrency 6) — paralel penuh untuk ratusan
+    // user bikin rate-limit/timeout sehingga jatuh ke fallback ID.
+    async function resolveUsername(uid: string): Promise<string> {
+      try {
+        const lite = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
+        const name = lite?.result?.data?.username;
+        if (name) return name;
+        const full = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey, 4000);
+        const fullName = full?.result?.data?.username;
+        if (fullName) return fullName;
+      } catch {
+        // lanjut fallback
+      }
+      return uid.slice(0, 8);
+    }
+
+    const CONCURRENCY = 6;
+    let idx = 0;
+    async function worker() {
+      while (idx < userIds.length) {
+        const uid = userIds[idx++];
+        if (userMap.has(uid)) continue;
+        userMap.set(uid, await resolveUsername(uid));
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, userIds.length) }, worker));
 
     const transactions = all.map((t: any) => ({
       _id: t?._id || '',
