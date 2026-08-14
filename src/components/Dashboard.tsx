@@ -490,7 +490,7 @@ export default function Dashboard() {
               )}
 
               {activeTab === 'tracking' && (
-                <TrackingPanel token={config?.token} />
+                <TrackingPanel token={config?.token} onOpenSettings={() => setIsConfigOpen(true)} />
               )}
             </motion.div>
           </AnimatePresence>

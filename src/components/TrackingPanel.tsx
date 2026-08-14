@@ -10,7 +10,8 @@ import {
   Package,
   History,
   AlertCircle,
-  ChevronDown,
+  ChevronRight,
+  Radar,
 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import ItemIcon from './ItemIcon';
@@ -19,6 +20,7 @@ import { computeFifo, Flip, Position } from '../utils/fifo';
 
 interface TrackerProps {
   token?: string | null;
+  onOpenSettings?: () => void;
 }
 
 interface TradeRaw {
@@ -93,7 +95,7 @@ function formatHolding(ms: number): string {
   return `${days}h ${hours % 24}j`;
 }
 
-export default function TrackingPanel({ token }: TrackerProps) {
+export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
   const [rawTransactions, setRawTransactions] = useState<TradeRaw[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +110,7 @@ export default function TrackingPanel({ token }: TrackerProps) {
 
   const loadTransactions = useCallback(
     async (force = false) => {
+      if (!token) return;
       setLoading(true);
       setError(null);
       try {
@@ -332,8 +335,29 @@ export default function TrackingPanel({ token }: TrackerProps) {
         </div>
       </div>
 
+      {/* BUTUH TOKEN */}
+      {!token && (
+        <div className="bg-[#12141C] border border-dashed border-slate-800 rounded-xl p-8 text-center">
+          <Radar className="w-10 h-10 text-slate-600 mx-auto mb-2.5" />
+          <h3 className="text-sm font-bold text-slate-300">Tracking Negara butuh API Token</h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            Riwayat transaksi negara (jual-beli & donasi) cuma bisa diambil dengan API Token.
+            Buka Settings → buat token di in-game settings WarEra → tempel di sini.
+          </p>
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-bold hover:text-emerald-300 border-b border-emerald-500/20 pb-0.5 mt-3 transition duration-150 cursor-pointer"
+            >
+              Tambahkan Token Sekarang
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* LOADING / ERROR */}
-      {loading && (
+      {token && loading && (
         <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center gap-2">
           <RefreshCw className="w-5 h-5 animate-spin text-sky-500" />
           <span className="text-xs text-slate-400">Memuat transaksi negara...</span>
@@ -350,7 +374,7 @@ export default function TrackingPanel({ token }: TrackerProps) {
         </div>
       )}
 
-      {!loading && !error && (
+      {token && !loading && !error && (
         <>
           {/* SUMMARY STATS */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
