@@ -360,9 +360,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
 
   const tfLabel = React.useMemo(() => {
     if (usingFallback) return 'All-time, data candle kosong';
-    if (displayTf === 'month') return '30D · 12H';
-    return '7D · 1H';
-  }, [displayTf, usingFallback]);
+    return '24 Jam';
+  }, [usingFallback]);
 
   const content = (
     <div className={`bg-[#0C0D13] border border-slate-800 rounded-2xl w-full shadow-2xl overflow-hidden ${isInline ? '' : 'max-w-2xl max-h-[92vh] overflow-y-auto'}`}>
