@@ -266,31 +266,86 @@ async function startServer() {
       }
 
       const fetchTRPC = async (url: string, headers: Record<string, string> = {}) => {
-        const response = await fetch(url, {
-          headers: {
-            Accept: 'application/json',
-            'User-Agent': 'WarEra-Companion/1.0',
-            ...headers,
-          },
-          signal: AbortSignal.timeout(4000),
-        });
-        if (!response.ok) throw new Error(`Upstream returned ${response.status}`);
-        return await response.json();
+        try {
+          const response = await fetch(url, {
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'WarEra-Companion/1.0',
+              ...headers,
+            },
+            signal: AbortSignal.timeout(4000),
+          });
+          
+          if (!response.ok) {
+            console.error(`[Offers] API returned ${response.status}`);
+            throw new Error(`Upstream returned ${response.status}`);
+          }
+          
+          const text = await response.text();
+          if (!text || text.trim().startsWith('<')) {
+            console.error('[Offers] Received HTML instead of JSON');
+            throw new Error('Received HTML response');
+          }
+          
+          return JSON.parse(text);
+        } catch (error) {
+          console.error('[Offers] Fetch error:', error);
+          throw error;
+        }
       };
 
       let data: any = null;
+      let dataSource = 'none';
 
-      // Try api2.warera.io first
+      // Try itemOffer.getAll first
       try {
         const input = encodeURIComponent(JSON.stringify({ itemCode }));
+        console.log(`[Offers] Trying itemOffer.getAll: https://api2.warera.io/trpc/itemOffer.getAll?input=${input}`);
         data = await fetchTRPC(
           `https://api2.warera.io/trpc/itemOffer.getAll?input=${input}`
         );
+        dataSource = 'itemOffer.getAll';
+        console.log('[Offers] Success from itemOffer.getAll');
       } catch (err) {
-        console.error('[Offers] api2.warera failed:', err);
+        console.warn('[Offers] itemOffer.getAll failed, trying tradingOrder.getTopOrders as fallback:', err);
+        
+        // Fallback to tradingOrder.getTopOrders
+        try {
+          const input = encodeURIComponent(JSON.stringify({ itemCode, limit: 30 }));
+          console.log(`[Offers] Trying tradingOrder.getTopOrders as fallback`);
+          data = await fetchTRPC(
+            `https://api2.warera.io/trpc/tradingOrder.getTopOrders?input=${input}`
+          );
+          dataSource = 'tradingOrder.getTopOrders';
+          console.log('[Offers] Success from tradingOrder.getTopOrders');
+        } catch (fallbackErr) {
+          console.error('[Offers] Both endpoints failed:', fallbackErr);
+          // No more fallbacks
+        }
       }
 
-      const offers = Array.isArray(data?.result?.data) ? data.result.data : [];
+      // Extract offers from either source
+      let offers: any[] = [];
+      if (dataSource === 'itemOffer.getAll') {
+        offers = Array.isArray(data?.result?.data) ? data.result.data : [];
+      } else if (dataSource === 'tradingOrder.getTopOrders') {
+        // Combine buy and sell orders
+        const buyOrders = Array.isArray(data?.result?.data?.buyOrders) ? data.result.data.buyOrders : [];
+        const sellOrders = Array.isArray(data?.result?.data?.sellOrders) ? data.result.data.sellOrders : [];
+        offers = [...buyOrders, ...sellOrders];
+      }
+      
+      if (offers.length === 0) {
+        console.warn(`[Offers] No offers found for ${itemCode} from ${dataSource || 'any source'}`);
+        res.set('Cache-Control', 'public, max-age=5');
+        return res.json({
+          success: true,
+          data: [],
+          count: 0,
+          warning: 'No offers found or API unavailable',
+          source: dataSource,
+        });
+      }
 
       // Extract user IDs
       const userIds = Array.from(
@@ -349,6 +404,7 @@ async function startServer() {
         success: true,
         data: enrichedOffers,
         count: enrichedOffers.length,
+        source: dataSource,
       });
     } catch (err: any) {
       console.error('[Offers Error]', err);
