@@ -862,7 +862,7 @@ function CompanyListItem({
                           )}
                           {shownSoldQty > 0 && (
                             <DetailRow
-                              label="→ Surplus Untuk Dijual ke Market"
+                              label="→ Surplus Jika Dijual ke Market"
                               value={<>{shownSoldQty} units × {itemPrice.toFixed(3)} = <span className="text-emerald-400">+{shownGrossRevenue.toFixed(3)}</span> <CurrencyIcon /></>}
                             />
                           )}
