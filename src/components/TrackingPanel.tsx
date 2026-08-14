@@ -544,6 +544,11 @@ export default function TrackingPanel({ token }: TrackerProps) {
                     {filtered.slice(0, 50).map((tx) => {
                       const isBuy = tx.buyerCountryId === countryId;
                       const isSell = tx.sellerCountryId === countryId;
+                      const isTradeType = tx.transactionType === 'trading' || tx.transactionType === 'itemMarket';
+                      const isDonation = tx.transactionType === 'donation';
+                      const donationOut = isDonation && isSell;
+                      const donationIn = isDonation && isBuy;
+                      const counterparty = isBuy ? tx.sellerName || '—' : tx.buyerName || '—';
                       return (
                         <tr key={tx._id} className="border-b border-slate-800/40 hover:bg-slate-800/20">
                           <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{formatDate(tx.createdAt)}</td>
@@ -559,15 +564,19 @@ export default function TrackingPanel({ token }: TrackerProps) {
                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 uppercase">{tx.transactionType}</span>
                           </td>
                           <td className="px-3 py-2">
-                            {isBuy ? (
+                            {isTradeType && isBuy ? (
                               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold"><TrendingUp className="w-3 h-3" /> BELI</span>
-                            ) : isSell ? (
+                            ) : isTradeType && isSell ? (
                               <span className="inline-flex items-center gap-1 text-rose-400 font-bold"><TrendingDown className="w-3 h-3" /> JUAL</span>
+                            ) : donationOut ? (
+                              <span className="inline-flex items-center gap-1 text-amber-400 font-bold"><TrendingDown className="w-3 h-3" /> DONASI KELUAR</span>
+                            ) : donationIn ? (
+                              <span className="inline-flex items-center gap-1 text-amber-400 font-bold"><TrendingUp className="w-3 h-3" /> DONASI MASUK</span>
                             ) : (
                               <span className="text-slate-500">—</span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-slate-300">{isBuy ? tx.sellerName || '—' : tx.buyerName || '—'}</td>
+                          <td className="px-3 py-2 text-slate-300">{counterparty}</td>
                           <td className="px-3 py-2 text-right font-mono text-slate-300">{tx.quantity.toLocaleString('id-ID')}</td>
                           <td className="px-3 py-2 text-right font-mono text-slate-300">{formatMoney(tx.unitPrice)}</td>
                           <td className="px-3 py-2 text-right font-mono text-slate-200">{formatMoney(tx.money)}</td>
