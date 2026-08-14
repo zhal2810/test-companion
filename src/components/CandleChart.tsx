@@ -9,7 +9,22 @@ import {
 
 import { type Candle } from '../api/apiClient';
 
+import { formatPriceAdaptive } from '../utils/priceHelper';
+
 import { RefreshCw } from 'lucide-react';
+
+// Format waktu ke WIB (UTC+7) untuk label sumbu bawah chart dan crosshair.
+// Candle API berupa timestamp UTC, jadi perlu konversi eksplisit ke Asia/Jakarta.
+function formatWIB(timestamp: number): string {
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(timestamp * 1000));
+}
 
 interface CandleChartProps {
   itemCode: string;
@@ -83,28 +98,25 @@ export default function CandleChart({
       /*
        * Candle API tetap UTC.
        *
-       * localization.timeZone membuat label waktu
-       * pada chart mengikuti WIB (UTC+7). Tanggal juga
-       * ditampilkan supaya sumbu bawah terbaca jelas.
+       * localization.timeFormatter membuat label crosshair
+       * pada chart mengikuti WIB (UTC+7).
        */
       localization: {
-        timeFormatter: (timestamp: number) => {
-          const date = new Date(timestamp * 1000);
-
-          return new Intl.DateTimeFormat('id-ID', {
-            timeZone: 'Asia/Jakarta',
-            day: '2-digit',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          }).format(date);
-        },
+        timeFormatter: (timestamp: number) => formatWIB(timestamp),
       },
 
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
+        /*
+         * Sumbu bawah (tick marks) di v5 TIDAK ikut localization.timeFormatter —
+         * default-nya mengikuti timezone browser. Dipaksa WIB di sini supaya
+         * tanggal & jam di sumbu bawah selalu konsisten.
+         */
+        tickMarkFormatter: (time) => {
+          if (typeof time !== 'number') return null;
+          return formatWIB(time);
+        },
       },
     });
 
@@ -115,17 +127,12 @@ export default function CandleChart({
       wickUpColor: '#34D399',
       wickDownColor: '#FB7185',
       priceFormat: {
-        type: 'price',
-        precision: 3,
+        type: 'custom',
+        formatter: (price: number) => formatPriceAdaptive(price),
       },
     });
 
-    /*
-     * JANGAN menambahkan +7 jam ke c.time.
-     *
-     * Timestamp Unix bersifat absolute.
-     * Yang kita ubah hanya formatter tampilannya.
-     */
+    
     const formatted = candles
       .map((c: Candle) => ({
         time: c.time as any,
