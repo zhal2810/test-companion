@@ -466,10 +466,8 @@ async function startServer() {
         throw new Error(`WarEra API returned ${response.status}`);
       }
 
-      const json = await response.json();
-
       // Enrich dengan metadata
-      const json = await response.json() as Record<string, any>; // ✅ tambahkan `as Record<string, any>`
+      const json = await response.json() as Record<string, any>;
       const enriched = {
         ...json, // sekarang bisa di-spread
         _meta: {

@@ -148,6 +148,10 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     try {
       const response = await fetch(`/api/market/offers/${encodeURIComponent(item.item)}?limit=20`);
       if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error('Non-JSON response from /api/market/offers');
+        }
         const data = await response.json();
         if (data.success && Array.isArray(data.data)) {
           setLiveTrades(data.data as LiveTransaction[]);
