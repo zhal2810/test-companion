@@ -665,11 +665,12 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           )}
 
           <div className="bg-[#07080C] border border-slate-800/50 rounded-lg overflow-hidden">
-            <div className="grid grid-cols-12 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
-              <div className="col-span-3">Waktu</div>
-              <div className="col-span-3">Komoditas</div>
+            <div className="grid grid-cols-12 gap-2 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
+              <div className="col-span-2">Waktu</div>
+              <div className="col-span-2">Komoditas</div>
+              <div className="col-span-3 text-left">Pemain</div>
               <div className="col-span-2 text-right">Qty</div>
-              <div className="col-span-4 text-right">Total (Harga/u)</div>
+              <div className="col-span-3 text-right">Total (Harga/u)</div>
             </div>
 
             {liveTradesLoading && liveTrades.length === 0 ? (
@@ -689,17 +690,27 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                   const tradeItemConfig = GAME_ITEMS[trade.code] || GAME_ITEMS[trade.code?.toLowerCase()];
 
                   return (
-                    <div key={trade.id} className="grid grid-cols-12 items-center px-3 py-1 hover:bg-slate-900/30 text-[10.5px] font-mono transition duration-150">
-                      <div className="col-span-3 text-slate-500 text-[10px]">{timeStr}</div>
-                      <div className="col-span-3 flex items-center gap-1 font-bold text-slate-200 truncate">
-                        <ItemIcon itemCode={trade.code} size="sm" className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{tradeItemConfig?.name || trade.code}</span>
+                    <div key={trade.id} className="grid grid-cols-12 gap-2 items-center px-3 py-1 hover:bg-slate-900/30 text-[9.5px] font-mono transition duration-150">
+                      <div className="col-span-2 text-slate-500 text-[9px]">{timeStr}</div>
+                      <div className="col-span-2 flex items-center gap-1 font-bold text-slate-200 truncate">
+                        <ItemIcon itemCode={trade.code} size="sm" className="w-3 h-3 shrink-0" />
+                        <span className="truncate text-[8.5px]">{tradeItemConfig?.name || trade.code}</span>
                       </div>
-                      <div className="col-span-2 text-right text-slate-300 font-bold">{trade.quantity.toLocaleString('id-ID')}</div>
-                      <div className="col-span-4 text-right leading-tight">
-                        <span className="text-emerald-400 font-bold">{trade.money.toFixed(2)}</span>
+                      <div className="col-span-3 flex items-center gap-1.5 truncate">
+                        {trade.avatarUrl && (
+                          <img 
+                            src={trade.avatarUrl} 
+                            alt={trade.username} 
+                            className="w-4 h-4 rounded-full shrink-0 bg-slate-800"
+                          />
+                        )}
+                        <span className="text-slate-300 truncate text-[8.5px]">{trade.username || 'Unknown'}</span>
+                      </div>
+                      <div className="col-span-2 text-right text-slate-300 font-bold text-[9px]">{trade.quantity.toLocaleString('id-ID')}</div>
+                      <div className="col-span-3 text-right leading-tight">
+                        <span className="text-emerald-400 font-bold text-[9px]">{trade.money.toFixed(2)}</span>
                         {trade.quantity > 1 && (
-                          <span className="text-[9px] text-slate-500 block">({unitPrice.toFixed(2)}/u)</span>
+                          <span className="text-[8px] text-slate-500 block">({unitPrice.toFixed(2)}/u)</span>
                         )}
                       </div>
                     </div>

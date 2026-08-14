@@ -421,8 +421,62 @@ async function startServer() {
         });
       }
       const data = await response.json();
+      
+      // Enrich with user data if userId is present
+      const transactions = Array.isArray(data?.items) ? data.items : [];
+      const userIds = Array.from(
+        new Set(
+          transactions
+            .map((t: any) => t?.userId)
+            .filter(Boolean)
+        )
+      ) as string[];
+
+      const userCache = new Map<string, { username: string; avatarUrl: string }>();
+
+      // Fetch user data in parallel
+      await Promise.all(
+        userIds.map(async (userId) => {
+          try {
+            const userInput = encodeURIComponent(JSON.stringify({ userId }));
+            const userResponse = await fetch(
+              `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`,
+              { signal: AbortSignal.timeout(3000) }
+            );
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              const user = userData?.result?.data;
+              userCache.set(userId, {
+                username: user?.username || `${userId.slice(0, 8)}...`,
+                avatarUrl: user?.avatarUrl || '',
+              });
+            } else {
+              userCache.set(userId, {
+                username: `${userId.slice(0, 8)}...`,
+                avatarUrl: '',
+              });
+            }
+          } catch {
+            userCache.set(userId, {
+              username: `${userId.slice(0, 8)}...`,
+              avatarUrl: '',
+            });
+          }
+        })
+      );
+
+      // Enrich transactions with user data
+      const enrichedTransactions = transactions.map((t: any) => {
+        const user = t?.userId ? userCache.get(t.userId) : undefined;
+        return {
+          ...t,
+          username: user?.username || 'Unknown',
+          avatarUrl: user?.avatarUrl || '',
+        };
+      });
+
       res.set('Cache-Control', 'public, max-age=5');
-      res.json(data);
+      res.json({ ...data, items: enrichedTransactions });
     } catch (err: any) {
       console.error('[Pulse Transactions Error]', err);
       res.status(502).json({ success: false, error: 'WarEra Pulse unavailable' });

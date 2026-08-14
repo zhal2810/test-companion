@@ -383,6 +383,9 @@ export interface LiveTransaction {
   quantity: number;
   money: number;
   createdAt: string;
+  userId?: string;
+  username?: string;
+  avatarUrl?: string;
 }
 
 export const getLiveTransactions = async (
