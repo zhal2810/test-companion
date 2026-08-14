@@ -254,6 +254,112 @@ async function startServer() {
     }
   });
 
+  // 2.6 Item Offers — get recent offers with user enrichment
+  app.get('/api/market/offers/:itemCode', async (req, res) => {
+    try {
+      const { itemCode } = req.params;
+      const rawLimit = Number(req.query.limit || 20);
+      const limit = Math.max(1, Math.min(Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 20, 100));
+
+      if (!itemCode) {
+        return res.status(400).json({ error: "itemCode is required" });
+      }
+
+      const fetchTRPC = async (url: string, headers: Record<string, string> = {}) => {
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'WarEra-Companion/1.0',
+            ...headers,
+          },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!response.ok) throw new Error(`Upstream returned ${response.status}`);
+        return await response.json();
+      };
+
+      let data: any = null;
+
+      // Try api2.warera.io first
+      try {
+        const input = encodeURIComponent(JSON.stringify({ itemCode }));
+        data = await fetchTRPC(
+          `https://api2.warera.io/trpc/itemOffer.getAll?input=${input}`
+        );
+      } catch (err) {
+        console.error('[Offers] api2.warera failed:', err);
+      }
+
+      const offers = Array.isArray(data?.result?.data) ? data.result.data : [];
+
+      // Extract user IDs
+      const userIds = Array.from(
+        new Set(
+          offers
+            .map((o: any) => o?.user)
+            .filter(Boolean)
+        )
+      ) as string[];
+
+      const userCache = new Map<string, { username: string; avatarUrl: string }>();
+
+      // Fetch user data in parallel
+      await Promise.all(
+        userIds.map(async (userId) => {
+          try {
+            const userInput = encodeURIComponent(JSON.stringify({ userId }));
+            let userData: any = null;
+
+            try {
+              userData = await fetchTRPC(
+                `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`
+              );
+            } catch {
+              userData = null;
+            }
+
+            const user = userData?.result?.data;
+            userCache.set(userId, {
+              username: user?.username || `${userId.slice(0, 8)}...`,
+              avatarUrl: user?.avatarUrl || '',
+            });
+          } catch {
+            userCache.set(userId, {
+              username: `${userId.slice(0, 8)}...`,
+              avatarUrl: '',
+            });
+          }
+        })
+      );
+
+      // Enrich offers with user data
+      const enrichedOffers = offers
+        .map((o: any) => {
+          const user = o?.user ? userCache.get(o.user) : undefined;
+          return {
+            ...o,
+            username: user?.username || 'Unknown',
+            avatarUrl: user?.avatarUrl || '',
+          };
+        })
+        .slice(0, limit);
+
+      res.set('Cache-Control', 'public, max-age=5');
+      res.json({
+        success: true,
+        data: enrichedOffers,
+        count: enrichedOffers.length,
+      });
+    } catch (err: any) {
+      console.error('[Offers Error]', err);
+      return res.status(502).json({
+        success: false,
+        error: 'Failed to fetch offers',
+        details: err?.message || 'Unknown error',
+      });
+    }
+  });
+
   // 3. Warera Alternate Proxy
   app.all('/api/warera/:procedure', async (req, res) => {
     const result = await handleWareraProxy({

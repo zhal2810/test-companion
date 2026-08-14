@@ -103,6 +103,30 @@ export const getItemOfferById = async (itemOfferId: string, token: string | null
   }
 };
 
+// Get all item offers for a specific item (with user info)
+export const getItemOffers = async (
+  itemCode: string,
+  token: string | null = null
+): Promise<{ success: boolean; error: string | null; data: any[] }> => {
+  try {
+    const result = await fetchWarera('itemOffer.getAll', { itemCode }, token);
+    if (!result.success) throw new Error(result.error || 'Gagal mengambil penawaran');
+    
+    // Filter and sort by recent first
+    const offers = Array.isArray(result.data) ? result.data : [];
+    offers.sort((a: any, b: any) => {
+      const aTime = new Date(a.offerAt || a.createdAt || 0).getTime();
+      const bTime = new Date(b.offerAt || b.createdAt || 0).getTime();
+      return bTime - aTime; // Newest first
+    });
+    
+    return { success: true, error: null, data: offers };
+  } catch (err: any) {
+    return { success: false, error: err.message, data: [] };
+  }
+};
+
+
 export const getGameConfig = async (token: string | null = null): Promise<{ success: boolean; error: string | null; data: any }> => {
   try {
     const result = await fetchWarera('gameConfig.getGameConfig', {}, token);
@@ -319,18 +343,21 @@ function generateFallbackTransactions(itemCode?: string, limit: number = 30): Li
     
     const unitPrice = basePrice * (0.95 + Math.random() * 0.1);
     const quantity = Math.floor(Math.random() * 500) + 10;
-    const money = Math.round(quantity * unitPrice * 100) / 100;
     
     const timeOffset = (i * 35 + Math.floor(Math.random() * 20)) * 1000;
-    const createdAt = new Date(now - timeOffset).toISOString();
+    const offerAt = new Date(now - timeOffset).toISOString();
 
     list.push({
-      id: `sim_tx_${now}_${i}`,
+      _id: `sim_offer_${now}_${i}`,
+      offerId: `sim_offer_${now}_${i}`,
       code,
+      itemCode: code,
       type: Math.random() > 0.5 ? 'buy' : 'sell',
       quantity,
-      money,
-      createdAt
+      price: unitPrice,
+      offerAt,
+      username: `Player${Math.floor(Math.random() * 9000) + 1000}`,
+      avatarUrl: ''
     });
   }
 
@@ -377,13 +404,19 @@ export const getCandleHistory = async (
 };
 
 export interface LiveTransaction {
-  id: string;
-  code: string;
+  _id?: string;
+  offerId?: string;
+  id?: string;
+  code?: string;
+  itemCode?: string;
   type: string;
-  quantity: number;
-  money: number;
-  createdAt: string;
+  user?: string;
   userId?: string;
+  quantity: number;
+  price?: number;
+  money?: number;
+  offerAt?: string;
+  createdAt?: string;
   username?: string;
   avatarUrl?: string;
 }

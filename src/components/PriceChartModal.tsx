@@ -142,13 +142,28 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     };
   }, [item.item]);
 
-  // Load live transaction feed
+  // Load live transaction feed from itemOffer.getAll (with user data)
   const loadLiveTrades = async () => {
     setLiveTradesLoading(true);
-    const res = await getLiveTransactions(item.item, 20); // Ambil 20 transaksi terbaru
-    if (res.success) {
-      setLiveTrades(res.data);
-      setIsFilteredByItem(res.isFilteredByItem);
+    try {
+      const response = await fetch(`/api/market/offers/${encodeURIComponent(item.item)}?limit=20`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          setLiveTrades(data.data as LiveTransaction[]);
+          setIsFilteredByItem(true);
+        } else {
+          setLiveTrades([]);
+          setIsFilteredByItem(false);
+        }
+      } else {
+        setLiveTrades([]);
+        setIsFilteredByItem(false);
+      }
+    } catch (err) {
+      console.error('Failed to load offers:', err);
+      setLiveTrades([]);
+      setIsFilteredByItem(false);
     }
     setLiveTradesLoading(false);
   };
@@ -645,7 +660,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
-                Live Trade Feed {isFilteredByItem ? `(${item.name || item.item})` : '(Bursa Global)'}
+                Live Market Offers {item.name || item.item}
               </span>
             </div>
             <button 
@@ -658,60 +673,50 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             </button>
           </div>
 
-          {!isFilteredByItem && liveTrades.length > 0 && (
-            <div className="text-[9px] text-amber-400/90 mb-1.5 font-medium flex items-center gap-1">
-              <span>⚠️ Belum ada transaksi {item.name || item.item} di batch bursa terbaru. Menampilkan transaksi bursa global:</span>
-            </div>
-          )}
-
           <div className="bg-[#07080C] border border-slate-800/50 rounded-lg overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
               <div className="col-span-2">Waktu</div>
-              <div className="col-span-2">Komoditas</div>
+              <div className="col-span-2">Tipe</div>
               <div className="col-span-3 text-left">Pemain</div>
               <div className="col-span-2 text-right">Qty</div>
-              <div className="col-span-3 text-right">Total (Harga/u)</div>
+              <div className="col-span-3 text-right">Harga/u</div>
             </div>
 
             {liveTradesLoading && liveTrades.length === 0 ? (
-              <div className="text-center py-4 text-xs text-slate-600 animate-pulse">Menghubungkan ke WarEra Pulse...</div>
+              <div className="text-center py-4 text-xs text-slate-600 animate-pulse">Menghubungkan ke WarEra API...</div>
             ) : liveTrades.length === 0 ? (
-              <div className="text-center py-4 text-xs text-slate-600">Tidak ada transaksi terdeteksi baru-baru ini.</div>
+              <div className="text-center py-4 text-xs text-slate-600">Tidak ada penawaran aktif untuk item ini.</div>
             ) : (
               <div className="max-h-[140px] overflow-y-auto divide-y divide-slate-800/30">
-                {liveTrades.map((trade) => {
-                  const date = new Date(trade.createdAt);
+                {liveTrades.map((offer: any, idx) => {
+                  const date = new Date(offer.offerAt || offer.createdAt);
                   const timeStr = date.toLocaleTimeString('id-ID', {
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit'
                   });
-                  const unitPrice = trade.quantity > 0 ? (trade.money / trade.quantity) : trade.money;
-                  const tradeItemConfig = GAME_ITEMS[trade.code] || GAME_ITEMS[trade.code?.toLowerCase()];
+                  const offerType = offer.type || 'offer';
+                  const typeColor = offerType === 'buy' ? 'text-emerald-400' : offerType === 'sell' ? 'text-rose-400' : 'text-slate-400';
 
                   return (
-                    <div key={trade.id} className="grid grid-cols-12 gap-2 items-center px-3 py-1 hover:bg-slate-900/30 text-[9.5px] font-mono transition duration-150">
+                    <div key={offer._id || offer.offerId || idx} className="grid grid-cols-12 gap-2 items-center px-3 py-1 hover:bg-slate-900/30 text-[9.5px] font-mono transition duration-150">
                       <div className="col-span-2 text-slate-500 text-[9px]">{timeStr}</div>
-                      <div className="col-span-2 flex items-center gap-1 font-bold text-slate-200 truncate">
-                        <ItemIcon itemCode={trade.code} size="sm" className="w-3 h-3 shrink-0" />
-                        <span className="truncate text-[8.5px]">{tradeItemConfig?.name || trade.code}</span>
+                      <div className={`col-span-2 font-bold text-[8.5px] uppercase ${typeColor}`}>
+                        {offerType === 'buy' ? 'BID' : offerType === 'sell' ? 'ASK' : offerType}
                       </div>
                       <div className="col-span-3 flex items-center gap-1.5 truncate">
-                        {trade.avatarUrl && (
+                        {offer.avatarUrl && (
                           <img 
-                            src={trade.avatarUrl} 
-                            alt={trade.username} 
+                            src={offer.avatarUrl} 
+                            alt={offer.username} 
                             className="w-4 h-4 rounded-full shrink-0 bg-slate-800"
                           />
                         )}
-                        <span className="text-slate-300 truncate text-[8.5px]">{trade.username || 'Unknown'}</span>
+                        <span className="text-slate-300 truncate text-[8.5px]">{offer.username || 'Unknown'}</span>
                       </div>
-                      <div className="col-span-2 text-right text-slate-300 font-bold text-[9px]">{trade.quantity.toLocaleString('id-ID')}</div>
+                      <div className="col-span-2 text-right text-slate-300 font-bold text-[9px]">{(offer.quantity || 0).toLocaleString('id-ID')}</div>
                       <div className="col-span-3 text-right leading-tight">
-                        <span className="text-emerald-400 font-bold text-[9px]">{trade.money.toFixed(2)}</span>
-                        {trade.quantity > 1 && (
-                          <span className="text-[8px] text-slate-500 block">({unitPrice.toFixed(2)}/u)</span>
-                        )}
+                        <span className="text-emerald-400 font-bold text-[9px]">{(offer.price || 0).toFixed(3)}</span>
                       </div>
                     </div>
                   );
