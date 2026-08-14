@@ -162,27 +162,10 @@ export default function CandleChart({
 
     series.setData(formatted);
 
-    // Auto-scroll ke candle terakhir
+    // Auto-scroll menampilkan SELURUH data (fitContent), bukan menyempit ke
+    // candle terakhir. Kalau di-scroll ke realtime, axis hanya memperhitungkan
+    // beberapa candle terakhir sehingga harga tampak beku di nilai terkini.
     chart.timeScale().fitContent();
-    
-    // Tunggu sebentar untuk render, lalu sync price axis dengan visible range
-    setTimeout(() => {
-      try {
-        // Dapatkan visible range
-        const visibleRange = chart.timeScale().getVisibleRange();
-        if (visibleRange) {
-          // Update autoscale berdasarkan visible range
-          series.priceScale().applyOptions({
-            autoScale: true,
-          });
-        }
-        
-        // Scroll ke right (last candle) dan center price
-        chart.timeScale().scrollToRealTime();
-      } catch (err) {
-        console.warn('[CandleChart] Auto-scroll error:', err);
-      }
-    }, 50);
 
     chartRef.current = chart;
 

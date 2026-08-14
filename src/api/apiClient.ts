@@ -387,27 +387,6 @@ function generateFallbackTransactions(itemCode?: string, limit: number = 30): Li
   return list;
 }
 
-function generateFallbackCandles(itemCode: string): Candle[] {
-  const basePrice = ITEM_BASE_PRICES[itemCode] || 10.0;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const daySec = 86400;
-  const candles: Candle[] = [];
-  
-  let currentPrice = basePrice;
-  for (let i = 14; i >= 0; i--) {
-    const time = nowSec - (i * daySec);
-    const changePct = (Math.random() - 0.48) * 0.08;
-    const open = Math.max(0.1, Math.round(currentPrice * 100) / 100);
-    const close = Math.max(0.1, Math.round((currentPrice * (1 + changePct)) * 100) / 100);
-    const high = Math.round(Math.max(open, close) * (1 + Math.random() * 0.03) * 100) / 100;
-    const low = Math.round(Math.min(open, close) * (1 - Math.random() * 0.03) * 100) / 100;
-    
-    candles.push({ time, open, high, low, close });
-    currentPrice = close;
-  }
-  return candles;
-}
-
 export const getCandleHistory = async (
   itemCode: string,
   tf: string = 'week'
@@ -416,13 +395,23 @@ export const getCandleHistory = async (
     const primaryUrl = `/api/pulse/history/${itemCode}?tf=${tf}`;
     
     const parsedData = await fetchPulseJson<{ candles?: Candle[] }>(primaryUrl);
-    const candles = Array.isArray(parsedData?.candles) && parsedData!.candles.length > 0
-      ? parsedData!.candles
-      : generateFallbackCandles(itemCode);
+    const candles = Array.isArray(parsedData?.candles) ? parsedData!.candles : [];
+
+    if (candles.length === 0) {
+      return {
+        success: false,
+        error: 'Belum ada data candle buat item ini di WarEra Pulse.',
+        data: [],
+      };
+    }
 
     return { success: true, error: null, data: candles };
   } catch (error: any) {
-    return { success: true, error: null, data: generateFallbackCandles(itemCode) };
+    return {
+      success: false,
+      error: 'Gagal mengambil data candle.',
+      data: [],
+    };
   }
 };
 
