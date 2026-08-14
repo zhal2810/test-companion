@@ -165,7 +165,7 @@ export const getWorkersByUserId = async (userId: string, token: string | null = 
   }
 };
 
-export const getUserEcoSkills = async (userId: string, token: string | null = null): Promise<{ success: boolean; error: string | null; data: { energyValue: number; productionValue: number; username?: string; avatarUrl?: string } }> => {
+export const getUserEcoSkills = async (userId: string, token: string | null = null): Promise<{ success: boolean; error: string | null; data: { energyValue: number; productionValue: number; entrepreneurshipValue: number; username?: string; avatarUrl?: string } }> => {
   try {
     const result = await fetchWarera('user.getUserById', { userId }, token);
     if (!result.success) throw new Error(result.error || 'Gagal mengambil data user');
@@ -173,6 +173,7 @@ export const getUserEcoSkills = async (userId: string, token: string | null = nu
     const skills = result.data?.skills || {};
     const energyValue = skills?.energy?.total ?? skills?.energy?.value ?? 0;
     const productionValue = skills?.production?.total ?? skills?.production?.value ?? 0;
+    const entrepreneurshipValue = skills?.entrepreneurship?.total ?? skills?.entrepreneurship?.value ?? 0;
 
     return {
       success: true,
@@ -180,12 +181,13 @@ export const getUserEcoSkills = async (userId: string, token: string | null = nu
       data: {
         energyValue,
         productionValue,
+        entrepreneurshipValue,
         username: result.data?.username || result.data?.name || '',
         avatarUrl: result.data?.avatarUrl || result.data?.avatar || '',
       },
     };
   } catch (err: any) {
-    return { success: false, error: err.message, data: { energyValue: 0, productionValue: 0, username: '', avatarUrl: '' } };
+    return { success: false, error: err.message, data: { energyValue: 0, productionValue: 0, entrepreneurshipValue: 0, username: '', avatarUrl: '' } };
   }
 };
 

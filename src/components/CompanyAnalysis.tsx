@@ -73,6 +73,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
   const [regionsDict, setRegionsDict] = useState<Record<string, any>>({});
   const [productionBonusDict, setProductionBonusDict] = useState<Record<string, any>>({});
   const [workersByCompanyId, setWorkersByCompanyId] = useState<Record<string, any[]>>({});
+  const [ownerEntrepreneurship, setOwnerEntrepreneurship] = useState(0);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
   const [marketPrices, setMarketPrices] = useState<Record<string, any>>({});
   const [itemsConfig, setItemsConfig] = useState<Record<string, any>>(() => ({ ...GAME_ITEMS }));
@@ -200,6 +201,9 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
       if (priceRes.success && priceRes.data) setMarketPrices(priceRes.data);
       await loadProductionBonuses(result.companies || []);
 
+      const ownerRes = await getUserEcoSkills(userId, token);
+      setOwnerEntrepreneurship(ownerRes?.data?.entrepreneurshipValue ?? 0);
+
       const workersRes = await getWorkersByUserId(userId, token);
       if (workersRes.success) {
         const workersByCompany = workersRes.data;
@@ -212,7 +216,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
           uniqueUserIds.map((uid) => getUserEcoSkills(uid, token))
         );
         const skillsByUserId = uniqueUserIds.reduce((acc: any, uid, index) => {
-          acc[uid] = skillsResults[index]?.data || { energyValue: 0, productionValue: 0, username: '', avatarUrl: '' };
+          acc[uid] = skillsResults[index]?.data || { energyValue: 0, productionValue: 0, entrepreneurshipValue: 0, username: '', avatarUrl: '' };
           return acc;
         }, {});
 
@@ -419,6 +423,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
                 comp={comp}
                 regionsDict={regionsDict}
                 productionBonus={comp?._id ? productionBonusDict[comp._id] : undefined}
+                entrepreneurshipLevel={ownerEntrepreneurship}
                 workers={comp?._id ? (workersByCompanyId[comp._id] || []) : []}
                 isExpanded={expandedId === id}
                 onToggle={() => setExpandedId(prev => prev === id ? null : id)}
@@ -455,6 +460,7 @@ function CompanyListItem({
   comp,
   regionsDict,
   productionBonus,
+  entrepreneurshipLevel = 0,
   isExpanded,
   onToggle,
   marketPrices,
@@ -702,6 +708,10 @@ function CompanyListItem({
             const upkeep = workersWagePerDay + materialCost;
             const netProfit = grossRevenue - upkeep;
 
+            const isRawCompany = itemsConfig?.[comp?.itemCode]?.type === 'raw';
+            const itemConfig = itemsConfig?.[comp?.itemCode] || GAME_ITEMS[comp?.itemCode];
+            const itemName = itemConfig?.name || comp?.itemCode || '';
+
             return (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 
@@ -773,102 +783,143 @@ function CompanyListItem({
                       Ringkasan Finansial Harian
                     </span>
                   </div>
-                  <DetailRow label="Harian PP" value={`${totalPP.toFixed(1)} PP`} />
-                  <DetailRow label="Hasil" value={`${dailyProduction.toFixed(1)}u / day`} />
-                  <DetailRow label="Harga Pasar" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
-
-                  {/* Finished goods: pilih supply internal atau market. */}
-                  {itemsConfig?.[comp?.itemCode]?.type !== 'raw' && Array.isArray(materialBreakdown) && materialBreakdown.length > 0 && (
-                    <label
-                      className="flex items-center justify-between gap-2 mt-2 py-1.5 px-2 bg-slate-900/40 border border-slate-800/60 rounded cursor-pointer select-none"
-                      title="ON: gunakan hasil produksi bahan mentah sendiri sebagai input bila tersedia. OFF: seluruh bahan mentah dihitung memakai harga market."
-                    >
-                      <span className="leading-tight">
-                        <span className="block text-[10px] text-slate-300 font-medium">Supply Internal MFG</span>
-                        <span className="block text-[8.5px] text-slate-500 mt-0.5">
-                          {supplyInternalMfg ? 'Gunakan bahan mentah internal bila tersedia' : 'Beli bahan mentah dari market'}
-                        </span>
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={!!supplyInternalMfg}
-                        onChange={onToggleInternalSupply}
-                        onClick={(e) => e.stopPropagation()}
-                        className="accent-indigo-500 w-3.5 h-3.5 cursor-pointer shrink-0"
-                      />
-                    </label>
-                  )}
-
-                  {/* Raw material: supply ke pabrik internal (produksi sendiri) vs jual ke market. */}
-                  {itemsConfig?.[comp?.itemCode]?.type === 'raw' && (
-                    <label
-                      className="flex items-center justify-between gap-2 mt-2 py-1.5 px-2 bg-slate-900/40 border border-slate-800/60 rounded cursor-pointer select-none"
-                      title="Centang: hasil produksi dipakai sebagai bahan baku pabrik internal (supply ke pabrik). Tidak dicentang: seluruh produksi dihitung terjual ke market."
-                    >
-                      <span className="leading-tight">
-                        <span className="block text-[10px] text-slate-300 font-medium">Supply ke pabrik</span>
-                        <span className="block text-[8.5px] text-slate-500 mt-0.5">
-                          {excludedFromInternal
-                            ? 'Seluruh produksi dihitung terjual ke market'
-                            : 'Produksi dipakai untuk bahan baku pabrik internal'}
-                        </span>
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={!excludedFromInternal}
-                        onChange={onToggleExcludeFromInternal}
-                        onClick={(e) => e.stopPropagation()}
-                        className="accent-indigo-500 w-3.5 h-3.5 cursor-pointer shrink-0"
-                      />
-                    </label>
-                  )}
-
-                  {usedInternallyQty > 0.001 && (
-                    <DetailRow label="Untuk Produksi" value={`-${usedInternallyQty.toFixed(1)}/day`} valueColor="text-amber-400" />
-                  )}
-
-                  <div className="border-t border-slate-900 my-2"></div>
-                  <DetailRow label={`Revenue (${soldQty.toFixed(1)} sold)`} value={<>+{grossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
-                  <DetailRow label="Wage Costs" value={<>-{workersWagePerDay.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
-
-                  {materialBreakdown.length > 0 && (
+                  {isRawCompany ? (
                     <>
-                      <DetailRow label="Material Costs" value={<>-{materialCost.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
-                      <div className="mt-1 mb-1 px-2 py-1.5 rounded bg-slate-900/30 border border-slate-900/70">
-                        <div className="text-[9px] uppercase tracking-wide text-slate-600 mb-1">Raw Material</div>
-                        {materialBreakdown.map((m: any) => (
-                          <div key={m.itemCode} className="py-1 border-b border-slate-900/60 last:border-0">
-                            <div className="flex justify-between gap-2 text-[10px]">
-                              <span className="text-slate-400 truncate">
-                                {(m.itemCode ? (GAME_ITEMS[m.itemCode] || GAME_ITEMS[m.itemCode.toLowerCase()])?.name : null) || m.itemCode}
-                              </span>
-                              <span className="text-slate-500 font-mono whitespace-nowrap">{m.qty.toFixed(1)}u</span>
-                            </div>
-                            <div className="flex flex-wrap gap-x-2 text-[8.5px] text-slate-600 mt-0.5">
-                              <span>Market: {m.marketPrice.toFixed(3)}</span>
-                              <span>Internal cost: {m.internalPrice.toFixed(3)}</span>
-                              <span>Internal qty: {m.internalQty.toFixed(1)}</span>
-                              <span>Market qty: {m.marketQty.toFixed(1)}</span>
-                              {m.internalQty > 0.001 && <span className="text-emerald-500">✓ Using Internal Supply</span>}
-                            </div>
-                            <div className="flex justify-end text-[9px]">
-                              <span className={m.cost > 0.001 ? 'text-rose-400 font-mono' : 'text-emerald-400 font-mono'}>
-                                {m.cost > 0.001 ? `-${m.cost.toFixed(3)}` : 'Free'}
-                              </span>
-                            </div>
+                      <label
+                        className="flex items-center justify-between gap-2 mb-2 py-1.5 px-2 bg-slate-900/40 border border-slate-800/60 rounded cursor-pointer select-none"
+                        title="Centang: hasil produksi dipakai sebagai bahan baku pabrik internal (supply ke pabrik). Tidak dicentang: seluruh produksi dihitung terjual ke market."
+                      >
+                        <span className="leading-tight">
+                          <span className="block text-[10px] text-slate-300 font-medium">Supply ke pabrik</span>
+                          <span className="block text-[8.5px] text-slate-500 mt-0.5">
+                            {excludedFromInternal
+                              ? 'Seluruh produksi dihitung terjual ke market'
+                              : 'Produksi dipakai untuk bahan baku pabrik internal'}
+                          </span>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={!excludedFromInternal}
+                          onChange={onToggleExcludeFromInternal}
+                          onClick={(e) => e.stopPropagation()}
+                          className="accent-indigo-500 w-3.5 h-3.5 cursor-pointer shrink-0"
+                        />
+                      </label>
+
+                      <DetailRow label="Total PP / day" value={`${totalPP.toFixed(2)} PP`} />
+                      <DetailRow label="Entrepreneurship" value={`${entrepreneurshipLevel}`} />
+
+                      {excludedFromInternal ? (
+                        <>
+                          <DetailRow label="Units produced" value={`${Math.floor(dailyProduction)} ${itemName}`} />
+                          <DetailRow label="Market price / unit" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
+                          <DetailRow label="Revenue" value={<>+{grossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
+                        </>
+                      ) : (
+                        <>
+                          <DetailRow label="Production" value={`${Math.floor(dailyProduction)} ${itemName}/day`} />
+                          {usedInternallyQty > 0.001 && (
+                            <DetailRow
+                              label="→ Supplied to MFG (at-cost)"
+                              value={`${usedInternallyQty.toFixed(0)} units`}
+                              valueColor="text-amber-400"
+                            />
+                          )}
+                          {soldQty > 0.001 && (
+                            <DetailRow
+                              label="→ Surplus sold to market"
+                              value={<>{soldQty.toFixed(0)} units × {itemPrice.toFixed(3)} = <span className="text-emerald-400">+{grossRevenue.toFixed(3)}</span> <CurrencyIcon /></>}
+                            />
+                          )}
+                        </>
+                      )}
+
+                      <DetailRow label="Wage Costs" value={<>-{workersWagePerDay.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
+                      <div className="border-t border-slate-900 my-1.5"></div>
+                      <DetailRow
+                        label="Net Profit / day"
+                        value={<>{netProfit >= 0 ? '+' : ''}{netProfit.toFixed(3)} <CurrencyIcon /></>}
+                        valueColor={netProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
+                        isBold={true}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <DetailRow label="Total PP / day" value={`${totalPP.toFixed(1)} PP`} />
+                      <DetailRow label="Entrepreneurship" value={`${entrepreneurshipLevel}`} />
+                      <DetailRow label="Units produced" value={`${Math.floor(dailyProduction)} ${itemName}`} />
+                      <DetailRow label="Market price / unit" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
+
+                      {/* Finished goods: pilih supply internal atau market. */}
+                      {Array.isArray(materialBreakdown) && materialBreakdown.length > 0 && (
+                        <label
+                          className="flex items-center justify-between gap-2 mt-2 py-1.5 px-2 bg-slate-900/40 border border-slate-800/60 rounded cursor-pointer select-none"
+                          title="ON: gunakan hasil produksi bahan mentah sendiri sebagai input bila tersedia. OFF: seluruh bahan mentah dihitung memakai harga market."
+                        >
+                          <span className="leading-tight">
+                            <span className="block text-[10px] text-slate-300 font-medium">Supply Internal MFG</span>
+                            <span className="block text-[8.5px] text-slate-500 mt-0.5">
+                              {supplyInternalMfg ? 'Gunakan bahan mentah internal bila tersedia' : 'Beli bahan mentah dari market'}
+                            </span>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={!!supplyInternalMfg}
+                            onChange={onToggleInternalSupply}
+                            onClick={(e) => e.stopPropagation()}
+                            className="accent-indigo-500 w-3.5 h-3.5 cursor-pointer shrink-0"
+                          />
+                        </label>
+                      )}
+
+                      {usedInternallyQty > 0.001 && (
+                        <DetailRow label="Untuk Produksi" value={`-${usedInternallyQty.toFixed(1)}/day`} valueColor="text-amber-400" />
+                      )}
+
+                      <div className="border-t border-slate-900 my-2"></div>
+                      <DetailRow label="Revenue" value={<>+{grossRevenue.toFixed(3)} <CurrencyIcon /></>} valueColor="text-emerald-400" />
+                      <DetailRow label="Wage costs" value={<>-{workersWagePerDay.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
+
+                      {materialBreakdown.length > 0 && (
+                        <>
+                          <DetailRow label="Material Costs" value={<>-{materialCost.toFixed(3)} <CurrencyIcon /></>} valueColor="text-rose-400" />
+                          <div className="mt-1 mb-1 px-2 py-1.5 rounded bg-slate-900/30 border border-slate-900/70">
+                            <div className="text-[9px] uppercase tracking-wide text-slate-600 mb-1">Raw Material</div>
+                            {materialBreakdown.map((m: any) => (
+                              <div key={m.itemCode} className="py-1 border-b border-slate-900/60 last:border-0">
+                                <div className="flex justify-between gap-2 text-[10px]">
+                                  <span className="text-slate-400 truncate">
+                                    {(m.itemCode ? (GAME_ITEMS[m.itemCode] || GAME_ITEMS[m.itemCode.toLowerCase()])?.name : null) || m.itemCode}
+                                  </span>
+                                  <span className="text-slate-500 font-mono whitespace-nowrap">{m.qty.toFixed(1)}u</span>
+                                </div>
+                                <div className="flex flex-wrap gap-x-2 text-[8.5px] text-slate-600 mt-0.5">
+                                  <span>Market: {m.marketPrice.toFixed(3)}</span>
+                                  <span>Internal cost: {m.internalPrice.toFixed(3)}</span>
+                                  <span>Internal qty: {m.internalQty.toFixed(1)}</span>
+                                  <span>Market qty: {m.marketQty.toFixed(1)}</span>
+                                  {m.internalQty > 0.001 && <span className="text-emerald-500">✓ Using Internal Supply</span>}
+                                </div>
+                                <div className="flex justify-end text-[9px]">
+                                  <span className={m.cost > 0.001 ? 'text-rose-400 font-mono' : 'text-emerald-400 font-mono'}>
+                                    {m.cost > 0.001 ? `-${m.cost.toFixed(3)}` : 'Free'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </>
+                      )}
+
+                      <div className="border-t border-slate-900 my-1.5"></div>
+                      <DetailRow 
+                        label="Net Profit / day" 
+                        value={<>{netProfit >= 0 ? '+' : ''}{netProfit.toFixed(3)} <CurrencyIcon /></>} 
+                        valueColor={netProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
+                        isBold={true}
+                      />
                     </>
                   )}
-
-                  <div className="border-t border-slate-900 my-1.5"></div>
-                  <DetailRow 
-                    label="Profit / day" 
-                    value={<>{netProfit >= 0 ? '+' : ''}{netProfit.toFixed(3)} <CurrencyIcon /></>} 
-                    valueColor={netProfit >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}
-                    isBold={true}
-                  />
                 </div>
 
               </div>
