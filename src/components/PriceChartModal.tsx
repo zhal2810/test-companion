@@ -19,6 +19,13 @@ interface PriceChartModalProps {
     points?: number[];
     topBuy?: string;
     topSell?: string;
+    changeByRange?: {
+      all: number;
+      '24h': number | null;
+      '7d': number | null;
+      '30d': number | null;
+      '90d': number | null;
+    };
   };
   onClose?: () => void;
   priceMap?: Record<string, number>;
@@ -219,13 +226,20 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     };
   }, [item.item, lastCandle]);
   
-  // Calculate percentage change over the selected timeframe using the first and last candle
+  // % perubahan konsisten dengan kartu grid: selalu 24 jam (changeByRange['24h']),
+  // fallback ke changeValue seperti getDisplayChangeValue di MarketIntel, lalu
+  // candle sebagai cadangan terakhir — bukan perubahan antar candle pada timeframe.
   const displayChange = React.useMemo(() => {
-    if (!lastCandle || !firstCandle) return item.changeValue;
+    const change24h = item.changeByRange?.['24h'];
+    if (change24h !== null && change24h !== undefined && Number.isFinite(Number(change24h))) {
+      return Number(change24h);
+    }
+    if (Number.isFinite(Number(item.changeValue))) return Number(item.changeValue);
+    if (!lastCandle || !firstCandle) return 0;
     const basePrice = firstCandle.open || firstCandle.close;
     if (!basePrice || basePrice === 0) return 0;
     return ((lastCandle.close - basePrice) / basePrice) * 100;
-  }, [lastCandle, firstCandle, item.changeValue]);
+  }, [item.changeByRange, item.changeValue, lastCandle, firstCandle]);
 
   const displayHigh = hasCandles 
     ? Math.max(...filteredCandles.map(c => c.high)) 
