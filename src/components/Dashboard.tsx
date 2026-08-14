@@ -5,8 +5,9 @@ import TransactionLedger from './TransactionLedger';
 import CompanyAnalysis, { WealthSummary } from './CompanyAnalysis';
 import MarketIntel from './MarketIntel';
 import NewsEvents from './NewsEvents';
+import TrackingPanel from './TrackingPanel';
 import Logo from './Logo';
-import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 function formatRangeDate(date: Date): string {
@@ -14,7 +15,7 @@ function formatRangeDate(date: Date): string {
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'news'>('company');  const [config, setConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'news' | 'tracking'>('company');  const [config, setConfig] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [playerWealth, setPlayerWealth] = useState<any>(null);
 
@@ -71,7 +72,7 @@ export default function Dashboard() {
     
     // Switch tab if horizontal swipe is >60px and significantly larger than vertical movement
     if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
-      const tabs: ('company' | 'transaction' | 'market' | 'news')[] = ['company', 'transaction', 'market', 'news'];
+      const tabs: ('company' | 'transaction' | 'market' | 'news' | 'tracking')[] = ['company', 'transaction', 'market', 'news', 'tracking'];
       const currentIndex = tabs.indexOf(activeTab);
       
       if (diffX > 0) {
@@ -319,6 +320,12 @@ export default function Dashboard() {
             label="Linimasa"
             icon={<Newspaper className="w-4 h-4" />}
           />
+          <TabButton 
+            active={activeTab === 'tracking'} 
+            onClick={() => setActiveTab('tracking')}
+            label="Tracking"
+            icon={<Radar className="w-4 h-4" />}
+          />
         </div>
 
         {/* MOBILE SLIDE INDICATOR & SWIPE HINT */}
@@ -346,6 +353,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab('news')} 
               className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'news' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
               aria-label="Berita & Event"
+            />
+            <button 
+              onClick={() => setActiveTab('tracking')} 
+              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'tracking' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+              aria-label="Tracking Negara"
             />
           </div>
         </div>
@@ -475,6 +487,10 @@ export default function Dashboard() {
 
               {activeTab === 'news' && (
                 <NewsEvents token={config?.token} />
+              )}
+
+              {activeTab === 'tracking' && (
+                <TrackingPanel token={config?.token} />
               )}
             </motion.div>
           </AnimatePresence>
