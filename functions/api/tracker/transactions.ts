@@ -29,16 +29,29 @@ async function fetchWareraTRPC(
   apiKey: string | null,
   timeoutMs = 8000,
 ): Promise<any | null> {
-  const targets: { url: string; headers: Record<string, string> }[] = [
-    {
-      url: `https://api2.warera.io/trpc/${procedure}?input=${encodeInput(input)}`,
-      headers: apiKey ? { 'X-API-Key': apiKey } : {},
-    },
-    {
+  const targets: { url: string; headers: Record<string, string> }[] = [];
+  const isUserProc = procedure.startsWith('user.');
+  if (isUserProc) {
+    // Untuk resolve username, gateway dulu — bentuknya sudah terverifikasi
+    // mengembalikan result.data.username; api2 di beberapa kasus menolak / beda bentuk.
+    targets.push({
       url: `https://gateway.warerastats.io/trpc/${procedure}?input=${encodeInput(input)}`,
       headers: { 'X-API-Key': 'warerastats' },
-    },
-  ];
+    });
+    targets.push({
+      url: `https://api2.warera.io/trpc/${procedure}?input=${encodeInput(input)}`,
+      headers: apiKey ? { 'X-API-Key': apiKey } : {},
+    });
+  } else {
+    targets.push({
+      url: `https://api2.warera.io/trpc/${procedure}?input=${encodeInput(input)}`,
+      headers: apiKey ? { 'X-API-Key': apiKey } : {},
+    });
+    targets.push({
+      url: `https://gateway.warerastats.io/trpc/${procedure}?input=${encodeInput(input)}`,
+      headers: { 'X-API-Key': 'warerastats' },
+    });
+  }
 
   for (const target of targets) {
     try {
@@ -127,15 +140,17 @@ export const onRequestGet: PagesFunction = async (context) => {
     // Resolve username secara batch (concurrency 6) — paralel penuh untuk ratusan
     // user bikin rate-limit/timeout sehingga jatuh ke fallback ID.
     async function resolveUsername(uid: string): Promise<string> {
-      try {
-        const lite = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
-        const name = lite?.result?.data?.username;
-        if (name) return name;
-        const full = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey, 4000);
-        const fullName = full?.result?.data?.username;
-        if (fullName) return fullName;
-      } catch {
-        // lanjut fallback
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const lite = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
+          const name = lite?.result?.data?.username;
+          if (name) return name;
+          const full = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey, 4000);
+          const fullName = full?.result?.data?.username;
+          if (fullName) return fullName;
+        } catch {
+          // lanjut retry / fallback
+        }
       }
       return uid.slice(0, 8);
     }
