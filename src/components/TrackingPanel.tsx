@@ -141,6 +141,27 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
     loadTransactions();
   }, [loadTransactions]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rawTransactions.filter((tx) => {
+      if (typeFilter !== 'all' && tx.transactionType !== typeFilter) return false;
+      if (dateFrom && new Date(tx.createdAt).getTime() < new Date(dateFrom).getTime()) return false;
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        if (new Date(tx.createdAt).getTime() > to.getTime()) return false;
+      }
+      if (q) {
+        const itemName = getItemName(tx.itemCode).toLowerCase();
+        const matchesItem = itemName.includes(q) || (tx.itemCode || '').toLowerCase().includes(q);
+        const matchesSeller = (tx.sellerName || '').toLowerCase().includes(q);
+        const matchesBuyer = (tx.buyerName || '').toLowerCase().includes(q);
+        if (!matchesItem && !matchesSeller && !matchesBuyer) return false;
+      }
+      return true;
+    });
+  }, [rawTransactions, search, dateFrom, dateTo, typeFilter]);
+
   // Resolve username on-demand: hanya untuk baris yang benar-benar tampil di
   // layar (maks 50), dipanggil satu-per-satu ke endpoint kecil
   // /api/tracker/username. Backend transactions.ts membatasi resolve batch ke
@@ -204,27 +225,6 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
     },
     [usernameCache],
   );
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rawTransactions.filter((tx) => {
-      if (typeFilter !== 'all' && tx.transactionType !== typeFilter) return false;
-      if (dateFrom && new Date(tx.createdAt).getTime() < new Date(dateFrom).getTime()) return false;
-      if (dateTo) {
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        if (new Date(tx.createdAt).getTime() > to.getTime()) return false;
-      }
-      if (q) {
-        const itemName = getItemName(tx.itemCode).toLowerCase();
-        const matchesItem = itemName.includes(q) || (tx.itemCode || '').toLowerCase().includes(q);
-        const matchesSeller = (tx.sellerName || '').toLowerCase().includes(q);
-        const matchesBuyer = (tx.buyerName || '').toLowerCase().includes(q);
-        if (!matchesItem && !matchesSeller && !matchesBuyer) return false;
-      }
-      return true;
-    });
-  }, [rawTransactions, search, dateFrom, dateTo, typeFilter]);
 
   // Tentukan sisi trade dari perspektif negara (countryId).
   const trades = useMemo(() => {
