@@ -17,6 +17,7 @@ import CurrencyIcon from './CurrencyIcon';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeFifo, Flip, Position } from '../utils/fifo';
+import { fetchWarera } from '../api/apiClient';
 
 interface TrackerProps {
   token?: string | null;
@@ -50,7 +51,8 @@ interface TrackerResponse {
   };
 }
 
-const DEFAULT_COUNTRY_ID = '6813b6d546e731854c7ac829'; // Indonesia
+const DEFAULT_COUNTRY_ID = '6813b6d546e731854c7ac829'; // Indonesia (default, bisa diganti)
+const COUNTRY_STORAGE_KEY = 'tracker_country_id';
 
 const TRANSACTION_TYPES = ['trading', 'itemMarket', 'donation'];
 
@@ -100,7 +102,10 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
-  const [countryId, setCountryId] = useState(DEFAULT_COUNTRY_ID);
+  const [countryId, setCountryId] = useState(
+    () => localStorage.getItem(COUNTRY_STORAGE_KEY) || DEFAULT_COUNTRY_ID,
+  );
+  const [countries, setCountries] = useState<{ _id: string; name: string }[]>([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -140,6 +145,39 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
   useEffect(() => {
     loadTransactions();
   }, [loadTransactions]);
+
+  // Simpan pilihan negara agar tidak hilang saat reload.
+  useEffect(() => {
+    localStorage.setItem(COUNTRY_STORAGE_KEY, countryId);
+  }, [countryId]);
+
+  // Muat daftar negara dari API untuk selector.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      const res = await fetchWarera('country.getAllCountries', {}, token);
+      const list = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.data)
+          ? res.data.data
+          : Array.isArray(res.data?.rows)
+            ? res.data.rows
+            : Array.isArray(res.data?.items)
+              ? res.data.items
+              : [];
+      if (!cancelled && Array.isArray(list) && list.length > 0) {
+        setCountries(
+          list
+            .map((c: any) => ({ _id: c._id || c.id, name: c.name || c.code || '' }))
+            .filter((c) => c._id),
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -330,6 +368,22 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {countries.length > 0 && (
+              <select
+                value={countryId}
+                onChange={(e) => setCountryId(e.target.value)}
+                className="bg-[#0C0D13] border border-slate-800 hover:border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-300 outline-none focus:border-sky-500/50 cursor-pointer"
+              >
+                {countries
+                  .slice()
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                  .map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            )}
             <button
               onClick={() => loadTransactions(true)}
               disabled={loading}
