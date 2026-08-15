@@ -575,7 +575,15 @@ export default function LiveBattles() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredBattles.map((b) => (
-            <BattleCard key={b.id} battle={b} selected={b.id === selectedId} onSelect={() => setSelectedId(b.id)} />
+            <BattleCard
+              key={b.id}
+              battle={b}
+              gb={gMap[b.id] || null}
+              countryNames={countryNames}
+              countryFlags={countryFlags}
+              selected={b.id === selectedId}
+              onSelect={() => setSelectedId(b.id)}
+            />
           ))}
         </div>
       )}
@@ -587,10 +595,60 @@ export default function LiveBattles() {
 }
 
 /* ── Kartu pertempuran ────────────────────────────────────────────── */
-function BattleCard({ battle, selected, onSelect }: { battle: BattleListItem; selected: boolean; onSelect: () => void }) {
+function BattleCard({
+  battle,
+  gb,
+  countryNames,
+  countryFlags,
+  selected,
+  onSelect,
+}: {
+  battle: BattleListItem;
+  gb: GevechtenBattle | null;
+  countryNames: Record<string, string>;
+  countryFlags: Record<string, string>;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const totalDamage = battle.attackerDamage + battle.defenderDamage;
   const attackerPct = totalDamage > 0 ? (battle.attackerDamage / totalDamage) * 100 : 50;
   const attackerLeading = battle.attackerDamage >= battle.defenderDamage;
+
+  const defOrders = gb?.defender?.order_details || [];
+  const attOrders = gb?.attacker?.order_details || [];
+
+  const orderChip = (d: { country_id: string; priority: string }) => {
+    const name = countryNames[d.country_id] || shortId(d.country_id);
+    const flag = flagEmoji(countryFlags[d.country_id]);
+    const pct = d.priority && d.priority !== '-' && d.priority !== '5-15%' ? d.priority : '5-15%';
+    return (
+      <span
+        key={d.country_id}
+        className="inline-flex items-center gap-1 bg-[#0A0B10] border border-slate-800 rounded px-1.5 py-0.5"
+        title={`${name} — order ${pct}`}
+      >
+        {flag && <span className="text-[9px] leading-none">{flag}</span>}
+        <span className="text-[8.5px] font-mono truncate max-w-[72px]">{name}</span>
+        <span className="text-[8.5px] font-mono font-bold">{pct}</span>
+      </span>
+    );
+  };
+
+  const sliceChips = (arr: { country_id: string; priority: string }[]) => {
+    const max = 4;
+    const shown = arr.slice(0, max);
+    const rest = arr.length - shown.length;
+    return (
+      <>
+        {shown.map(orderChip)}
+        {rest > 0 && (
+          <span className="text-[8.5px] font-mono text-slate-500">+{rest} lagi</span>
+        )}
+      </>
+    );
+  };
+
+  const hasOrders = defOrders.length > 0 || attOrders.length > 0;
 
   return (
     <button
@@ -638,6 +696,39 @@ function BattleCard({ battle, selected, onSelect }: { battle: BattleListItem; se
         <span className="text-slate-600">{formatNum(battle.hitCount)} pukulan</span>
         <span className="text-rose-400">{formatNum(battle.defenderDamage)}</span>
       </div>
+
+      {/* Status & order */}
+      {gb && (
+        <div className="mt-2 border-t border-slate-800/40 pt-2">
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[8.5px] font-mono text-slate-500">
+            {gb.bunker_pct > 0 && <span className="text-emerald-400">Bunker +{gb.bunker_pct}%</span>}
+            {gb.mil_base_pct > 0 && <span className="text-emerald-400">Mil.basis +{gb.mil_base_pct}%</span>}
+            {gb.def_order_cost > 0 && <span>🛡️ {formatNum(gb.def_order_cost)}✉</span>}
+            {gb.att_order_cost > 0 && <span>⚔️ {formatNum(gb.att_order_cost)}✉</span>}
+          </div>
+
+          {hasOrders && (
+            <div className="mt-1.5 space-y-1">
+              {defOrders.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="text-[8.5px] text-emerald-400 font-bold uppercase tracking-wider shrink-0">
+                    🛡️
+                  </span>
+                  {sliceChips(defOrders)}
+                </div>
+              )}
+              {attOrders.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="text-[8.5px] text-rose-400 font-bold uppercase tracking-wider shrink-0">
+                    ⚔️
+                  </span>
+                  {sliceChips(attOrders)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-2 flex items-center justify-between text-[9px] text-slate-500">
         <span>
