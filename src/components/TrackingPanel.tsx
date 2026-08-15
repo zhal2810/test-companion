@@ -200,9 +200,12 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
       await Promise.all(
         Array.from(idsToResolve).map(async (id) => {
           try {
-            const res = await fetch(`/api/tracker/username?id=${encodeURIComponent(id)}`, { headers });
+            // Pakai endpoint proxy yang SUDAH ADA dan terbukti berhasil
+            // (functions/api/players/[procedure].ts), bukan endpoint baru
+            // /api/tracker/username — supaya tidak ada titik gagal tambahan.
+            const res = await fetch(`/api/players/user.getUserById?userId=${encodeURIComponent(id)}`, { headers });
             const json = await res.json();
-            const name = json?.data?.username;
+            const name = json?.result?.data?.username;
             if (name) {
               setUsernameCache((prev) => ({ ...prev, [id]: name }));
             }
