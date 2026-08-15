@@ -6,8 +6,9 @@ import CompanyAnalysis, { WealthSummary } from './CompanyAnalysis';
 import MarketIntel from './MarketIntel';
 import NewsEvents from './NewsEvents';
 import TrackingPanel from './TrackingPanel';
+import LiveBattles from './LiveBattles';
 import Logo from './Logo';
-import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 function formatRangeDate(date: Date): string {
@@ -15,7 +16,7 @@ function formatRangeDate(date: Date): string {
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'news' | 'tracking'>('company');  const [config, setConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'news' | 'tracking' | 'battle'>('company');  const [config, setConfig] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [playerWealth, setPlayerWealth] = useState<any>(null);
 
@@ -72,7 +73,7 @@ export default function Dashboard() {
     
     // Switch tab if horizontal swipe is >60px and significantly larger than vertical movement
     if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
-      const tabs: ('company' | 'transaction' | 'market' | 'news' | 'tracking')[] = ['company', 'transaction', 'market', 'news', 'tracking'];
+      const tabs: ('company' | 'transaction' | 'market' | 'news' | 'tracking' | 'battle')[] = ['company', 'transaction', 'market', 'news', 'tracking', 'battle'];
       const currentIndex = tabs.indexOf(activeTab);
       
       if (diffX > 0) {
@@ -326,6 +327,12 @@ export default function Dashboard() {
             label="Tracking"
             icon={<Radar className="w-4 h-4" />}
           />
+          <TabButton 
+            active={activeTab === 'battle'} 
+            onClick={() => setActiveTab('battle')}
+            label="Pertempuran"
+            icon={<Swords className="w-4 h-4" />}
+          />
         </div>
 
         {/* MOBILE SLIDE INDICATOR & SWIPE HINT */}
@@ -358,6 +365,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab('tracking')} 
               className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'tracking' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
               aria-label="Tracking Negara"
+            />
+            <button 
+              onClick={() => setActiveTab('battle')} 
+              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'battle' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+              aria-label="Pertempuran"
             />
           </div>
         </div>
@@ -491,6 +503,10 @@ export default function Dashboard() {
 
               {activeTab === 'tracking' && (
                 <TrackingPanel token={config?.token} onOpenSettings={() => setIsConfigOpen(true)} />
+              )}
+
+              {activeTab === 'battle' && (
+                <LiveBattles />
               )}
             </motion.div>
           </AnimatePresence>

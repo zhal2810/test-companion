@@ -44,8 +44,13 @@ export const onRequest: PagesFunction = async (context) => {
   const input: Record<string, any> = { ...rawInput };
   for (const key in input) {
     if (typeof input[key] === 'string' && input[key].trim() !== '') {
-      const num = Number(input[key]);
-      if (!Number.isNaN(num)) input[key] = num;
+      const v = input[key].trim().toLowerCase();
+      if (v === 'true' || v === 'false') {
+        input[key] = v === 'true';
+      } else {
+        const num = Number(input[key]);
+        if (!Number.isNaN(num)) input[key] = num;
+      }
     }
   }
 
