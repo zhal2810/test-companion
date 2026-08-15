@@ -30,14 +30,36 @@ function getCorsHeaders(request: Request): Record<string, string> {
 }
 
 async function fetchUserById(userId: string, apiKey: string | null, timeoutMs = 6000): Promise<any | null> {
+  // Coba POST dulu — ini jalur yang TERBUKTI berhasil (sama dengan proxy
+  // functions/api/players/[procedure].ts yang sudah dites langsung dan
+  // mengembalikan data user lengkap). GET dipakai sebagai fallback saja,
+  // karena dokumentasi resmi menyebut GET tapi pada praktiknya endpoint ini
+  // merespons baik lewat POST juga.
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    if (apiKey) headers['X-API-Key'] = apiKey;
+    const response = await fetch('https://api2.warera.io/trpc/user.getUserById', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ userId }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (response.ok) {
+      const json = await response.json();
+      if ((json as any)?.result?.data) return json;
+    }
+  } catch {
+    // lanjut ke fallback GET
+  }
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (apiKey) headers['X-API-Key'] = apiKey;
-    // Sesuai dokumentasi resmi (api2.warera.io/docs): SEMUA endpoint WarEra
-    // API adalah GET, bukan POST — jadi kirim input via query string ?input=
-    // (format standar tRPC GET), bukan lewat body POST.
     const input = encodeURIComponent(JSON.stringify({ userId }));
     const response = await fetch(`https://api2.warera.io/trpc/user.getUserById?input=${input}`, {
       method: 'GET',

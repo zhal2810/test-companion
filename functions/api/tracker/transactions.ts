@@ -261,23 +261,43 @@ export const onRequestGet: PagesFunction = async (context) => {
     }
 
     // 2) Resolve username BARU secara batch (concurrency 6), dibatasi jumlahnya
-    //    per request secara ADAPTIF. Sejak resolveUsername cuma pakai 1
-    //    subrequest per user (bukan sampai 4 seperti versi lama yang mencoba
-    //    gateway.warerastats.io dulu), budget bisa dihitung 1:1 terhadap sisa
-    //    kuota subrequest, bukan dibagi 2 lagi.
+    //    per request secara ADAPTIF. resolveUsername bisa memakai sampai 2
+    //    subrequest per user (POST lalu fallback GET), jadi budget dihitung
+    //    dengan bantalan 2x supaya tidak melebihi limit subrequest.
     const resolveBudget = Math.min(
       MAX_NEW_RESOLUTIONS,
-      Math.max(0, subrequestLimit - pagesFetchedThisRun - 2), // -2 sebagai bantalan
+      Math.max(0, Math.floor((subrequestLimit - pagesFetchedThisRun - 2) / 2)),
     );
     const idsToResolve = uncachedIds.slice(0, resolveBudget);
 
     async function resolveUsername(uid: string): Promise<string> {
+      // Coba POST dulu (jalur terbukti berhasil, sama dengan proxy
+      // functions/api/players/[procedure].ts yang sudah dites langsung).
+      // GET dipakai sebagai fallback kalau POST gagal.
       try {
-        // Sesuai dokumentasi resmi (api2.warera.io/docs): SEMUA endpoint
-        // WarEra API adalah GET, bukan POST. Kirim input via query string
-        // ?input= (format standar tRPC GET), langsung ke api2.warera.io —
-        // jalur gateway.warerastats.io yang dipakai versi sebelumnya
-        // kemungkinan besar penyebab utama resolve gagal massal.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch('https://api2.warera.io/trpc/user.getUserById', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+          },
+          body: JSON.stringify({ userId: uid }),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const json: any = await res.json();
+          const name = json?.result?.data?.username;
+          if (name) return name;
+        }
+      } catch {
+        // lanjut ke fallback GET
+      }
+
+      try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 6000);
         const input = encodeURIComponent(JSON.stringify({ userId: uid }));
@@ -296,7 +316,7 @@ export const onRequestGet: PagesFunction = async (context) => {
           if (name) return name;
         }
       } catch {
-        // jatuh ke fallback di bawah
+        // jatuh ke fallback UID di bawah
       }
       return uid.slice(0, 8);
     }
