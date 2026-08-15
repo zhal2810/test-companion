@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { fetchWarera } from '../api/apiClient';
+import { fetchWarera, fetchGevechtenBattles } from '../api/apiClient';
 import { Swords, RefreshCw, AlertCircle, Shield, Crosshair, Clock, X, ChevronRight } from 'lucide-react';
 
 const INDONESIA_COUNTRY_ID = '6813b6d546e731854c7ac829';
-const POLL_BATTLES_MS = 10_000;
+const POLL_BATTLES_MS = 30_000;
 const POLL_DETAIL_MS = 5_000;
 const POLL_PACTS_MS = 30_000;
 const MAX_HITS_PER_SIDE = 12;
@@ -57,6 +57,15 @@ function shortId(id?: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
 }
 
+function flagEmoji(code?: string): string {
+  if (!code || code.length !== 2) return '';
+  const c = code.toUpperCase();
+  return (
+    String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65) +
+    String.fromCodePoint(0x1f1e6 + c.charCodeAt(1) - 65)
+  );
+}
+
 function formatNum(n: number | undefined | null): string {
   return (Number(n) || 0).toLocaleString('id-ID');
 }
@@ -96,6 +105,8 @@ interface BattleListItem {
   defenderName: string;
   attackerCountryId: string;
   defenderCountryId: string;
+  attackerFlag: string;
+  defenderFlag: string;
   attackerDamage: number;
   defenderDamage: number;
   attackerHits: number;
@@ -155,12 +166,59 @@ interface PactEvent {
   createdAt: string;
 }
 
+interface BonusRow {
+  group: string;
+  home: string;
+  enemy: string;
+  pact: string;
+  alliance: string;
+  order: string;
+  mu_order: string;
+  mu_hq: string;
+  upgrade: string;
+  upgrade_label: string;
+  max_est: number;
+}
+
+interface GevechtenSide {
+  country_id: string;
+  country_name: string;
+  flag_code: string;
+  won_rounds: number;
+  order_details: { country_id: string; priority: string }[];
+  alliance_id: string | null;
+  ally_ids: string[];
+}
+
+interface GevechtenBattle {
+  id: string;
+  type: string;
+  is_resistance: boolean;
+  attacker: GevechtenSide;
+  defender: GevechtenSide;
+  current_round: { number: number; att_pts: number; def_pts: number } | null;
+  rounds_to_win: number;
+  region_id: string;
+  region_name: string;
+  bunker_pct: number;
+  mil_base_pct: number;
+  def_linked_to_cap: boolean;
+  upgrades_fetched: boolean;
+  att_order_cost: number;
+  def_order_cost: number;
+  att_bonus_rows: BonusRow[];
+  def_bonus_rows: BonusRow[];
+}
+
 function sideName(name: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 export default function LiveBattles() {
   const [battles, setBattles] = useState<BattleListItem[]>([]);
+  const [gMap, setGMap] = useState<Record<string, GevechtenBattle>>({});
+  const [countryNames, setCountryNames] = useState<Record<string, string>>({});
+  const [countryFlags, setCountryFlags] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'indonesia'>('all');
@@ -181,11 +239,21 @@ export default function LiveBattles() {
 
   const loadBattles = useCallback(async () => {
     try {
-      const [battlesRes, countryMap, regionMap] = await Promise.all([
-        fetchWarera('battle.getBattles', { isActive: true, limit: 50 }),
+      const [battlesRes, gevechtenRes, countryMap, regionMap] = await Promise.all([
+        fetchWarera('battle.getBattles', { isActive: true, limit: 100 }),
+        fetchGevechtenBattles(),
         getCountryMap(),
         getRegionMap(),
       ]);
+
+      const gbattles = Array.isArray(gevechtenRes.data?.battles) ? gevechtenRes.data.battles : [];
+      const gNext: Record<string, GevechtenBattle> = {};
+      for (const gb of gbattles) {
+        if (gb?.id) gNext[gb.id] = gb;
+      }
+      setGMap(gNext);
+      if (gevechtenRes.data?.country_names) setCountryNames(gevechtenRes.data.country_names);
+      if (gevechtenRes.data?.country_flags) setCountryFlags(gevechtenRes.data.country_flags);
 
       const items = Array.isArray(battlesRes.data?.items) ? battlesRes.data.items : [];
       const list: BattleListItem[] = items
@@ -202,6 +270,8 @@ export default function LiveBattles() {
             defenderName: countryMap[defenderCountryId] || shortId(defenderCountryId),
             attackerCountryId,
             defenderCountryId,
+            attackerFlag: countryFlags[attackerCountryId] || '',
+            defenderFlag: countryFlags[defenderCountryId] || '',
             attackerDamage: Number(b.attacker?.damages) || 0,
             defenderDamage: Number(b.defender?.damages) || 0,
             attackerHits: Number(b.attacker?.hitCount) || 0,
@@ -474,6 +544,9 @@ export default function LiveBattles() {
       {selectedBattle && (
         <BattleDetailPanel
           battle={selectedBattle}
+          gb={gMap[selectedBattle.id] || null}
+          countryNames={countryNames}
+          countryFlags={countryFlags}
           detail={detail}
           loading={detailLoading}
           error={detailError}
@@ -540,7 +613,7 @@ function BattleCard({ battle, selected, onSelect }: { battle: BattleListItem; se
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Shield className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+          <span className="text-sm shrink-0">{flagEmoji(battle.attackerFlag)}</span>
           <span className={`text-xs font-bold truncate ${attackerLeading ? 'text-sky-300' : 'text-slate-300'}`}>
             {battle.attackerName}
           </span>
@@ -550,7 +623,7 @@ function BattleCard({ battle, selected, onSelect }: { battle: BattleListItem; se
           <span className={`text-xs font-bold truncate ${!attackerLeading ? 'text-rose-300' : 'text-slate-300'}`}>
             {battle.defenderName}
           </span>
-          <Shield className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+          <span className="text-sm shrink-0">{flagEmoji(battle.defenderFlag)}</span>
         </div>
       </div>
 
@@ -582,6 +655,9 @@ function BattleCard({ battle, selected, onSelect }: { battle: BattleListItem; se
 /* ── Panel detail ─────────────────────────────────────────────────── */
 function BattleDetailPanel({
   battle,
+  gb,
+  countryNames,
+  countryFlags,
   detail,
   loading,
   error,
@@ -590,6 +666,9 @@ function BattleDetailPanel({
   onClose,
 }: {
   battle: BattleListItem;
+  gb: GevechtenBattle | null;
+  countryNames: Record<string, string>;
+  countryFlags: Record<string, string>;
   detail: BattleDetail | null;
   loading: boolean;
   error: string | null;
@@ -704,6 +783,50 @@ function BattleDetailPanel({
             )}
           </div>
 
+          {/* Bonus & order */}
+          {gb && (
+            <div className="border-t border-slate-800/60 px-4 py-3.5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <SideBonusPanel
+                  sideLabel={
+                    <>
+                      🛡️ <span className="text-slate-300">Pembela:</span>{' '}
+                      {flagEmoji(gb.defender?.flag_code)} {gb.defender?.country_name || battle.defenderName}
+                    </>
+                  }
+                  upgradePct={gb.bunker_pct}
+                  upgradeName="Bunker"
+                  orderCost={gb.def_order_cost}
+                  bonusRows={gb.def_bonus_rows}
+                  linkedToCap={gb.def_linked_to_cap}
+                  upgradesFetched={gb.upgrades_fetched}
+                />
+                <SideBonusPanel
+                  sideLabel={
+                    <>
+                      ⚔️ <span className="text-slate-300">Penyerang:</span>{' '}
+                      {flagEmoji(gb.attacker?.flag_code)} {gb.attacker?.country_name || battle.attackerName}
+                    </>
+                  }
+                  upgradePct={gb.mil_base_pct}
+                  upgradeName="Mil.basis"
+                  orderCost={gb.att_order_cost}
+                  bonusRows={gb.att_bonus_rows}
+                  upgradesFetched={gb.upgrades_fetched}
+                />
+              </div>
+
+              {gb.is_resistance && (
+                <div className="mt-3 text-[10px] text-rose-300">
+                  🔴 Pertempuran Resistance — bonus ekstra untuk penyerang tergantung % resistance:
+                  warga sendiri hingga +30%, sekutu hingga +15%.
+                </div>
+              )}
+
+              <OrdersPanel gb={gb} countryNames={countryNames} countryFlags={countryFlags} />
+            </div>
+          )}
+
           {/* Damage feed */}
           <div className="border-t border-slate-800/60 px-4 py-3">
             <div className="flex items-center gap-1.5 mb-2">
@@ -740,6 +863,173 @@ function BattleDetailPanel({
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
+
+/* ── Bonus per sisi ───────────────────────────────────────────────── */
+function hasNonTrivial(rows: BonusRow[], key: keyof BonusRow): boolean {
+  return rows.some((r) => {
+    const v = r[key];
+    return typeof v === 'string' && v !== '' && v !== '-' && v !== 'n.v.t.';
+  });
+}
+
+function cellCls(v: string): string {
+  if (v === 'n.v.t.' || v === '-') return 'text-slate-600';
+  if (v && v.includes('?')) return 'text-slate-500 italic';
+  if (v && v.includes('%')) return 'text-sky-300';
+  return '';
+}
+
+function rngCls(v: string): string {
+  if (!v || v === '-') return 'text-slate-600';
+  if (v.includes('?')) return 'text-slate-500 italic';
+  return 'text-amber-400';
+}
+
+function BonusTable({ rows, upgradeLabel }: { rows: BonusRow[]; upgradeLabel: string }) {
+  if (!rows || rows.length === 0) return null;
+  const show = {
+    home: hasNonTrivial(rows, 'home'),
+    enemy: hasNonTrivial(rows, 'enemy'),
+    pact: hasNonTrivial(rows, 'pact'),
+    alliance: hasNonTrivial(rows, 'alliance'),
+    order: hasNonTrivial(rows, 'order'),
+    upgrade: hasNonTrivial(rows, 'upgrade'),
+  };
+  return (
+    <table className="w-full text-left text-[10px] border-collapse">
+      <thead>
+        <tr className="text-slate-500 border-b border-slate-800">
+          <th className="py-1 pr-2 font-semibold whitespace-nowrap">Grup</th>
+          {show.home && (
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="10% warga sendiri">Thuis</th>
+          )}
+          {show.enemy && (
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="1-10% musuh bebuyutan">Vijand</th>
+          )}
+          {show.pact && (
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="1-10% pakta pertahanan">Pact</th>
+          )}
+          {show.alliance && (
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="10% aliansi">Bond.</th>
+          )}
+          {show.order && (
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="5-15% land-order">Order</th>
+          )}
+          <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="5-15% MU-order (tidak semua)">MU-ord*</th>
+          <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="5-20% MU-HQ (tidak semua 20%)">MU-HQ*</th>
+          {show.upgrade && (
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title={`${upgradeLabel} (harus aktif)`}>
+              {upgradeLabel}**
+            </th>
+          )}
+          <th className="py-1 text-right font-semibold whitespace-nowrap">Maks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={i} className="border-b border-slate-800/40 last:border-0">
+            <td className="py-1 pr-2 text-slate-300 max-w-[76px] overflow-hidden text-ellipsis whitespace-nowrap">
+              {r.group}
+            </td>
+            {show.home && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.home)}`}>{r.home}</td>}
+            {show.enemy && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.enemy)}`}>{r.enemy}</td>}
+            {show.pact && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.pact)}`}>{r.pact}</td>}
+            {show.alliance && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.alliance)}`}>{r.alliance}</td>}
+            {show.order && <td className={`py-1 pr-2 whitespace-nowrap ${rngCls(r.order)}`}>{r.order}</td>}
+            <td className={`py-1 pr-2 whitespace-nowrap ${rngCls(r.mu_order)}`}>{r.mu_order}</td>
+            <td className={`py-1 pr-2 whitespace-nowrap ${rngCls(r.mu_hq)}`}>{r.mu_hq}</td>
+            {show.upgrade && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.upgrade)}`}>{r.upgrade}</td>}
+            <td className="py-1 text-right font-bold whitespace-nowrap text-sky-400">~{r.max_est}%</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function SideBonusPanel({
+  sideLabel,
+  upgradePct,
+  upgradeName,
+  orderCost,
+  bonusRows,
+  linkedToCap,
+  upgradesFetched,
+}: {
+  sideLabel: React.ReactNode;
+  upgradePct: number;
+  upgradeName: string;
+  orderCost: number;
+  bonusRows: BonusRow[];
+  linkedToCap?: boolean;
+  upgradesFetched?: boolean;
+}) {
+  return (
+    <div className="bg-[#0A0B10] border border-slate-800/50 rounded-lg p-3">
+      <div className="text-[10px] font-bold mb-1.5">{sideLabel}</div>
+      {upgradesFetched && linkedToCap === false && (
+        <div className="text-[10px] font-bold text-rose-400 mb-1">⚠️ Tidak terhubung ke ibu kota: -25% damage</div>
+      )}
+      {upgradePct > 0 ? (
+        <div className="text-[10px] font-mono text-emerald-400 mb-1">{upgradeName}: +{upgradePct}% aktif</div>
+      ) : upgradesFetched ? (
+        <div className="text-[10px] font-mono text-slate-500 mb-1">{upgradeName}: tidak aktif</div>
+      ) : null}
+      {orderCost > 0 && (
+        <div className="text-[10px] font-mono text-slate-400 mb-1">Orderkosten: {formatNum(orderCost)} kertas</div>
+      )}
+      <BonusTable rows={bonusRows} upgradeLabel={upgradeName} />
+    </div>
+  );
+}
+
+/* ── Land-orders ──────────────────────────────────────────────────── */
+function OrdersPanel({
+  gb,
+  countryNames,
+  countryFlags,
+}: {
+  gb: GevechtenBattle;
+  countryNames: Record<string, string>;
+  countryFlags: Record<string, string>;
+}) {
+  const attDetails = gb.attacker?.order_details || [];
+  const defDetails = gb.defender?.order_details || [];
+  if (!attDetails.length && !defDetails.length) return null;
+  const total = attDetails.length + defDetails.length;
+
+  const orderLine = (d: { country_id: string; priority: string }, cls: string, emoji: string) => {
+    const name = countryNames[d.country_id] || shortId(d.country_id);
+    const flag = flagEmoji(countryFlags[d.country_id]);
+    const pct = d.priority && d.priority !== '-' && d.priority !== '5-15%' ? d.priority : '5-15%';
+    return (
+      <span key={d.country_id} className={`flex items-center gap-1.5 text-[10px] font-mono ${cls}`}>
+        <span className="shrink-0">{emoji}</span>
+        {flag && <span className="shrink-0">{flag}</span>}
+        <span className="truncate min-w-0">{name}</span>
+        <span className="ml-auto shrink-0 font-bold">{pct}</span>
+      </span>
+    );
+  };
+
+  return (
+    <div className="mt-3">
+      <details className="group">
+        <summary className="cursor-pointer text-[10px] font-bold text-slate-400 uppercase tracking-wider hover:text-slate-200 select-none">
+          Land-orders ({total}) <span className="text-slate-600">▾</span>
+        </summary>
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+          <div className="flex flex-col gap-1">
+            {defDetails.map((d) => orderLine(d, 'text-emerald-400', '🛡️'))}
+          </div>
+          <div className="flex flex-col gap-1">
+            {attDetails.map((d) => orderLine(d, 'text-rose-400', '⚔️'))}
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

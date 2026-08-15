@@ -25,6 +25,15 @@ export const fetchWarera = async (procedure: string, input?: any, explicitToken:
   }
 };
 
+export const fetchGevechtenBattles = async (): Promise<{ success: boolean; error: string | null; data: any }> => {
+  try {
+    const response = await axios.get('/api/gevechten/battles');
+    return { success: true, error: null, data: response.data };
+  } catch (error: any) {
+    return { success: false, error: error.message, data: null };
+  }
+};
+
 export const searchPlayerCompanies = async (username: string): Promise<{ success: boolean; error?: string; playerData?: any; companies?: any[] }> => {
   try {
     const searchResult = await fetchWarera('search.searchAnything', { searchText: username });

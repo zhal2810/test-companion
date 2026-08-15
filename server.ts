@@ -114,6 +114,20 @@ async function startServer() {
   });
 
 
+  // 2.5 Gevechten — agregasi bonus/order dari komunitas warera.realmarijn.nl
+  app.get('/api/gevechten/battles', async (_req, res) => {
+    try {
+      const upstream = await fetch('https://warera.realmarijn.nl/api/gevechten/battles');
+      if (!upstream.ok) {
+        return res.status(502).json({ error: `Komunitas gevechten gagal (${upstream.status})` });
+      }
+      res.status(200).json(await upstream.json());
+    } catch (err: any) {
+      console.error('[Gevechten] Gagal ambil data dari komunitas:', err);
+      res.status(502).json({ error: 'Gagal ambil data gevechten' });
+    }
+  });
+
   // 2.5 Market BID/OFFER — proxy + username enrichment
   app.get('/api/warera/orders', async (req, res) => {
     try {
