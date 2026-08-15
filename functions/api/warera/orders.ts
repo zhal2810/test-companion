@@ -4,6 +4,9 @@
 // GET /api/warera/orders?itemCode=iron&limit=30
 //
 // Fetches BID/OFFER orders and resolves WarEra user IDs to usernames.
+// Sumber data: API komunitas warera.realmarijn.nl (satu-satunya). api2/gateway
+// sudah TIDAK dipakai lagi.
+import { callCommunity } from '../_shared/community';
 
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
@@ -26,26 +29,6 @@ function cors(request: Request): Headers {
   });
 }
 
-async function fetchJson(
-  url: string,
-  extraHeaders: Record<string, string> = {},
-) {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'WarEra-Companion/1.0',
-      ...extraHeaders,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`${new URL(url).hostname} returned HTTP ${response.status}`);
-  }
-
-  return response.json();
-}
-
 // Small in-memory cache. It prevents calling the user endpoint repeatedly
 // for the same player during a warm Cloudflare isolate.
 type UserInfo = {
@@ -63,40 +46,17 @@ async function resolveUsername(userId: string): Promise<UserInfo> {
   const cached = userCache.get(userId);
   if (cached) return cached;
 
-  const input = encodeURIComponent(JSON.stringify({ userId }));
+  const json = await callCommunity('user.getUserLite', { userId }, 4000);
+  const user = json?.result?.data;
 
-  const targets = [
-    {
-      url: `https://gateway.warerastats.io/trpc/user.getUserLite?input=${input}`,
-      headers: { 'X-API-Key': 'warerastats' },
-    },
-    {
-      url: `https://api2.warera.io/trpc/user.getUserLite?input=${input}`,
-      headers: {},
-    },
-    {
-      url: `https://www.warera-pulse.info/api/wr/user.getUserLite?input=${input}`,
-      headers: {},
-    },
-  ];
+  if (user?.username) {
+    const info = {
+      username: String(user.username),
+      avatarUrl: user.avatarUrl ? String(user.avatarUrl) : '',
+    };
 
-  for (const target of targets) {
-    try {
-      const json = await fetchJson(target.url, target.headers);
-      const user = json?.result?.data;
-
-      if (user?.username) {
-        const info = {
-          username: String(user.username),
-          avatarUrl: user.avatarUrl ? String(user.avatarUrl) : '',
-        };
-
-        userCache.set(userId, info);
-        return info;
-      }
-    } catch {
-      // Try next provider.
-    }
+    userCache.set(userId, info);
+    return info;
   }
 
   // Important: keep the order even if the username endpoint fails.
@@ -170,51 +130,14 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
       );
     }
 
-    const input = encodeURIComponent(JSON.stringify({ itemCode, limit }));
-
-    const targets = [
-      {
-        url: `https://gateway.warerastats.io/trpc/tradingOrder.getTopOrders?input=${input}`,
-        headers: { 'X-API-Key': 'warerastats' },
-      },
-      {
-        url: `https://api2.warera.io/trpc/tradingOrder.getTopOrders?input=${input}`,
-        headers: {},
-      },
-      {
-        url: `https://www.warera-pulse.info/api/wr/tradingOrder.getTopOrders?input=${input}`,
-        headers: {},
-      },
-    ];
-
-    let data: any = null;
-    const errors: string[] = [];
-
-    for (const target of targets) {
-      try {
-        const candidate = await fetchJson(target.url, target.headers);
-
-        if (candidate?.result?.data) {
-          data = candidate;
-          break;
-        }
-
-        errors.push(
-          `${new URL(target.url).hostname}: invalid JSON shape`,
-        );
-      } catch (err: any) {
-        errors.push(
-          `${new URL(target.url).hostname}: ${err?.message || 'failed'}`,
-        );
-      }
-    }
+    const data: any = await callCommunity('tradingOrder.getTopOrders', { itemCode, limit }, 5000);
 
     if (!data?.result?.data) {
       return Response.json(
         {
           error: 'Failed to fetch WarEra order book',
           itemCode,
-          details: errors,
+          details: 'community API unavailable',
         },
         { status: 502, headers },
       );

@@ -3,12 +3,15 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs/promises';
-import { handleWareraProxy, handleLiveMarketStats } from './src/utils/proxyHandler';
+import { handleWareraProxy, handleLiveMarketStats, callCommunity } from './src/utils/proxyHandler';
 
 // ─── Simple File Cache ─────────────────────────────────────────────
 const CACHE_DIR = path.join(process.cwd(), 'cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'market_prices.json');
 const CACHE_TTL_MS = 60_000; // 60 detik
+
+// ─── Sumber data: API komunitas warera.realmarijn.nl (satu-satunya) ──
+// api2.warera.io & gateway.warerastats.io sudah TIDAK dipakai lagi.
 
 interface MarketResponse {
   [key: string]: any;
@@ -76,7 +79,6 @@ async function startServer() {
   // 2. Players Proxy
   app.all('/api/players/:procedure', async (req, res) => {
     const { procedure } = req.params;
-    const apiKey = req.headers['x-api-key'] || req.headers['authorization'];
 
     let rawInput: Record<string, any> = {};
     if (req.method === 'GET') {
@@ -94,18 +96,11 @@ async function startServer() {
     }
 
     try {
-      const targetUrl = `https://api2.warera.io/trpc/${procedure}`;
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (apiKey) headers['X-API-Key'] = String(apiKey);
-
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(input),
-      });
-
-      const json = await response.json();
-      res.status(response.status).json(json);
+      const json = await callCommunity(procedure, input);
+      if (!json) {
+        return res.status(502).json({ error: `Upstream API unavailable (${procedure})` });
+      }
+      res.status(200).json(json);
     } catch (err: any) {
       console.error(`[Proxy Error] Failed to fetch procedure ${procedure}:`, err);
       // ✅ FIX #2: Jangan kirim detail error ke client
@@ -130,47 +125,7 @@ async function startServer() {
         });
       }
 
-      const input = encodeURIComponent(JSON.stringify({ itemCode, limit }));
-
-      const fetchTRPC = async (url: string, headers: Record<string, string> = {}) => {
-        const response = await fetch(url, {
-          headers: {
-            Accept: 'application/json',
-            'User-Agent': 'WarEra-Companion/1.0',
-            ...headers,
-          },
-          signal: AbortSignal.timeout(4000),
-        });
-        if (!response.ok) throw new Error(`Upstream returned ${response.status}`);
-        return await response.json();
-      };
-
-      let data: any = null;
-
-      try {
-        data = await fetchTRPC(
-          `https://gateway.warerastats.io/trpc/tradingOrder.getTopOrders?input=${input}`,
-          { 'X-API-Key': 'warerastats' }
-        );
-      } catch {
-        // fallback
-      }
-
-      if (!data) {
-        try {
-          data = await fetchTRPC(
-            `https://api2.warera.io/trpc/tradingOrder.getTopOrders?input=${input}`
-          );
-        } catch {
-          // fallback berikutnya
-        }
-      }
-
-      if (!data) {
-        data = await fetchTRPC(
-          `https://www.warera-pulse.info/api/wr/tradingOrder.getTopOrders?input=${input}`
-        );
-      }
+      const data = await callCommunity('tradingOrder.getTopOrders', { itemCode, limit }, 5000);
 
       const buyOrders = Array.isArray(data?.result?.data?.buyOrders)
         ? data.result.data.buyOrders
@@ -192,26 +147,8 @@ async function startServer() {
       await Promise.all(
         userIds.map(async (userId) => {
           try {
-            const userInput = encodeURIComponent(JSON.stringify({ userId }));
-            let userData: any = null;
-
-            try {
-              userData = await fetchTRPC(
-                `https://gateway.warerastats.io/trpc/user.getUserLite?input=${userInput}`,
-                { 'X-API-Key': 'warerastats' }
-              );
-            } catch {
-              try {
-                userData = await fetchTRPC(
-                  `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`
-                );
-              } catch {
-                userData = null;
-              }
-            }
-
+            const userData = await callCommunity('user.getUserLite', { userId }, 4000);
             const user = userData?.result?.data;
-
             userCache.set(userId, {
               username: user?.username || `${userId.slice(0, 8)}...`,
               avatarUrl: user?.avatarUrl || '',
@@ -265,69 +202,13 @@ async function startServer() {
         return res.status(400).json({ error: "itemCode is required" });
       }
 
-      const fetchTRPC = async (url: string, headers: Record<string, string> = {}) => {
-        try {
-          const response = await fetch(url, {
-            headers: {
-              Accept: 'application/json',
-              'User-Agent': 'WarEra-Companion/1.0',
-              ...headers,
-            },
-            signal: AbortSignal.timeout(4000),
-          });
-          
-          if (!response.ok) {
-            console.error(`[Offers] API returned ${response.status}`);
-            throw new Error(`Upstream returned ${response.status}`);
-          }
-          
-          const text = await response.text();
-          if (!text || text.trim().startsWith('<')) {
-            console.error('[Offers] Received HTML instead of JSON');
-            throw new Error('Received HTML response');
-          }
-          
-          return JSON.parse(text);
-        } catch (error) {
-          console.error('[Offers] Fetch error:', error);
-          throw error;
-        }
-      };
-
-      let data: any = null;
-      let dataSource = 'none';
-
-      const input = encodeURIComponent(
-        JSON.stringify({ itemCode, limit, transactionType: 'trading' })
+      const data = await callCommunity(
+        'transaction.getPaginatedTransactions',
+        { itemCode, limit, transactionType: 'trading' },
+        6000,
       );
 
-      const providers: Array<{ url: string; headers: Record<string, string> }> = [
-        {
-          url: `https://gateway.warerastats.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
-          headers: { 'X-API-Key': 'warerastats' },
-        },
-        {
-          url: `https://api2.warera.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
-          headers: {},
-        },
-        {
-          url: `https://www.warera-pulse.info/api/wr/transaction.getPaginatedTransactions?input=${input}`,
-          headers: {},
-        },
-      ];
-
-      for (const provider of providers) {
-        try {
-          const candidate = await fetchTRPC(provider.url, provider.headers);
-          if (Array.isArray(candidate?.result?.data?.items)) {
-            data = candidate;
-            dataSource = new URL(provider.url).hostname;
-            break;
-          }
-        } catch (err) {
-          console.warn(`[Offers] ${new URL(provider.url).hostname} failed:`, err);
-        }
-      }
+      const dataSource = 'warera.realmarijn.nl';
 
       const rawTransactions = Array.isArray(data?.result?.data?.items)
         ? data.result.data.items
@@ -349,11 +230,8 @@ async function startServer() {
 
       const resolveUser = async (userId: string) => {
         if (userCache.has(userId)) return;
-        const userInput = encodeURIComponent(JSON.stringify({ userId }));
         try {
-          const userData = await fetchTRPC(
-            `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`
-          );
+          const userData = await callCommunity('user.getUserLite', { userId }, 4000);
           const user = userData?.result?.data;
           userCache.set(userId, {
             username: user?.username || `${userId.slice(0, 8)}...`,
@@ -441,7 +319,7 @@ async function startServer() {
     res.status(result.status).json(result.payload);
   });
 
-  // 5. Market Items — ✅ FIX #3: GET + Cache + Fallback
+  // 5. Market Items — dari API komunitas (satu-satunya sumber)
   app.get('/api/market/items', async (req, res) => {
     // Cek cache dulu
     const cached = await getCachedMarketData();
@@ -457,74 +335,37 @@ async function startServer() {
       });
     }
 
-    // Fetch dari official API
+    // Fetch dari API komunitas
     try {
-      const targetUrl = 'https://api2.warera.io/trpc/itemTrading.getPrices';
-      const response = await fetch(targetUrl, {
-        method: 'GET',                          // ✅ FIX: GET, bukan POST
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        // ✅ FIX: NO body untuk GET
-      });
-
-      if (!response.ok) {
-        throw new Error(`WarEra API returned ${response.status}`);
+      const json = await callCommunity('itemTrading.getPrices', {});
+      if (!json?.result?.data) {
+        throw new Error('Community API returned no price map');
       }
 
       // Enrich dengan metadata
-      const json = await response.json() as Record<string, any>;
       const enriched = {
-        ...json, // sekarang bisa di-spread
+        result: { data: json.result.data },
         _meta: {
           fetchedAt: new Date().toISOString(),
-          source: 'api2.warera.io',
+          source: 'warera.realmarijn.nl',
           cached: false,
           nextRefresh: new Date(Date.now() + CACHE_TTL_MS).toISOString(),
         }
       };
 
       // Simpan ke cache
-      await setCachedMarketData(json, 'api2.warera.io');
+      await setCachedMarketData(json, 'warera.realmarijn.nl');
 
       res.set('Cache-Control', 'public, max-age=30');
       res.status(200).json(enriched);
 
     } catch (err: any) {
-      console.error('[Market Proxy] Official API failed:', err);
+      console.error('[Market Proxy] Community API failed:', err);
 
-      // ✅ FIX #4: Fallback ke warerastats.io
-      try {
-        const fallback = await fetch('https://api.warerastats.io/items', {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)',
-          },
-        });
-
-        if (!fallback.ok) throw new Error(`Fallback returned ${fallback.status}`);
-
-        const data = await fallback.json() as Record<string, any>; // ✅ tambahkan `as Record<string, any>`
-        const enriched = {
-          ...data, // sekarang bisa di-spread
-          _meta: {
-            fetchedAt: new Date().toISOString(),
-            source: 'api.warerastats.io (fallback)',
-            warning: 'Official API unavailable, showing mirror data',
-          }
-        };
-
-        await setCachedMarketData(data, 'api.warerastats.io');
-        res.json(enriched);
-
-      } catch (fallbackErr: any) {
-        console.error('[Market Proxy] Fallback also failed:', fallbackErr);
-        res.status(502).json({
-          error: 'Market data currently unavailable',
-          _meta: { fetchedAt: new Date().toISOString() },
-        });
-      }
+      res.status(502).json({
+        error: 'Market data currently unavailable',
+        _meta: { fetchedAt: new Date().toISOString() },
+      });
     }
   });
 
@@ -587,7 +428,7 @@ async function startServer() {
           error: 'Failed to fetch transactions',
         });
       }
-      const data = await response.json();
+      const data: any = await response.json();
       
       // Enrich with user data if userId is present
       const transactions = Array.isArray(data?.items) ? data.items : [];
@@ -601,28 +442,16 @@ async function startServer() {
 
       const userCache = new Map<string, { username: string; avatarUrl: string }>();
 
-      // Fetch user data in parallel
+      // Fetch user data in parallel — dari API komunitas
       await Promise.all(
         userIds.map(async (userId) => {
           try {
-            const userInput = encodeURIComponent(JSON.stringify({ userId }));
-            const userResponse = await fetch(
-              `https://api2.warera.io/trpc/user.getUserLite?input=${userInput}`,
-              { signal: AbortSignal.timeout(3000) }
-            );
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              const user = userData?.result?.data;
-              userCache.set(userId, {
-                username: user?.username || `${userId.slice(0, 8)}...`,
-                avatarUrl: user?.avatarUrl || '',
-              });
-            } else {
-              userCache.set(userId, {
-                username: `${userId.slice(0, 8)}...`,
-                avatarUrl: '',
-              });
-            }
+            const userData = await callCommunity('user.getUserLite', { userId }, 3000);
+            const user = userData?.result?.data;
+            userCache.set(userId, {
+              username: user?.username || `${userId.slice(0, 8)}...`,
+              avatarUrl: user?.avatarUrl || '',
+            });
           } catch {
             userCache.set(userId, {
               username: `${userId.slice(0, 8)}...`,
@@ -650,31 +479,44 @@ async function startServer() {
     }
   });
 
-  // 8. Stats per Item / Orderbook
+  // 8. Stats per Item / Orderbook — dibangun dari API komunitas
   app.get('/api/stats/item/:item', async (req, res) => {
     const { item } = req.params;
     try {
-      const response = await fetch(
-        `https://api.warerastats.io/item/${encodeURIComponent(item)}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)',
-          },
-        }
-      );
-      if (!response.ok) {
-        return res.status(response.status).json({
-          success: false,
-          error: `warerastats.io returned ${response.status}`,
-        });
+      const data = await callCommunity('tradingOrder.getTopOrders', { itemCode: item, limit: 100 }, 6000);
+      const orderData = data?.result?.data;
+
+      if (!orderData) {
+        return res.status(502).json({ success: false, error: 'Community API returned no order book' });
       }
-      const data = await response.json();
+
+      const aggregateLevels = (orders: any[]) => {
+        const map = new Map<number, number>();
+        for (const o of orders || []) {
+          const price = Number(o?.price);
+          const qty = Number(o?.quantity);
+          if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(qty)) continue;
+          map.set(price, (map.get(price) || 0) + qty);
+        }
+        return Array.from(map.entries())
+          .map(([price, quantity]) => ({ price, quantity }))
+          .sort((a, b) => a.price - b.price);
+      };
+
+      const payload = {
+        success: true,
+        data: {
+          orderbook: {
+            buy: aggregateLevels(orderData.buyOrders),
+            sell: aggregateLevels(orderData.sellOrders),
+          },
+        },
+      };
       res.set('Cache-Control', 'public, max-age=30');
-      res.json({ success: true, data });
+      res.json(payload);
     } catch (err: any) {
       console.error('[Stats Error]', err);
-      res.status(502).json({ success: false, error: 'warerastats.io unavailable' });
+      res.status(502).json({ success: false, error: 'Community API unavailable' });
     }
   });
 

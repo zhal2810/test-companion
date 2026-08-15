@@ -257,7 +257,7 @@ export const getMarketOrders = async (
       throw new Error(`Order API returned ${response.status}`);
     }
 
-    const json = await response.json();
+    const json: any = await response.json();
     const data = json?.result?.data;
 
     return {

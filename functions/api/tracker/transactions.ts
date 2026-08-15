@@ -1,5 +1,9 @@
 // functions/api/tracker/transactions.ts
 // Cloudflare Pages Function: riwayat transaksi per negara (pagination + resolve username).
+// Sumber data: API komunitas warera.realmarijn.nl (satu-satunya). api2/gateway
+// sudah TIDAK dipakai lagi.
+import { callCommunity } from '../_shared/community';
+
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
   'http://localhost:5173',
@@ -36,60 +40,6 @@ function getCorsHeaders(request: Request): Record<string, string> {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
   };
-}
-
-function encodeInput(input: unknown): string {
-  return encodeURIComponent(JSON.stringify(input));
-}
-
-async function fetchWareraTRPC(
-  procedure: string,
-  input: unknown,
-  apiKey: string | null,
-  timeoutMs = 8000,
-): Promise<any | null> {
-  const targets: { url: string; headers: Record<string, string> }[] = [];
-  const isUserProc = procedure.startsWith('user.');
-  if (isUserProc) {
-    // Untuk resolve username, gateway dulu — bentuknya sudah terverifikasi
-    // mengembalikan result.data.username; api2 di beberapa kasus menolak / beda bentuk.
-    targets.push({
-      url: `https://gateway.warerastats.io/trpc/${procedure}?input=${encodeInput(input)}`,
-      headers: { 'X-API-Key': 'warerastats' },
-    });
-    targets.push({
-      url: `https://api2.warera.io/trpc/${procedure}?input=${encodeInput(input)}`,
-      headers: apiKey ? { 'X-API-Key': apiKey } : {},
-    });
-  } else {
-    targets.push({
-      url: `https://api2.warera.io/trpc/${procedure}?input=${encodeInput(input)}`,
-      headers: apiKey ? { 'X-API-Key': apiKey } : {},
-    });
-    targets.push({
-      url: `https://gateway.warerastats.io/trpc/${procedure}?input=${encodeInput(input)}`,
-      headers: { 'X-API-Key': 'warerastats' },
-    });
-  }
-
-  for (const target of targets) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const response = await fetch(target.url, {
-        method: 'GET',
-        headers: { Accept: 'application/json', ...target.headers },
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (response.ok) {
-        return await response.json();
-      }
-    } catch {
-      // Try next upstream
-    }
-  }
-  return null;
 }
 
 function toNumber(value: unknown): number {
@@ -176,7 +126,6 @@ export const onRequestGet: PagesFunction = async (context) => {
   const url = new URL(request.url);
   const countryId = url.searchParams.get('countryId') || DEFAULT_COUNTRY_ID;
   const transactionType = url.searchParams.get('transactionType') || undefined;
-  const apiKey = request.headers.get('x-api-key');
 
   try {
     const cache = caches.default;
@@ -223,7 +172,7 @@ export const onRequestGet: PagesFunction = async (context) => {
         if (transactionType) input.transactionType = transactionType;
         if (cursor) input.cursor = cursor;
 
-        const json = await fetchWareraTRPC('transaction.getPaginatedTransactions', input, apiKey);
+        const json = await callCommunity('transaction.getPaginatedTransactions', input);
         const data = json?.result?.data;
         const items = Array.isArray(data?.items) ? data.items : [];
         all.push(...items);
@@ -271,50 +220,11 @@ export const onRequestGet: PagesFunction = async (context) => {
     const idsToResolve = uncachedIds.slice(0, resolveBudget);
 
     async function resolveUsername(uid: string): Promise<string> {
-      // Coba POST dulu (jalur terbukti berhasil, sama dengan proxy
-      // functions/api/players/[procedure].ts yang sudah dites langsung).
-      // GET dipakai sebagai fallback kalau POST gagal.
+      // API komunitas — satu subrequest, bentuk identik dengan api2 dulu.
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 6000);
-        const res = await fetch('https://api2.warera.io/trpc/user.getUserById', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            ...(apiKey ? { 'X-API-Key': apiKey } : {}),
-          },
-          body: JSON.stringify({ userId: uid }),
-          signal: controller.signal,
-        });
-        clearTimeout(timer);
-        if (res.ok) {
-          const json: any = await res.json();
-          const name = json?.result?.data?.username;
-          if (name) return name;
-        }
-      } catch {
-        // lanjut ke fallback GET
-      }
-
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 6000);
-        const input = encodeURIComponent(JSON.stringify({ userId: uid }));
-        const res = await fetch(`https://api2.warera.io/trpc/user.getUserById?input=${input}`, {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            ...(apiKey ? { 'X-API-Key': apiKey } : {}),
-          },
-          signal: controller.signal,
-        });
-        clearTimeout(timer);
-        if (res.ok) {
-          const json: any = await res.json();
-          const name = json?.result?.data?.username;
-          if (name) return name;
-        }
+        const json = await callCommunity('user.getUserById', { userId: uid }, 6000);
+        const name = json?.result?.data?.username;
+        if (name) return name;
       } catch {
         // jatuh ke fallback UID di bawah
       }

@@ -1,4 +1,9 @@
 // functions/api/warera/[[path]].ts
+// Proxy catch-all /api/warera/** — diteruskan ke API komunitas warera.realmarijn.nl
+// (satu-satunya sumber; api2/gateway sudah TIDAK dipakai lagi).
+// Sub-path seperti /trpc/foo.bar diubah menjadi prosedur foo.bar.
+import { callCommunity } from '../_shared/community';
+
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
   'http://localhost:5173',
@@ -25,41 +30,43 @@ export const onRequest: PagesFunction = async (context) => {
 
   try {
     const subPath = url.pathname.replace(/^\/api\/warera/, '');
-    const targetUrl = `https://api2.warera.io${subPath}${url.search}`;
+    const procedure = subPath
+      .replace(/^\/trpc\//, '')
+      .replace(/^\//, '')
+      .replace(/\//g, '.');
 
-    console.log(`[CF Proxy] ${request.method} ${url.pathname} -> ${targetUrl}`);
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    const authHeader = request.headers.get('authorization');
-    const apiKeyHeader = request.headers.get('x-api-key');
-    if (authHeader) headers['authorization'] = authHeader;
-    if (apiKeyHeader) headers['x-api-key'] = apiKeyHeader;
-
-    const fetchOptions: RequestInit = { method: request.method, headers };
-
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      const bodyText = await request.text();
-      if (bodyText) fetchOptions.body = bodyText;
+    if (!procedure) {
+      return Response.json({ error: 'Procedure is required' }, { status: 400, headers: getCorsHeaders(request) });
     }
 
-    const response = await fetch(targetUrl, fetchOptions);
-    const contentType = response.headers.get('content-type') || '';
-
-    const responseHeaders = new Headers(getCorsHeaders(request));
-    const safeHeaders = ['content-type', 'cache-control', 'expires', 'pragma'];
-    safeHeaders.forEach((h) => {
-      const val = response.headers.get(h);
-      if (val) responseHeaders.set(h, val);
-    });
-
-    if (contentType.includes('application/json')) {
-      const json = await response.json();
-      return Response.json(json, { status: response.status, headers: responseHeaders });
+    let input: Record<string, any> = {};
+    const encoded = url.searchParams.get('input');
+    if (encoded) {
+      try {
+        input = JSON.parse(encoded) ?? {};
+      } catch {
+        input = {};
+      }
+    } else {
+      input = Object.fromEntries(url.searchParams.entries());
+      for (const key in input) {
+        if (typeof input[key] === 'string' && input[key].trim() !== '') {
+          const num = Number(input[key]);
+          if (!Number.isNaN(num)) input[key] = num;
+        }
+      }
     }
-    const text = await response.text();
-    return new Response(text, { status: response.status, headers: responseHeaders });
+
+    console.log(`[CF Proxy warera] ${request.method} ${url.pathname} -> community ${procedure}`);
+
+    const json = await callCommunity(procedure, input);
+    if (json) {
+      return Response.json(json, { status: 200, headers: getCorsHeaders(request) });
+    }
+    return Response.json(
+      { error: `Failed to call WarEra API via community (${procedure})` },
+      { status: 502, headers: getCorsHeaders(request) }
+    );
 
   } catch (err: any) {
     console.error('[CF Proxy Error] WarEra API:', err);

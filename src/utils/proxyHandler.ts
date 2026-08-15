@@ -6,68 +6,86 @@ interface ProxyRequest {
   queryParams?: Record<string, string>;
 }
 
-// Handler utama untuk rute tRPC official WarEra
-export async function handleWareraProxy(req: ProxyRequest) {
-  const { procedure, method, headers, body, queryParams } = req;
-  
-  const baseUrl = `https://api2.warera.io/trpc/${encodeURIComponent(procedure)}`;
-  const url = new URL(baseUrl);
-  
-  if (queryParams) {
-    Object.keys(queryParams).forEach(key => 
-      url.searchParams.append(key, queryParams[key])
-    );
-  }
+// Handler utama untuk rute tRPC WarEra — sumber tunggal: API komunitas
+// warera.realmarijn.nl. api2.warera.io & gateway.warerastats.io sudah TIDAK dipakai.
+const COMMUNITY_API_BASE = 'https://warera.realmarijn.nl';
 
-  const forwardHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (headers['authorization']) forwardHeaders['authorization'] = headers['authorization'];
-  if (headers['x-api-key']) forwardHeaders['x-api-key'] = headers['x-api-key'];
-
+export async function callCommunity(
+  procedure: string,
+  input: unknown,
+  timeoutMs = 8000,
+): Promise<any | null> {  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url.toString(), {
-      method,
-      headers: forwardHeaders,
-      body: method !== 'GET' && method !== 'HEAD' && body ? JSON.stringify(body) : undefined,
+    const response = await fetch(`${COMMUNITY_API_BASE}/api/proxy/${procedure}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(input ?? {}),
+      signal: controller.signal,
     });
-
-    const data = await response.json();
-    return { status: response.status, payload: data };
-  } catch (err: any) {
-    return {
-      status: 500,
-      payload: { success: false, error: 'Internal Proxy Error' }
-    };
+    clearTimeout(timer);
+    if (!response.ok) return null;
+    const json: any = await response.json();
+    if (json?.ok && json?.data) return json.data;
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-// SOLUSI POIN 4: Handler Live Call untuk Market Stats (Menggantikan file temp_warera_stats.json)
+export async function handleWareraProxy(req: ProxyRequest) {
+  const { procedure, body, queryParams } = req;
+
+  const input = {
+    ...(queryParams ?? {}),
+    ...((body?.input ?? body) || {}),
+  };
+
+  for (const key in input) {
+    if (typeof input[key] === 'string' && input[key].trim() !== '') {
+      const num = Number(input[key]);
+      if (!Number.isNaN(num)) input[key] = num;
+    }
+  }
+
+  const json = await callCommunity(procedure, input);
+  if (json) {
+    return { status: 200, payload: json };
+  }
+  return {
+    status: 502,
+    payload: { success: false, error: `Failed to call WarEra API via community (${procedure})` },
+  };
+}
+
+// SOLUSI POIN 4: Handler Live Call untuk Market Stats — dari API komunitas.
+// itemTrading.getPrices mengembalikan map harga per item; dipetakan ke bentuk
+// array { itemCode, price } yang sama seperti warerastats.io/items dulu.
 export async function handleLiveMarketStats() {
   try {
-    // Mengambil data real-time langsung dari API mirror pihak ketiga
-    const response = await fetch('https://api.warerastats.io/items', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)'
-      },
-    });
+    const json = await callCommunity('itemTrading.getPrices', {});
+    const map = json?.result?.data;
 
-    if (!response.ok) {
-      throw new Error(`Upstream returned status ${response.status}`);
+    if (!map || typeof map !== 'object') {
+      throw new Error('Community API returned no price map');
     }
 
-    const data = await response.json();
+    const data = Object.entries(map).map(([itemCode, price]) => ({
+      itemCode,
+      price: Number(price) || 0,
+      avg: Number(price) || 0,
+    }));
+
     return {
       status: 200,
-      payload: { success: true, data }
+      payload: { success: true, data },
     };
   } catch (err: any) {
     return {
-      status: 502, // Bad Gateway karena upstream/pihak ketiga bermasalah
-      payload: { success: false, error: 'Failed to fetch live market stats from third-party API' }
+      status: 502,
+      payload: { success: false, error: 'Failed to fetch live market stats from community API' },
     };
   }
 }

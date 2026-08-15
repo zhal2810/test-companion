@@ -1,4 +1,9 @@
 // functions/api/stats/item/[item].ts
+// Stats per item: orderbook (bid/ask levels) dibangun dari API komunitas
+// warera.realmarijn.nl tradingOrder.getTopOrders. warerastats.io sudah TIDAK
+// dipakai lagi (pihak ketiga yang tidak dipelihara).
+import { callCommunity } from '../../_shared/community';
+
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
   'http://localhost:5173',
@@ -15,6 +20,20 @@ function getCorsHeaders(request: Request): Record<string, string> {
   };
 }
 
+// Agregasi order per-tingkat harga menjadi level orderbook {price, quantity}.
+function aggregateLevels(orders: any[]): { price: number; quantity: number }[] {
+  const map = new Map<number, number>();
+  for (const o of orders || []) {
+    const price = Number(o?.price);
+    const qty = Number(o?.quantity);
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(qty)) continue;
+    map.set(price, (map.get(price) || 0) + qty);
+  }
+  return Array.from(map.entries())
+    .map(([price, quantity]) => ({ price, quantity }))
+    .sort((a, b) => a.price - b.price);
+}
+
 export const onRequestGet: PagesFunction = async (context) => {
   const { request, params } = context;
   const item = params.item as string;
@@ -24,38 +43,37 @@ export const onRequestGet: PagesFunction = async (context) => {
   }
 
   try {
-    const response = await fetch(
-      `https://api.warerastats.io/item/${encodeURIComponent(item)}`,
-      {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)',
-        },
-      }
-    );
+    const json = await callCommunity('tradingOrder.getTopOrders', { itemCode: item, limit: 100 }, 6000);
+    const data = json?.result?.data;
 
-    if (!response.ok) {
+    if (!data) {
       return Response.json(
-        { success: false, error: `warerastats.io returned ${response.status}` },
-        { status: response.status, headers: getCorsHeaders(request) }
+        { success: false, error: `Community API returned no order book for ${item}` },
+        { status: 502, headers: getCorsHeaders(request) }
       );
     }
 
-    const data = await response.json();
-    return Response.json(
-      { success: true, data },
-      {
-        headers: {
-          'Cache-Control': 'public, max-age=30',
-          ...getCorsHeaders(request),
+    const payload = {
+      success: true,
+      data: {
+        orderbook: {
+          buy: aggregateLevels(data.buyOrders),
+          sell: aggregateLevels(data.sellOrders),
         },
-      }
-    );
+      },
+    };
+
+    return Response.json(payload, {
+      headers: {
+        'Cache-Control': 'public, max-age=30',
+        ...getCorsHeaders(request),
+      },
+    });
 
   } catch (err: any) {
     console.error('[CF Stats Error]', err);
     return Response.json(
-      { success: false, error: 'warerastats.io unavailable' },
+      { success: false, error: 'Community API unavailable' },
       { status: 502, headers: getCorsHeaders(request) }
     );
   }

@@ -1,5 +1,8 @@
 // functions/api/warera/order.ts
 // Cloudflare Pages Function: WarEra BID / OFFER + username/avatar enrichment.
+// Sumber data: API komunitas warera.realmarijn.nl (satu-satunya). api2/gateway
+// sudah TIDAK dipakai lagi.
+import { callCommunity } from '../_shared/community';
 
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
@@ -29,74 +32,12 @@ function cors(request: Request): Record<string, string> {
   };
 }
 
-async function fetchJson(
-  url: string,
-  extraHeaders: Record<string, string> = {},
-): Promise<any> {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'WarEra-Intelligence-Dashboard/1.0',
-      ...extraHeaders,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
-function encodeInput(input: unknown) {
-  return encodeURIComponent(JSON.stringify(input));
-}
-
 async function fetchWareraTRPC(
   procedure: string,
   input: unknown,
   timeoutMs = 5000,
 ): Promise<any | null> {
-  const encoded = encodeInput(input);
-
-  const targets = [
-    {
-      url: `https://gateway.warerastats.io/trpc/${procedure}?input=${encoded}`,
-      headers: { 'X-API-Key': 'warerastats' },
-    },
-    {
-      url: `https://api2.warera.io/trpc/${procedure}?input=${encoded}`,
-      headers: {},
-    },
-  ];
-
-  for (const target of targets) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-      const response = await fetch(target.url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'WarEra-Intelligence-Dashboard/1.0',
-          ...target.headers,
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timer);
-
-      if (response.ok) {
-        return await response.json();
-      }
-    } catch {
-      // Try next upstream.
-    }
-  }
-
-  return null;
+  return callCommunity(procedure, input, timeoutMs);
 }
 
 async function resolveUserLite(userId: string): Promise<UserLite> {
@@ -203,18 +144,6 @@ export const onRequestGet: PagesFunction = async ({ request }) => {
       { itemCode, limit },
       5000,
     );
-
-    // WarEra Pulse fallback.
-    if (!data?.result?.data) {
-      try {
-        const encoded = encodeInput({ itemCode, limit });
-        data = await fetchJson(
-          `https://www.warera-pulse.info/api/wr/tradingOrder.getTopOrders?input=${encoded}`,
-        );
-      } catch {
-        // Handled below.
-      }
-    }
 
     if (!data?.result?.data) {
       return Response.json(

@@ -6,6 +6,8 @@
 // Returns REALIZED trading transactions (not pending orders) for an item,
 // enriched with the buyer's username + avatar. Uses
 // transaction.getPaginatedTransactions (filtered by itemCode + 'trading').
+// Sumber data: API komunitas warera.realmarijn.nl (satu-satunya).
+import { callCommunity } from '../../_shared/community';
 
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
@@ -28,31 +30,6 @@ function cors(request: Request): Headers {
   });
 }
 
-async function fetchJson(
-  url: string,
-  extraHeaders: Record<string, string> = {},
-) {
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      'User-Agent': 'WarEra-Companion/1.0',
-      ...extraHeaders,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`${new URL(url).hostname} returned HTTP ${response.status}`);
-  }
-
-  const text = await response.text();
-  if (!text || text.trim().startsWith('<')) {
-    throw new Error(`${new URL(url).hostname} returned HTML instead of JSON`);
-  }
-
-  return JSON.parse(text);
-}
-
 type UserInfo = {
   username: string;
   avatarUrl: string;
@@ -68,40 +45,17 @@ async function resolveUsername(userId: string): Promise<UserInfo> {
   const cached = userCache.get(userId);
   if (cached) return cached;
 
-  const input = encodeURIComponent(JSON.stringify({ userId }));
+  const json = await callCommunity('user.getUserLite', { userId }, 4000);
+  const user = json?.result?.data;
 
-  const targets: Array<{ url: string; headers: Record<string, string> }> = [
-    {
-      url: `https://gateway.warerastats.io/trpc/user.getUserLite?input=${input}`,
-      headers: { 'X-API-Key': 'warerastats' },
-    },
-    {
-      url: `https://api2.warera.io/trpc/user.getUserLite?input=${input}`,
-      headers: {},
-    },
-    {
-      url: `https://www.warera-pulse.info/api/wr/user.getUserLite?input=${input}`,
-      headers: {},
-    },
-  ];
+  if (user?.username) {
+    const info = {
+      username: String(user.username),
+      avatarUrl: user.avatarUrl ? String(user.avatarUrl) : '',
+    };
 
-  for (const target of targets) {
-    try {
-      const json = await fetchJson(target.url, target.headers);
-      const user = json?.result?.data;
-
-      if (user?.username) {
-        const info = {
-          username: String(user.username),
-          avatarUrl: user.avatarUrl ? String(user.avatarUrl) : '',
-        };
-
-        userCache.set(userId, info);
-        return info;
-      }
-    } catch {
-      // Try next provider.
-    }
+    userCache.set(userId, info);
+    return info;
   }
 
   const fallback = {
@@ -143,41 +97,13 @@ export const onRequestGet: PagesFunction = async ({ request, params }) => {
       );
     }
 
-    const input = encodeURIComponent(
-      JSON.stringify({ itemCode, limit, transactionType: 'trading' }),
+    const data: any = await callCommunity(
+      'transaction.getPaginatedTransactions',
+      { itemCode, limit, transactionType: 'trading' },
+      6000,
     );
 
-    const targets: Array<{ url: string; headers: Record<string, string> }> = [
-      {
-        url: `https://gateway.warerastats.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
-        headers: { 'X-API-Key': 'warerastats' },
-      },
-      {
-        url: `https://api2.warera.io/trpc/transaction.getPaginatedTransactions?input=${input}`,
-        headers: {},
-      },
-      {
-        url: `https://www.warera-pulse.info/api/wr/transaction.getPaginatedTransactions?input=${input}`,
-        headers: {},
-      },
-    ];
-
-    let data: any = null;
-    let dataSource = 'none';
-
-    for (const target of targets) {
-      try {
-        const candidate = await fetchJson(target.url, target.headers);
-
-        if (Array.isArray(candidate?.result?.data?.items)) {
-          data = candidate;
-          dataSource = new URL(target.url).hostname;
-          break;
-        }
-      } catch {
-        // Try next provider.
-      }
-    }
+    const dataSource = 'warera.realmarijn.nl';
 
     const rawTransactions = Array.isArray(data?.result?.data?.items)
       ? data.result.data.items

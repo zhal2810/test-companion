@@ -1,4 +1,7 @@
 // functions/api/market/items.ts
+// Harga pasar per item — dari API komunitas warera.realmarijn.nl (satu-satunya).
+import { callCommunity } from '../_shared/community';
+
 export const onRequestGet: PagesFunction = async (context) => {
   const cache = caches.default;
   const cacheKey = new URL(context.request.url);
@@ -16,27 +19,18 @@ export const onRequestGet: PagesFunction = async (context) => {
     });
   }
 
-  // 1. Coba official API dengan GET
+  // 1. API komunitas (POST /api/proxy/itemTrading.getPrices)
   try {
-    const targetUrl = 'https://api2.warera.io/trpc/itemTrading.getPrices';
-    const response = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`WarEra API returned ${response.status}`);
+    const json = await callCommunity('itemTrading.getPrices', {});
+    if (!json?.result?.data) {
+      throw new Error('Community API returned no price map');
     }
 
-    const json = await response.json() as Record<string, any>; // ✅ FIX: cast ke object
     const enriched = {
-      ...json,
+      result: { data: json.result.data },
       _meta: {
         fetchedAt: new Date().toISOString(),
-        source: 'api2.warera.io',
+        source: 'warera.realmarijn.nl',
         cached: false,
       }
     };
@@ -53,42 +47,14 @@ export const onRequestGet: PagesFunction = async (context) => {
     return cacheResponse;
 
   } catch (err: any) {
-    console.error('[CF Market] Official API failed:', err);
+    console.error('[CF Market] Community API failed:', err);
 
-    // 2. Fallback ke warerastats.io
-    try {
-      const fallback = await fetch('https://api.warerastats.io/items', {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)',
-        },
-      });
-
-      if (!fallback.ok) throw new Error(`Fallback returned ${fallback.status}`);
-
-      const data = await fallback.json() as Record<string, any>; // ✅ FIX: cast ke object
-      const enriched = {
-        ...data,
-        _meta: {
-          fetchedAt: new Date().toISOString(),
-          source: 'api.warerastats.io (fallback)',
-          warning: 'Official API unavailable',
-        }
-      };
-
-      return Response.json(enriched, {
-        headers: { 'Cache-Control': 'public, max-age=60' },
-      });
-
-    } catch (fallbackErr: any) {
-      console.error('[CF Market] Fallback also failed:', fallbackErr);
-      return Response.json(
-        {
-          error: 'Market data currently unavailable',
-          _meta: { fetchedAt: new Date().toISOString() },
-        },
-        { status: 502 }
-      );
-    }
+    return Response.json(
+      {
+        error: 'Market data currently unavailable',
+        _meta: { fetchedAt: new Date().toISOString() },
+      },
+      { status: 502 }
+    );
   }
 };
