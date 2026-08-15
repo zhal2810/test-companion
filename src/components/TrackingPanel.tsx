@@ -141,6 +141,70 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
     loadTransactions();
   }, [loadTransactions]);
 
+  // Resolve username on-demand: hanya untuk baris yang benar-benar tampil di
+  // layar (maks 50), dipanggil satu-per-satu ke endpoint kecil
+  // /api/tracker/username. Backend transactions.ts membatasi resolve batch ke
+  // ~40 user baru per 5 menit (biar tidak kena limit subrequest Cloudflare),
+  // yang dengan ribuan user unik butuh berjam-jam untuk selesai semua. Dengan
+  // resolve on-demand ini, tiap request cuma perlu resolve 1 user, sehingga
+  // baris yang benar-benar dilihat user langsung ter-resolve dalam hitungan
+  // detik, terlepas dari progres batch resolve di backend.
+  const [usernameCache, setUsernameCache] = useState<Record<string, string>>({});
+  const pendingResolveRef = React.useRef<Set<string>>(new Set());
+
+  const visibleTransactions = useMemo(() => filtered.slice(0, 50), [filtered]);
+
+  useEffect(() => {
+    const idsToResolve = new Set<string>();
+    for (const tx of visibleTransactions) {
+      for (const [id, name] of [
+        [tx.sellerId, tx.sellerName],
+        [tx.buyerId, tx.buyerName],
+      ] as const) {
+        if (!id) continue;
+        if (name) continue; // sudah ada nama dari API utama
+        if (usernameCache[id]) continue; // sudah pernah di-resolve
+        if (pendingResolveRef.current.has(id)) continue; // sedang diproses
+        idsToResolve.add(id);
+      }
+    }
+    if (idsToResolve.size === 0) return;
+
+    idsToResolve.forEach((id) => pendingResolveRef.current.add(id));
+
+    (async () => {
+      const headers: Record<string, string> = {};
+      if (token) headers['X-API-Key'] = token;
+
+      await Promise.all(
+        Array.from(idsToResolve).map(async (id) => {
+          try {
+            const res = await fetch(`/api/tracker/username?id=${encodeURIComponent(id)}`, { headers });
+            const json = await res.json();
+            const name = json?.data?.username;
+            if (name) {
+              setUsernameCache((prev) => ({ ...prev, [id]: name }));
+            }
+          } catch {
+            // biarkan fallback ID pendek dipakai di render
+          } finally {
+            pendingResolveRef.current.delete(id);
+          }
+        }),
+      );
+    })();
+  }, [visibleTransactions, usernameCache, token]);
+
+  // Gabungkan nama dari API utama (kalau ada) + hasil resolve on-demand.
+  const resolveName = useCallback(
+    (id: string, nameFromApi: string): string => {
+      if (nameFromApi) return nameFromApi;
+      if (!id) return '';
+      return usernameCache[id] || id.slice(0, 8);
+    },
+    [usernameCache],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rawTransactions.filter((tx) => {
@@ -180,11 +244,11 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
           quantity: tx.quantity,
           unitPrice: tx.unitPrice,
           time,
-          counterpartyName: isBuy ? tx.sellerName : tx.buyerName,
+          counterpartyName: isBuy ? resolveName(tx.sellerId, tx.sellerName) : resolveName(tx.buyerId, tx.buyerName),
         };
       })
       .filter((t): t is NonNullable<typeof t> => t !== null);
-  }, [filtered, countryId]);
+  }, [filtered, countryId, resolveName]);
 
   const fifo = useMemo(() => computeFifo(trades), [trades]);
 
@@ -565,14 +629,16 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.slice(0, 50).map((tx) => {
+                    {visibleTransactions.map((tx) => {
                       const isBuy = tx.buyerCountryId === countryId;
                       const isSell = tx.sellerCountryId === countryId;
                       const isTradeType = tx.transactionType === 'trading' || tx.transactionType === 'itemMarket';
                       const isDonation = tx.transactionType === 'donation';
                       const donationOut = isDonation && isSell;
                       const donationIn = isDonation && isBuy;
-                      const counterparty = isBuy ? tx.sellerName || '—' : tx.buyerName || '—';
+                      const counterparty = isBuy
+                        ? resolveName(tx.sellerId, tx.sellerName) || '—'
+                        : resolveName(tx.buyerId, tx.buyerName) || '—';
                       return (
                         <tr key={tx._id} className="border-b border-slate-800/40 hover:bg-slate-800/20">
                           <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{formatDate(tx.createdAt)}</td>
