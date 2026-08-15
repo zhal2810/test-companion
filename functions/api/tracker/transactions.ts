@@ -8,15 +8,25 @@ const ALLOWED_ORIGINS = [
 
 const DEFAULT_COUNTRY_ID = '6813b6d546e731854c7ac829'; // Indonesia
 const MAX_PAGES = 500; // amankan dari infinite loop (~50.000 transaksi)
-const RAW_TTL_SECONDS = 900; // cache raw transactions 15 menit
-const USERNAME_TTL_SECONDS = 86400; // cache username 24 jam
-// Kuota subrequest Cloudflare: 50 (Free) / 1000 (Paid). Nilai default
-// konservatif ke plan Free, tapi bisa di-override lewat env SUBREQUEST_LIMIT.
-// Budget resolusi dihitung adaptif: kuota dikurangi jumlah halaman yang
-// benar-benar di-paginate pada invokasi ini. Dipakai bersama cache username
-// persisten supaya makin hangat tiap kali halaman dibuka.
+const RAW_TTL_SECONDS = 900; // cache raw transactions 15 menit (hindari pagination ulang)
+const USER_CACHE_TTL_SECONDS = 60 * 60 * 24; // cache username 24 jam
+
+// Cloudflare Pages Functions membatasi jumlah subrequest per invocation
+// (50 di plan Free, 1000 di plan Paid). Dengan ratusan/ribuan user unik per
+// negara, resolve username untuk SEMUANYA dalam satu request akan melebihi
+// limit itu dan sisanya gagal -> fallback ke UID mentah.
+//
+// Strategi (Free-plan friendly):
+//   1. Raw transactions di-cache (L2) 15 menit → pagination tidak diulang,
+//      sehingga kuota subrequest hampir seluruhnya tersedia untuk resolve.
+//   2. Resolve username BARU dibatasi per request secara ADAPTIF:
+//        budget = min(MAX_NEW_RESOLUTIONS, subrequestLimit - pagesThisRun)
+//      Dengan cache raw hangat (pagesThisRun = 0) dan subrequestLimit default
+//      50 (Free), budget ≈ 25-40 user per siklus; sisanya ter-resolve di
+//      request berikutnya. Fallback UID tidak di-cache → selalu dicoba ulang.
+//   Env SUBREQUEST_LIMIT bisa di-override (mis. "1000" di plan Paid).
 const MAX_NEW_RESOLUTIONS = 40;
-const CONCURRENCY = 5;
+const CONCURRENCY = 6;
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('origin') || '';
@@ -87,6 +97,40 @@ function toNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Key cache khusus untuk hasil resolve username per-uid, terpisah dari cache
+// agregat/raw (yang cuma bertahan 5-15 menit). TTL di sini jauh lebih panjang
+// karena username jarang berubah, sehingga sekali ter-resolve, uid tsb tidak
+// perlu subrequest lagi di request-request berikutnya.
+function userCacheUrl(uid: string): URL {
+  const safe = uid.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return new URL(`https://cache.internal/__tracker_user_cache/${safe}`);
+}
+
+async function getCachedUsername(cache: Cache, uid: string): Promise<string | null> {
+  try {
+    const res = await cache.match(userCacheUrl(uid));
+    if (!res) return null;
+    const data = (await res.json()) as { username?: string };
+    return data?.username || null;
+  } catch {
+    return null;
+  }
+}
+
+async function setCachedUsername(cache: Cache, uid: string, username: string): Promise<void> {
+  try {
+    const res = new Response(JSON.stringify({ username }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, max-age=${USER_CACHE_TTL_SECONDS}`,
+      },
+    });
+    await cache.put(userCacheUrl(uid), res);
+  } catch {
+    // Cache tidak tersedia (mis. dev server) - abaikan, tidak fatal.
+  }
+}
+
 // Baca/masukin JSON ke Cloudflare Cache API. Operasi cache TIDAK dihitung
 // sebagai subrequest — aman dipakai banyak.
 async function cacheGetJSON(cache: Cache, key: URL): Promise<any | null> {
@@ -104,7 +148,7 @@ function cachePutJSON(
   key: URL,
   value: any,
   maxAgeSeconds: number,
-  waitUntil: any,
+  waitUntil?: any,
 ): void {
   const res = new Response(JSON.stringify(value), {
     headers: {
@@ -113,11 +157,8 @@ function cachePutJSON(
     },
   });
   try {
-    if (waitUntil) {
-      waitUntil(cache.put(key, res));
-    } else {
-      cache.put(key, res);
-    }
+    const p = cache.put(key, res);
+    if (waitUntil) waitUntil(p);
   } catch {
     // Cache tidak tersedia — abaikan.
   }
@@ -158,8 +199,9 @@ export const onRequestGet: PagesFunction = async (context) => {
       }
     }
 
-    // L2: raw transactions (15 menit) — hindari pagination ulang tiap request,
-    // supaya kuota subrequest dipakai untuk resolve username, bukan pagination.
+    // L2: raw transactions (15 menit) — hindari pagination ulang tiap request.
+    // Ini kunci di plan Free: kalau pagination (≈49 halaman) diulang tiap
+    // request, kuota 50 subrequest habis sebelum resolve username dimulai.
     const rawKey = new URL(base);
     rawKey.pathname = `/__tracker_raw/${slug}`;
     let all: any[] | null = null;
@@ -204,57 +246,68 @@ export const onRequestGet: PagesFunction = async (context) => {
     );
 
     const userMap = new Map<string, string>();
-    const toResolve: string[] = [];
 
-    // L3: username cache per-uid (24 jam). Yang belum ada → antre resolve.
+    // 1) Cek cache per-uid dulu — ini TIDAK memakai subrequest sama sekali,
+    //    jadi user yang sudah pernah ter-resolve akan langsung dapat username
+    //    tanpa menyentuh limit subrequest.
+    const uncachedIds: string[] = [];
     for (const uid of userIds) {
-      const unameKey = new URL(base);
-      unameKey.pathname = `/__tracker_user/${uid}`;
-      const hit = await cacheGetJSON(cache, unameKey);
-      if (hit?.username) {
-        userMap.set(uid, hit.username);
+      const cached = await getCachedUsername(cache, uid);
+      if (cached) {
+        userMap.set(uid, cached);
       } else {
-        toResolve.push(uid);
+        uncachedIds.push(uid);
       }
     }
 
-    // Resolve hanya user BARU yang belum pernah di-cache, dibatasi budget
-    // adaptif supaya tidak melebihi kuota subrequest per invocation:
-    //   budget = SUBREQUEST_LIMIT - halaman yang di-paginate pada invokasi ini
-    // Sisa yang belum ter-resolve di-cache sebagai "pending" (tidak di-cache
-    // namanya), sehingga request berikutnya (raw cache warm → 0 halaman) punya
-    // budget penuh untuk melanjutkan.
-    const resolveBudget = Math.max(
-      0,
-      Math.min(MAX_NEW_RESOLUTIONS, subrequestLimit - pagesFetchedThisRun),
+    // 2) Resolve username BARU secara batch (concurrency 6), dibatasi jumlahnya
+    //    per request secara ADAPTIF. Kalau pagination terjadi di invokasi ini
+    //    (force refresh / raw cache kosong), budget menyusut otomatis supaya
+    //    total subrequest tetap di bawah batas. resolveUsername memakai sampai
+    //    2 subrequest per user, jadi budget sengaja dibagi 2 sebagai bantalan.
+    const resolveBudget = Math.min(
+      MAX_NEW_RESOLUTIONS,
+      Math.max(0, Math.floor((subrequestLimit - pagesFetchedThisRun) / 2)),
     );
-    const newOnes = toResolve.slice(0, Math.min(resolveBudget, toResolve.length));
-    let idx = 0;
+    const idsToResolve = uncachedIds.slice(0, resolveBudget);
 
-    async function resolveOne(uid: string): Promise<string> {
-      // Satu pass, tanpa retry ganda — hemat subrequest.
-      const lite = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
-      const name = lite?.result?.data?.username;
-      if (name) return name;
-      const full = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey, 4000);
-      return full?.result?.data?.username || uid.slice(0, 8);
+    async function resolveUsername(uid: string): Promise<string> {
+      try {
+        const lite = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
+        const name = lite?.result?.data?.username;
+        if (name) return name;
+        const full = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey, 4000);
+        const fullName = full?.result?.data?.username;
+        if (fullName) return fullName;
+      } catch {
+        // jatuh ke fallback di bawah
+      }
+      return uid.slice(0, 8);
     }
 
+    let idx = 0;
     async function worker() {
-      while (idx < newOnes.length) {
-        const uid = newOnes[idx++];
-        const name = await resolveOne(uid);
+      while (idx < idsToResolve.length) {
+        const uid = idsToResolve[idx++];
+        const name = await resolveUsername(uid);
         userMap.set(uid, name);
-        // Cache hanya username asli; kalau fallback (UID), jangan di-cache supaya
-        // bisa dicoba lagi di request berikutnya.
+        // Simpan ke cache hanya jika benar-benar berhasil resolve (bukan
+        // fallback UID), supaya lain kali tetap dicoba ulang, bukan
+        // "terkunci" ke UID selamanya.
         if (name !== uid.slice(0, 8)) {
-          const unameKey = new URL(base);
-          unameKey.pathname = `/__tracker_user/${uid}`;
-          cachePutJSON(cache, unameKey, { username: name }, USERNAME_TTL_SECONDS, waitUntil);
+          const p = setCachedUsername(cache, uid, name);
+          if (waitUntil) waitUntil(p);
+          else await p;
         }
       }
     }
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, newOnes.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, idsToResolve.length) }, worker));
+
+    // User yang belum sempat diresolve di request ini (melebihi batas) tetap
+    // dapat fallback UID pendek untuk sekarang.
+    for (const uid of uncachedIds) {
+      if (!userMap.has(uid)) userMap.set(uid, uid.slice(0, 8));
+    }
 
     const transactions = all.map((t: any) => ({
       _id: t?._id || '',
@@ -280,7 +333,7 @@ export const onRequestGet: PagesFunction = async (context) => {
         total: transactions.length,
         pagesFetched,
         usernamesResolved: userMap.size,
-        usernamesPending: toResolve.length - newOnes.length,
+        usernamesPending: uncachedIds.length - idsToResolve.length,
         transactions,
       },
     };
