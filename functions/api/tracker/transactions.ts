@@ -255,6 +255,16 @@ export const onRequestGet: PagesFunction = async (context) => {
       if (!userMap.has(uid)) userMap.set(uid, uid.slice(0, 8));
     }
 
+    // Hanya kirim nama yang BENAR-BENAR ter-resolve. Kalau belum ter-resolve
+    // (di luar budget subrequest), kirim string kosong — jangan kirim ID
+    // terpotong sebagai "nama", supaya frontend tahu harus resolve on-demand.
+    const resolvedName = (id: string): string => {
+      if (!id) return '';
+      const name = userMap.get(id);
+      if (!name || name === id.slice(0, 8)) return '';
+      return name;
+    };
+
     const transactions = all.map((t: any) => ({
       _id: t?._id || '',
       itemCode: t?.itemCode || '',
@@ -263,8 +273,8 @@ export const onRequestGet: PagesFunction = async (context) => {
       unitPrice: toNumber(t?.quantity) > 0 ? toNumber(t?.money) / toNumber(t?.quantity) : 0,
       sellerId: t?.sellerId || '',
       buyerId: t?.buyerId || '',
-      sellerName: t?.sellerId ? (userMap.get(t.sellerId) || t.sellerId.slice(0, 8)) : '',
-      buyerName: t?.buyerId ? (userMap.get(t.buyerId) || t.buyerId.slice(0, 8)) : '',
+      sellerName: t?.sellerId ? resolvedName(t.sellerId) : '',
+      buyerName: t?.buyerId ? resolvedName(t.buyerId) : '',
       sellerCountryId: t?.sellerCountryId || '',
       buyerCountryId: t?.buyerCountryId || '',
       transactionType: t?.transactionType || '',

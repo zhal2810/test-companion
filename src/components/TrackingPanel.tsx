@@ -19,6 +19,10 @@ import { GAME_ITEMS } from '../data/gameConfig';
 import { computeFifo, Flip, Position } from '../utils/fifo';
 import { fetchWarera } from '../api/apiClient';
 
+// Pola ID terpotong (8 karakter hex, hasil .slice(0, 8) dari backend/API).
+// Ini BUKAN nama asli — harus di-resolve dulu via user.getUserById.
+const TRUNCATED_ID_RE = /^[0-9a-f]{8}$/i;
+
 interface TrackerProps {
   token?: string | null;
   onOpenSettings?: () => void;
@@ -221,7 +225,7 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
         [tx.buyerId, tx.buyerName],
       ] as const) {
         if (!id) continue;
-        if (name) continue; // sudah ada nama dari API utama
+        if (name && !TRUNCATED_ID_RE.test(name)) continue; // sudah ada nama asli dari API utama
         if (usernameCache[id]) continue; // sudah pernah di-resolve
         if (pendingResolveRef.current.has(id)) continue; // sedang diproses
         idsToResolve.add(id);
@@ -258,9 +262,10 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
   }, [visibleTransactions, usernameCache, token]);
 
   // Gabungkan nama dari API utama (kalau ada) + hasil resolve on-demand.
+  // Pola ID terpotong (8 karakter hex) TIDAK dianggap nama asli.
   const resolveName = useCallback(
     (id: string, nameFromApi: string): string => {
-      if (nameFromApi) return nameFromApi;
+      if (nameFromApi && !TRUNCATED_ID_RE.test(nameFromApi)) return nameFromApi;
       if (!id) return '';
       return usernameCache[id] || id.slice(0, 8);
     },
