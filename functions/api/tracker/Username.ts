@@ -4,6 +4,13 @@
 // supaya tidak pernah menabrak limit subrequest Cloudflare Pages Functions
 // (50/request di plan Free) — karena setiap invocation cuma perlu resolve
 // 1 user, bukan ribuan sekaligus.
+//
+// PENTING: resolve dilakukan lewat POST ke api2.warera.io/trpc/user.getUserById
+// — jalur yang sama persis dengan proxy generik functions/api/players/[procedure].ts
+// yang sudah terbukti berhasil (lihat /api/players/user.getUserById?userId=...).
+// Versi sebelumnya mencoba gateway.warerastats.io (GET + X-API-Key hardcoded
+// "warerastats") lebih dulu — endpoint itu kemungkinan besar yang selama ini
+// gagal/di-rate-limit, menyebabkan HAMPIR SEMUA resolve jatuh ke fallback UID.
 const ALLOWED_ORIGINS = [
   'https://test-companion.pages.dev',
   'http://localhost:5173',
@@ -22,41 +29,25 @@ function getCorsHeaders(request: Request): Record<string, string> {
   };
 }
 
-function encodeInput(input: unknown): string {
-  return encodeURIComponent(JSON.stringify(input));
-}
-
-async function fetchWareraTRPC(
-  procedure: string,
-  input: unknown,
-  apiKey: string | null,
-  timeoutMs = 4000,
-): Promise<any | null> {
-  const targets: { url: string; headers: Record<string, string> }[] = [
-    {
-      url: `https://gateway.warerastats.io/trpc/${procedure}?input=${encodeInput(input)}`,
-      headers: { 'X-API-Key': 'warerastats' },
-    },
-    {
-      url: `https://api2.warera.io/trpc/${procedure}?input=${encodeInput(input)}`,
-      headers: apiKey ? { 'X-API-Key': apiKey } : {},
-    },
-  ];
-
-  for (const target of targets) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const response = await fetch(target.url, {
-        method: 'GET',
-        headers: { Accept: 'application/json', ...target.headers },
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (response.ok) return await response.json();
-    } catch {
-      // coba target berikutnya
-    }
+async function fetchUserById(userId: string, apiKey: string | null, timeoutMs = 6000): Promise<any | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (apiKey) headers['X-API-Key'] = apiKey;
+    // Sesuai dokumentasi resmi (api2.warera.io/docs): SEMUA endpoint WarEra
+    // API adalah GET, bukan POST — jadi kirim input via query string ?input=
+    // (format standar tRPC GET), bukan lewat body POST.
+    const input = encodeURIComponent(JSON.stringify({ userId }));
+    const response = await fetch(`https://api2.warera.io/trpc/user.getUserById?input=${input}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (response.ok) return await response.json();
+  } catch {
+    // fallback ke uid pendek di caller
   }
   return null;
 }
@@ -86,27 +77,22 @@ export const onRequestGet: PagesFunction = async (context) => {
   try {
     const cached = await cache.match(cacheKey);
     if (cached) {
-      const data = await cached.json<{ username: string }>();
-      return Response.json(
-        { success: true, data: { id: uid, username: data.username, cached: true } },
-        { headers },
-      );
+      const data = (await cached.json()) as { username?: string };
+      if (data?.username) {
+        return Response.json(
+          { success: true, data: { id: uid, username: data.username, cached: true } },
+          { headers },
+        );
+      }
     }
   } catch {
     // lanjut resolve fresh
   }
 
   let username = uid.slice(0, 8);
-  try {
-    const lite = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey);
-    username = lite?.result?.data?.username || username;
-    if (username === uid.slice(0, 8)) {
-      const full = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey);
-      username = full?.result?.data?.username || username;
-    }
-  } catch {
-    // fallback ke uid pendek
-  }
+  const json = await fetchUserById(uid, apiKey);
+  const fetchedName = json?.result?.data?.username;
+  if (fetchedName) username = fetchedName;
 
   const resolved = username !== uid.slice(0, 8);
 

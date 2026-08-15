@@ -261,24 +261,40 @@ export const onRequestGet: PagesFunction = async (context) => {
     }
 
     // 2) Resolve username BARU secara batch (concurrency 6), dibatasi jumlahnya
-    //    per request secara ADAPTIF. Kalau pagination terjadi di invokasi ini
-    //    (force refresh / raw cache kosong), budget menyusut otomatis supaya
-    //    total subrequest tetap di bawah batas. resolveUsername memakai sampai
-    //    2 subrequest per user, jadi budget sengaja dibagi 2 sebagai bantalan.
+    //    per request secara ADAPTIF. Sejak resolveUsername cuma pakai 1
+    //    subrequest per user (bukan sampai 4 seperti versi lama yang mencoba
+    //    gateway.warerastats.io dulu), budget bisa dihitung 1:1 terhadap sisa
+    //    kuota subrequest, bukan dibagi 2 lagi.
     const resolveBudget = Math.min(
       MAX_NEW_RESOLUTIONS,
-      Math.max(0, Math.floor((subrequestLimit - pagesFetchedThisRun) / 2)),
+      Math.max(0, subrequestLimit - pagesFetchedThisRun - 2), // -2 sebagai bantalan
     );
     const idsToResolve = uncachedIds.slice(0, resolveBudget);
 
     async function resolveUsername(uid: string): Promise<string> {
       try {
-        const lite = await fetchWareraTRPC('user.getUserLite', { userId: uid }, apiKey, 4000);
-        const name = lite?.result?.data?.username;
-        if (name) return name;
-        const full = await fetchWareraTRPC('user.getUserById', { userId: uid }, apiKey, 4000);
-        const fullName = full?.result?.data?.username;
-        if (fullName) return fullName;
+        // Sesuai dokumentasi resmi (api2.warera.io/docs): SEMUA endpoint
+        // WarEra API adalah GET, bukan POST. Kirim input via query string
+        // ?input= (format standar tRPC GET), langsung ke api2.warera.io —
+        // jalur gateway.warerastats.io yang dipakai versi sebelumnya
+        // kemungkinan besar penyebab utama resolve gagal massal.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 6000);
+        const input = encodeURIComponent(JSON.stringify({ userId: uid }));
+        const res = await fetch(`https://api2.warera.io/trpc/user.getUserById?input=${input}`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const json: any = await res.json();
+          const name = json?.result?.data?.username;
+          if (name) return name;
+        }
       } catch {
         // jatuh ke fallback di bawah
       }
