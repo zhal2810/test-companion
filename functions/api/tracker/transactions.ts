@@ -84,7 +84,10 @@ export const onRequestGet: PagesFunction = async (context) => {
     cacheUrl.search = '';
     cacheUrl.pathname = `/__tracker_cache/${cacheKey.replace(/[^a-zA-Z0-9:_-]/g, '_')}`;
 
-    const cachedRes = await cache.match(cacheUrl);
+    // Bypass cache jika diminta force (tombol Refresh kirim ?_=<timestamp>).
+    const forceRefresh = url.searchParams.has('_');
+
+    const cachedRes = forceRefresh ? null : await cache.match(cacheUrl);
     if (cachedRes) {
       return new Response(cachedRes.body, {
         headers: { 'Content-Type': 'application/json', ...headers },
