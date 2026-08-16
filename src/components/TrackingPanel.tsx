@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import ItemIcon from './ItemIcon';
+import OilMaintenancePanel from './OilMaintenancePanel';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeFifo, Flip, Position } from '../utils/fifo';
 import { fetchWarera } from '../api/apiClient';
@@ -553,6 +554,9 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
               </div>
             </div>
           </div>
+
+          {/* OIL MAINTENANCE */}
+          <OilMaintenancePanel countryId={countryId} token={token} />
 
           {/* CURRENT POSITIONS */}
           <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl overflow-hidden">

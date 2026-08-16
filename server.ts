@@ -114,6 +114,127 @@ async function startServer() {
   });
 
 
+  // 2.4 Oil Maintenance — konsumsi Oil (Bunker + Pacification Center) per region
+  const OIL_MAINT_CACHE_FILE = path.join(CACHE_DIR, 'oil_maintenance.json');
+  const OIL_MAINT_TTL_MS = 120_000; // 2 menit
+
+  app.get('/api/tracker/oil-maintenance', async (req, res) => {
+    const countryId = String(req.query.countryId || '6813b6d546e731854c7ac829');
+    try {
+      // Cache file sederhana (mirip market prices)
+      try {
+        const raw = await fs.readFile(OIL_MAINT_CACHE_FILE, 'utf-8');
+        const c = JSON.parse(raw);
+        const age = Date.now() - new Date(c.fetchedAt).getTime();
+        if (age < OIL_MAINT_TTL_MS && c.countryId === countryId) {
+          return res.json(c.payload);
+        }
+      } catch { /* cache miss */ }
+
+      const BUNKER_SCALE: Record<number, number> = { 1: 0.04, 2: 0.08, 3: 0.16, 4: 0.32, 5: 0.64 };
+      const BUNKER_MIN: Record<number, number> = { 1: 1, 2: 2, 3: 5, 4: 10, 5: 25 };
+      const PC_SCALE: Record<number, number> = { 1: 0.05, 2: 0.1, 3: 0.2, 4: 0.4, 5: 0.8 };
+      const PC_MIN: Record<number, number> = { 1: 1, 2: 2, 3: 5, 4: 10, 5: 25 };
+
+      const regionJson = await callCommunity('region.getAll', {});
+      const regionsAll = Array.isArray(regionJson?.result?.data) ? regionJson.result.data : [];
+      const countryRegions = regionsAll.filter((r: any) => r?.country === countryId);
+
+      const countryJson = await callCommunity('country.getCountryById', { countryId });
+      const averageDevelopment = Number(countryJson?.result?.data?.averageDevelopment) || 0;
+
+      const pricesJson = await callCommunity('itemTrading.getPrices', {});
+      const prices: Record<string, any> = pricesJson?.result?.data ?? {};
+      const oilPrice = Number(prices?.oil) || Number(prices?.Oil) || 0;
+
+      const fetchUpgrade = async (upgradeType: string, regionId: string, attempts = 3) => {
+        for (let i = 0; i < attempts; i++) {
+          try {
+            const j = await callCommunity('upgrade.getUpgradeByTypeAndEntity', { upgradeType, regionId });
+            if (j?.result?.data) return j.result.data;
+          } catch { /* retry */ }
+          if (i < attempts - 1) await new Promise((r) => setTimeout(r, 300));
+        }
+        return null;
+      };
+
+      const round = (v: number, d: number) => {
+        const f = Math.pow(10, d);
+        return Math.round(v * f) / f;
+      };
+
+      const regions = [];
+      for (const r of countryRegions) {
+        const [bunker, pc] = await Promise.all([
+          fetchUpgrade('bunker', r._id),
+          fetchUpgrade('pacificationCenter', r._id),
+        ]);
+        const bunkerLevel = Number(bunker?.level) || 0;
+        const bunkerStatus = bunker?.status === 'active' ? 'active' : bunker?.status === 'pending' ? 'activating' : 'off';
+        const pcLevel = Number(pc?.level) || 0;
+        const pcStatus = pc?.status === 'active' ? 'active' : pc?.status === 'pending' ? 'activating' : 'off';
+        const bunkerOil = bunkerStatus === 'active' && bunkerLevel > 0
+          ? Math.max(BUNKER_MIN[bunkerLevel] ?? 0, (BUNKER_SCALE[bunkerLevel] ?? 0) * averageDevelopment)
+          : 0;
+        const pcOil = pcStatus === 'active' && pcLevel > 0
+          ? Math.max(PC_MIN[pcLevel] ?? 0, (PC_SCALE[pcLevel] ?? 0) * Number(r.development))
+          : 0;
+        const oilPerHour = bunkerOil + pcOil;
+        regions.push({
+          regionId: r._id,
+          code: r.code || '',
+          name: r.name || r.code || '',
+          development: Number(r.development) || 0,
+          bunkerLevel,
+          bunkerStatus,
+          pacificationCenterLevel: pcLevel,
+          pacificationCenterStatus: pcStatus,
+          oilPerHour: round(oilPerHour, 1),
+          goldPerHour: round(oilPerHour * oilPrice, 2),
+        });
+      }
+
+      const counts = { active: 0, activating: 0, off: 0 };
+      let totalOilPerHour = 0;
+      let totalGoldPerHour = 0;
+      for (const r of regions) {
+        counts.active += r.bunkerStatus === 'active' ? 1 : 0;
+        counts.active += r.pacificationCenterStatus === 'active' ? 1 : 0;
+        counts.activating += r.bunkerStatus === 'activating' ? 1 : 0;
+        counts.activating += r.pacificationCenterStatus === 'activating' ? 1 : 0;
+        counts.off += r.bunkerStatus === 'off' ? 1 : 0;
+        counts.off += r.pacificationCenterStatus === 'off' ? 1 : 0;
+        totalOilPerHour += r.oilPerHour;
+        totalGoldPerHour += r.goldPerHour;
+      }
+
+      const payload = {
+        success: true,
+        data: {
+          countryId,
+          oilPrice: round(oilPrice, 4),
+          averageDevelopment: round(averageDevelopment, 2),
+          fetchedAt: new Date().toISOString(),
+          regions: regions.sort((a: any, b: any) => {
+            const rank = (s: string) => (s === 'active' ? 0 : s === 'activating' ? 1 : 2);
+            return rank(a.bunkerStatus) - rank(b.bunkerStatus) || a.name.localeCompare(b.name);
+          }),
+          counts,
+          totalOilPerHour: round(totalOilPerHour, 1),
+          totalGoldPerHour: round(totalGoldPerHour, 2),
+        },
+      };
+
+      await fs.mkdir(CACHE_DIR, { recursive: true });
+      await fs.writeFile(OIL_MAINT_CACHE_FILE, JSON.stringify({ countryId, fetchedAt: new Date().toISOString(), payload }, null, 2));
+      res.set('Cache-Control', 'public, max-age=60');
+      return res.json(payload);
+    } catch (err: any) {
+      console.error('[Oil Maintenance Error]', err);
+      return res.status(502).json({ success: false, error: 'Gagal mengambil data maintenance oil' });
+    }
+  });
+
   // 2.5 Gevechten — agregasi bonus/order dari komunitas warera.realmarijn.nl
   app.get('/api/gevechten/battles', async (_req, res) => {
     try {
