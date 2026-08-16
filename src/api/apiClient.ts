@@ -212,6 +212,24 @@ export const getUserEcoSkills = async (userId: string, token: string | null = nu
   }
 };
 
+// Profil combat unit: user.getUserLite (skill + leveling) + inventory.fetchCurrentEquipment (gear terpasang).
+export const getUserCombatProfile = async (userId: string, token: string | null = null): Promise<{ success: boolean; error: string | null; data: any }> => {
+  try {
+    const [lite, equip] = await Promise.all([
+      fetchWarera('user.getUserLite', { userId }, token),
+      fetchWarera('inventory.fetchCurrentEquipment', { userId }, token),
+    ]);
+    if (!lite.success) throw new Error(lite.error || 'Gagal mengambil profil unit');
+    return {
+      success: true,
+      error: null,
+      data: { profile: lite.data, equipment: equip.success ? equip.data : null },
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message, data: null };
+  }
+};
+
 export const getMarketStats = async (): Promise<any> => {
   try {
     const response = await axios.get('/api/market/stats');

@@ -1,195 +1,110 @@
 
-# ERA Production Planner
+## Test Companion (ERA Production Planner)
 
-A full-stack web application for managing and analyzing production data, market intelligence, and company operations in the ERA game. Built with React, TypeScript, Express, and Vite.
+Test Companion is a full-stack web application for analyzing in-game production, market intelligence, and company operations. This repository contains a Vite + React frontend and an Express-based backend used as a local API proxy.
 
-## Features
+## Fitur
 
-- **Market Intelligence**: Real-time market data, price charts, and trading analytics
-- **Company Analysis**: Comprehensive company performance metrics and supply chain tracking
-- **Production Management**: Production scheduling and resource optimization
-- **Order Management**: Order book tracking and transaction ledger
-- **News & Events**: Game news feed and significant events tracking
-- **Candlestick Charts**: Advanced price visualization with lightweight-charts
-- **API Configuration**: Flexible API endpoint configuration with modal interface
-- **Multi-language Support**: Global settings panel for localization
+- Market Intelligence: data pasar waktu-nyata, grafik harga, dan analitik perdagangan
+- Company Analysis: metrik kinerja perusahaan dan pelacakan rantai pasok
+- Production Management: penjadwalan produksi dan optimasi sumber daya
+- Order Management: buku order dan ledger transaksi
+- Charting: candlestick dan grafik harga dengan `lightweight-charts`
 
-## Project Structure
+## Struktur Proyek
 
 ```
-era-production-planner/
-├── src/                           # React frontend
-│   ├── components/               # React components (Dashboard, Charts, Modals, etc.)
-│   ├── api/                      # API client utilities
-│   ├── utils/                    # Helper functions (signalEngine, priceHelper, etc.)
-│   ├── data/                     # Game config and static data
-│   ├── App.tsx                   # Main app component
-│   └── main.tsx                  # Entry point
-├── functions/api/                # Backend API endpoints
-│   ├── market/                   # Market data endpoints
-│   ├── players/                  # Player data endpoints
-│   ├── pulse/                    # Market pulse/history endpoints
-│   ├── stats/                    # Statistics endpoints
-│   └── warera/                   # Game data endpoints
-├── public/                       # Static assets
-├── server.ts                     # Express server configuration
-├── vite.config.ts               # Vite configuration
-├── tsconfig.json                # TypeScript configuration
-└── package.json                 # Dependencies and scripts
+test-companion/
+├── src/                   # Frontend React
+├── functions/api/         # Endpoint API (serverless / functions)
+├── public/                # Static assets
+├── server.ts              # Backend/Proxy server
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
 ```
 
-## Prerequisites
+## Prasyarat
 
-- **Node.js** 18+ (LTS recommended)
-- **npm** or **yarn**
+- Node.js 18+ (LTS direkomendasikan)
+- npm atau yarn
 
-## Installation & Setup
+## Instalasi
 
-### 1. Install dependencies:
+1. Pasang dependensi:
+
 ```bash
 npm install
 ```
 
-### 2. Environment Configuration
-
-Create a `.env` file in the root directory with your API configuration:
+2. Buat file `.env` di root (opsional, untuk mengatur endpoint API):
 
 ```env
 VITE_API_BASE_URL=http://localhost:5000
-VITE_GAME_API_ENDPOINT=https://api.era-game.com  # External game API
+VITE_GAME_API_ENDPOINT=https://api.era-game.com
 ```
 
-The API connections are configured in:
-- **Frontend**: [src/api/apiClient.ts](src/api/apiClient.ts) - Main HTTP client
-- **Backend Proxy**: [src/utils/proxyHandler.ts](src/utils/proxyHandler.ts) - External API proxy logic
+3. Jalankan secara lokal
 
-### 3. Run Locally
+Terminal 1 - Backend server:
 
-#### Development Mode (Frontend + Backend)
-
-**Terminal 1 - Backend Server:**
 ```bash
 npm run dev
 ```
-Starts Express server on `http://localhost:5000`
 
-**Terminal 2 - Frontend Dev Server:**
-```bash
-npm run dev:client
-```
-Starts Vite dev server on `http://localhost:5173`
+Terminal 2 - Frontend (Vite):
 
-#### Frontend Only:
 ```bash
 npm run dev:client
 ```
 
-## Building & Deployment
+## Script (sesuai `package.json`)
 
-### Build for Production:
+- `npm run dev:client` — jalankan Vite dev server
+- `npm run dev` — jalankan server backend (tsx server.ts)
+- `npm run build` — build client & bundle server
+- `npm run build:client` — build client saja
+- `npm start` — jalankan server produksi (`node dist/server.cjs`)
+- `npm run preview` — preview build client
+- `npm run clean` — hapus artifact build (perintah `rm -rf` di package.json; pada Windows gunakan alternatif)
+- `npm run lint` — jalankan TypeScript typecheck
+
+Catatan: `npm run clean` menggunakan `rm -rf` yang mungkin tidak ada di PowerShell; gunakan `rimraf` atau hapus folder `dist` secara manual pada Windows.
+
+## Build & Deployment
+
 ```bash
 npm run build
-```
-Bundles both client and server for production.
-
-- **Client build**: Outputs to `dist/` (Vite)
-- **Server build**: Outputs to `dist/server.cjs` (esbuild)
-
-### Preview Production Build:
-```bash
-npm run preview
-```
-
-### Start Production Server:
-```bash
 npm start
 ```
-Runs the bundled server from `dist/server.cjs`
 
-### Clean Build Artifacts:
-```bash
-npm run clean
-```
+## Konfigurasi & Lokasi Kode Penting
 
-## Type Checking
+- Client HTTP client: [src/api/apiClient.ts](src/api/apiClient.ts)
+- Proxy / handler eksternal: [src/utils/proxyHandler.ts](src/utils/proxyHandler.ts)
+- Endpoint functions: `functions/api/` (lihat subfolder seperti `market`, `pulse`, `warera`)
 
-```bash
-npm run lint
-```
-Runs TypeScript compiler to check for type errors.
+## Daftar Endpoint (ringkasan)
 
-## API Endpoints
+- `GET /api/market/items`
+- `GET /api/market/stats`
+- `GET /api/market/pulse-snapshot`
+- `GET /api/market/offers/[itemCode]`
+- `GET /api/pulse/history/[item]`
+- `GET /api/pulse/history/transactions`
+- `GET /api/stats/item/[item]`
+- `GET /api/warera/...` (lihat `functions/warera`)
+- `GET /api/health`
 
-### Market Data
-- `GET /api/market/items` - Get market items
-- `GET /api/market/stats` - Get market statistics
-- `GET /api/market/pulse-snapshot` - Get market pulse snapshot
-- `GET /api/market/offers/[itemCode]` - Get item offers
+## Troubleshooting
 
-### Player Data
-- `GET /api/players/[procedure]` - Get player information
+- Jika API tidak terhubung: periksa `VITE_API_BASE_URL` dan jalankan backend
+- Jika build gagal: periksa versi Node.js dan jalankan `npm run lint` untuk cek TypeScript
 
-### Market Pulse/History
-- `GET /api/pulse/history/[item]` - Get item price history
-- `GET /api/pulse/history/transactions` - Get transaction history
+## Lisensi
 
-### Statistics
-- `GET /api/stats/item/[item]` - Get item statistics
+Lihat file LICENSE untuk detail lisensi.
 
-### Warera (Game Data)
-- `GET /api/warera/[[path]]` - General warera data endpoints
-- `GET /api/warera/[procedure]` - Warera procedures
-- `GET /api/warera/order` - Get order information
-- `GET /api/warera/orders` - Get orders list
+---
 
-### Health
-- `GET /api/health` - Server health check
-
-## Tech Stack
-
-- **Frontend**: React 19, TypeScript, Tailwind CSS, Vite
-- **Backend**: Express.js, Node.js
-- **Charting**: lightweight-charts, Recharts
-- **UI Components**: Lucide React, Motion (animations)
-- **HTTP Client**: Axios
-- **AI Integration**: Google GenAI
-- **Build Tools**: esbuild, TypeScript
-
-## Available Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `npm run dev` | Start backend Express server |
-| `npm run dev:client` | Start frontend Vite dev server |
-| `npm run build` | Build for production (client + server) |
-| `npm run build:client` | Build frontend only |
-| `npm run start` | Run production server |
-| `npm run preview` | Preview production build |
-| `npm run clean` | Remove build artifacts |
-| `npm run lint` | Type check with TypeScript |
-
-## Configuration Files
-
-- **vite.config.ts** - Frontend bundler configuration
-- **tsconfig.json** - TypeScript compiler options
-- **server.ts** - Express server setup and middleware
-- **.env** - Environment variables (create this file)
-
-## Common Issues & Solutions
-
-### API Connection Issues
-- Check that backend is running on the configured port
-- Verify `VITE_API_BASE_URL` in `.env` matches your backend URL
-- Check CORS settings in [server.ts](server.ts)
-
-### Build Failures
-- Ensure Node.js version is 18+: `node --version`
-- Clear node_modules and reinstall: `rm -rf node_modules && npm install`
-- Run `npm run lint` to check for TypeScript errors
-
-### HMR Issues in Development
-- Set `DISABLE_HMR=true` environment variable if needed for AI Studio environments
-
-## License
-
-See LICENSE file for details.
+Jika Anda ingin saya menambahkan bagian lain (contoh konfigurasi `.env`, screenshot, atau instruksi deploy), beri tahu dan saya akan memperbarui README lagi.
