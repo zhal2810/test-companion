@@ -229,7 +229,6 @@ export default function Dashboard() {
           <div className="min-w-0">
             <h1 className="text-xs sm:text-sm font-bold tracking-tight text-white uppercase flex items-center gap-1.5 truncate">
               <span>WarEra <span className="hidden xs:inline">Companion</span></span> 
-              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 border border-emerald-500/10 rounded font-normal lowercase shrink-0">v0.17</span>
             </h1>
             <p className="hidden sm:block text-[10px] text-slate-500 font-mono">Market & Rekap Portofolio Makro</p>
           </div>
@@ -319,7 +318,7 @@ export default function Dashboard() {
           <TabButton 
             active={activeTab === 'optimizer'} 
             onClick={() => setActiveTab('optimizer')}
-            label="Combat Unit Optimizer"
+            label="Skill"
             icon={<Target className="w-4 h-4" />}
           />
           <TabButton 

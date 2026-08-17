@@ -1,0 +1,25 @@
+{
+  "weapon": {
+    "gray": "knife.png",
+    "green": "gun.png",
+    "blue": "rifle.png",
+    "purple": "sniper.png",
+    "gold": "tank.png",
+    "red": "jet.png"
+  },
+  "helmet": "helmet.png",
+  "chest": "chest.png",
+  "gloves": "gloves.png",
+  "pants": "pants.png",
+  "boots": "boots.png",
+  "ammo": {
+    "lightAmmo": "lightAmmo.png",
+    "ammo": "ammo.png",
+    "heavyAmmo": "heavyAmmo.png"
+  },
+  "food": {
+    "bread": "bread.png",
+    "steak": "steak.png",
+    "cookedFish": "cookedFish.png"
+  }
+}

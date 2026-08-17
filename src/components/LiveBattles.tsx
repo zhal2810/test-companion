@@ -118,6 +118,7 @@ interface BattleListItem {
   hitCount: number;
   updatedAt: string;
   involvesIndonesia: boolean;
+  hasIndonesiaOrder: boolean;
 }
 
 interface RoundHistory {
@@ -261,6 +262,12 @@ export default function LiveBattles() {
         .map((b: any) => {
           const attackerCountryId = b.attacker?.country || '';
           const defenderCountryId = b.defender?.country || '';
+          const gb = gNext[b._id || ''];
+          const attOrders = gb?.attacker?.order_details || [];
+          const defOrders = gb?.defender?.order_details || [];
+          const hasIndonesiaOrder =
+            attOrders.some((o: any) => o.country_id === INDONESIA_COUNTRY_ID) ||
+            defOrders.some((o: any) => o.country_id === INDONESIA_COUNTRY_ID);
           return {
             id: b._id || '',
             type: b.type || 'war',
@@ -284,6 +291,7 @@ export default function LiveBattles() {
             updatedAt: b.updatedAt || b.createdAt || '',
             involvesIndonesia:
               attackerCountryId === INDONESIA_COUNTRY_ID || defenderCountryId === INDONESIA_COUNTRY_ID,
+            hasIndonesiaOrder,
           };
         })
         .sort((a: BattleListItem, b: BattleListItem) => {
@@ -478,7 +486,7 @@ export default function LiveBattles() {
   }, [detail, muNames]);
 
   const filteredBattles = useMemo(
-    () => (filter === 'indonesia' ? battles.filter((b) => b.involvesIndonesia) : battles),
+    () => (filter === 'indonesia' ? battles.filter((b) => b.involvesIndonesia || b.hasIndonesiaOrder) : battles),
     [battles, filter],
   );
 
@@ -570,7 +578,7 @@ export default function LiveBattles() {
       ) : filteredBattles.length === 0 ? (
         <div className="bg-[#0C0D13] border border-dashed border-slate-800 rounded-xl p-8 text-center">
           <Swords className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-          <p className="text-xs text-slate-500">Tidak ada pertempuran aktif{filter === 'indonesia' ? ' yang melibatkan Indonesia' : ''} saat ini.</p>
+          <p className="text-xs text-slate-500">Tidak ada pertempuran aktif{filter === 'indonesia' ? ' yang melibatkan Indonesia atau menerima order dari Indonesia' : ''} saat ini.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -662,6 +670,11 @@ function BattleCard({
           {battle.involvesIndonesia && (
             <span className="text-[9px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded-full px-2 py-0.5 font-bold uppercase tracking-wider shrink-0">
               🇮🇩 ID
+            </span>
+          )}
+          {!battle.involvesIndonesia && battle.hasIndonesiaOrder && (
+            <span className="text-[9px] bg-sky-500/15 text-sky-400 border border-sky-500/25 rounded-full px-2 py-0.5 font-bold uppercase tracking-wider shrink-0">
+              🇮🇩 Order
             </span>
           )}
           <span className="text-[10px] text-slate-500 font-mono truncate">{battle.region}</span>
@@ -881,6 +894,19 @@ function BattleDetailPanel({
                 <SideBonusPanel
                   sideLabel={
                     <>
+                      ⚔️ <span className="text-slate-300">Penyerang:</span>{' '}
+                      {flagEmoji(gb.attacker?.flag_code)} {gb.attacker?.country_name || battle.attackerName}
+                    </>
+                  }
+                  upgradePct={gb.mil_base_pct}
+                  upgradeName="Mil.basis"
+                  orderCost={gb.att_order_cost}
+                  bonusRows={gb.att_bonus_rows}
+                  upgradesFetched={gb.upgrades_fetched}
+                />
+                <SideBonusPanel
+                  sideLabel={
+                    <>
                       🛡️ <span className="text-slate-300">Pembela:</span>{' '}
                       {flagEmoji(gb.defender?.flag_code)} {gb.defender?.country_name || battle.defenderName}
                     </>
@@ -890,19 +916,6 @@ function BattleDetailPanel({
                   orderCost={gb.def_order_cost}
                   bonusRows={gb.def_bonus_rows}
                   linkedToCap={gb.def_linked_to_cap}
-                  upgradesFetched={gb.upgrades_fetched}
-                />
-                <SideBonusPanel
-                  sideLabel={
-                    <>
-                      ⚔️ <span className="text-slate-300">Penyerang:</span>{' '}
-                      {flagEmoji(gb.attacker?.flag_code)} {gb.attacker?.country_name || battle.attackerName}
-                    </>
-                  }
-                  upgradePct={gb.mil_base_pct}
-                  upgradeName="Mil.basis"
-                  orderCost={gb.att_order_cost}
-                  bonusRows={gb.att_bonus_rows}
                   upgradesFetched={gb.upgrades_fetched}
                 />
               </div>
@@ -981,6 +994,15 @@ function rngCls(v: string): string {
 
 function BonusTable({ rows, upgradeLabel }: { rows: BonusRow[]; upgradeLabel: string }) {
   if (!rows || rows.length === 0) return null;
+
+  // Translate Dutch group names from API
+  const GROUP_TRANSLATE: Record<string, string> = {
+    'Eigen burgers': 'Warga',
+    'Bondgenoten': 'Aliansi',
+    'Pact landen': 'Pakta',
+    'Overige': 'Lainnya',
+  };
+  const translateGroup = (g: string) => GROUP_TRANSLATE[g] ?? g;
   const show = {
     home: hasNonTrivial(rows, 'home'),
     enemy: hasNonTrivial(rows, 'enemy'),
@@ -995,16 +1017,16 @@ function BonusTable({ rows, upgradeLabel }: { rows: BonusRow[]; upgradeLabel: st
         <tr className="text-slate-500 border-b border-slate-800">
           <th className="py-1 pr-2 font-semibold whitespace-nowrap">Grup</th>
           {show.home && (
-            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="10% warga sendiri">Thuis</th>
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="10% warga sendiri">Warga</th>
           )}
           {show.enemy && (
-            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="1-10% musuh bebuyutan">Vijand</th>
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="1-10% musuh bebuyutan">Musuh</th>
           )}
           {show.pact && (
-            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="1-10% pakta pertahanan">Pact</th>
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="1-10% pakta pertahanan">Pakta</th>
           )}
           {show.alliance && (
-            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="10% aliansi">Bond.</th>
+            <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="10% aliansi">Aliansi</th>
           )}
           {show.order && (
             <th className="py-1 pr-2 font-semibold whitespace-nowrap" title="5-15% land-order">Order</th>
@@ -1023,12 +1045,12 @@ function BonusTable({ rows, upgradeLabel }: { rows: BonusRow[]; upgradeLabel: st
         {rows.map((r, i) => (
           <tr key={i} className="border-b border-slate-800/40 last:border-0">
             <td className="py-1 pr-2 text-slate-300 max-w-[76px] overflow-hidden text-ellipsis whitespace-nowrap">
-              {r.group}
+              {translateGroup(r.group)}
             </td>
-            {show.home && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.home)}`}>{r.home}</td>}
-            {show.enemy && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.enemy)}`}>{r.enemy}</td>}
-            {show.pact && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.pact)}`}>{r.pact}</td>}
-            {show.alliance && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.alliance)}`}>{r.alliance}</td>}
+            {show.home && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.home)}`}>{r.home === 'n.v.t.' ? 'N/A' : r.home}</td>}
+            {show.enemy && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.enemy)}`}>{r.enemy === 'n.v.t.' ? 'N/A' : r.enemy}</td>}
+            {show.pact && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.pact)}`}>{r.pact === 'n.v.t.' ? 'N/A' : r.pact}</td>}
+            {show.alliance && <td className={`py-1 pr-2 whitespace-nowrap ${cellCls(r.alliance)}`}>{r.alliance === 'n.v.t.' ? 'N/A' : r.alliance}</td>}
             {show.order && <td className={`py-1 pr-2 whitespace-nowrap ${rngCls(r.order)}`}>{r.order}</td>}
             <td className={`py-1 pr-2 whitespace-nowrap ${rngCls(r.mu_order)}`}>{r.mu_order}</td>
             <td className={`py-1 pr-2 whitespace-nowrap ${rngCls(r.mu_hq)}`}>{r.mu_hq}</td>
@@ -1070,7 +1092,7 @@ function SideBonusPanel({
         <div className="text-[10px] font-mono text-slate-500 mb-1">{upgradeName}: tidak aktif</div>
       ) : null}
       {orderCost > 0 && (
-        <div className="text-[10px] font-mono text-slate-400 mb-1">Orderkosten: {formatNum(orderCost)} kertas</div>
+        <div className="text-[10px] font-mono text-slate-400 mb-1">Biaya Order: {formatNum(orderCost)} kertas</div>
       )}
       <BonusTable rows={bonusRows} upgradeLabel={upgradeName} />
     </div>
@@ -1114,10 +1136,10 @@ function OrdersPanel({
         </summary>
         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
           <div className="flex flex-col gap-1">
-            {defDetails.map((d) => orderLine(d, 'text-emerald-400', '🛡️'))}
+            {attDetails.map((d) => orderLine(d, 'text-rose-400', '⚔️'))}
           </div>
           <div className="flex flex-col gap-1">
-            {attDetails.map((d) => orderLine(d, 'text-rose-400', '⚔️'))}
+            {defDetails.map((d) => orderLine(d, 'text-emerald-400', '🛡️'))}
           </div>
         </div>
       </details>

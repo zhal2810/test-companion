@@ -43,12 +43,53 @@ export const COMBAT_SKILLS: SkillDef[] = [
   { key: 'dodge', name: 'Dodge', group: 'defense', desc: '+4 dodge/level (soft-cap 40)', base: 0, perLevel: 4, unlockAtLevel: 10 },
   { key: 'health', name: 'Health', group: 'sustain', desc: '+10 max HP/level', base: 100, perLevel: 10, unlockAtLevel: 5 },
   { key: 'hunger', name: 'Hunger', group: 'sustain', desc: '+1 slot makanan/level', base: 4, perLevel: 1, unlockAtLevel: 10 },
-  { key: 'lootChance', name: 'Loot Chance', group: 'sustain', desc: '+2% loot/level', base: 5, perLevel: 2, unlockAtLevel: 1 },
+  { key: 'lootChance', name: 'Loot Chance', group: 'sustain', desc: '+2% loot/level', base: 2, perLevel: 2, unlockAtLevel: 1 },
 ];
 
 export const SKILL_MAP = Object.fromEntries(
   COMBAT_SKILLS.map((s) => [s.key, s])
 ) as Record<CombatSkillKey, SkillDef>;
+
+// ============================================================================
+// Economic Skills
+// ============================================================================
+
+export type EconomicSkillKey =
+  | 'entrepreneurship'
+  | 'energy'
+  | 'production'
+  | 'companies'
+  | 'management';
+
+export interface EconomicSkillDef {
+  key: EconomicSkillKey;
+  name: string;
+  desc: string;
+  base: number;
+  perLevel: number;
+}
+
+export const ECONOMIC_SKILLS: EconomicSkillDef[] = [
+  { key: 'entrepreneurship', name: 'Entrepreneurship', desc: 'Membuka slot perusahaan', base: 0, perLevel: 1 },
+  { key: 'energy', name: 'Energy', desc: '+1 energy/level', base: 10, perLevel: 1 },
+  { key: 'production', name: 'Production', desc: '+1 production slot/level', base: 0, perLevel: 1 },
+  { key: 'companies', name: 'Companies', desc: '+1 company slot/level', base: 1, perLevel: 1 },
+  { key: 'management', name: 'Management', desc: '+1 management slot/level', base: 0, perLevel: 1 },
+];
+
+export const ECONOMIC_SKILL_MAP = Object.fromEntries(
+  ECONOMIC_SKILLS.map((s) => [s.key, s])
+) as Record<EconomicSkillKey, EconomicSkillDef>;
+
+export function emptyEconomicSkillLevels(): Record<EconomicSkillKey, number> {
+  return {
+    entrepreneurship: 0,
+    energy: 0,
+    production: 0,
+    companies: 0,
+    management: 0,
+  };
+}
 
 export const MAX_SKILL_LEVEL = 10;
 export const DEFAULT_POINTS_PER_LEVEL = 4;
@@ -82,8 +123,7 @@ export type GearSlot =
   | 'boots'
   | 'gloves'
   | 'ammo'
-  | 'food'
-  | 'pill';
+  | 'food';
 
 export type GearStatKey =
   | 'attack'
@@ -129,7 +169,6 @@ export interface UnitGear {
   gloves?: GearPiece;
   ammo?: GearPiece;
   food?: GearPiece;
-  pill?: GearPiece;
 }
 
 export const GEAR_SLOTS: { slot: GearSlot; label: string; itemCodes: string[] }[] = [
@@ -141,7 +180,6 @@ export const GEAR_SLOTS: { slot: GearSlot; label: string; itemCodes: string[] }[
   { slot: 'gloves', label: 'Sarung Tangan', itemCodes: ['gloves1', 'gloves2', 'gloves3', 'gloves4', 'gloves5', 'gloves6'] },
   { slot: 'ammo', label: 'Amunisi', itemCodes: ['lightAmmo', 'ammo', 'heavyAmmo'] },
   { slot: 'food', label: 'Makanan', itemCodes: ['bread', 'steak', 'cookedFish'] },
-  { slot: 'pill', label: 'Obat (Buff)', itemCodes: ['cocain'] },
 ];
 
 export const SLOT_LABEL: Record<GearSlot, string> = Object.fromEntries(
@@ -150,29 +188,30 @@ export const SLOT_LABEL: Record<GearSlot, string> = Object.fromEntries(
 
 // Estimasi harga gear (tidak dijual di Item Markt, jadi tidak ada harga pasar).
 // Harga bisa diedit manual di UI.
+// Source: WarEra War Planner defaults (TheGroxEmpire/warera-war-planner)
 const RARITY_PRICE: Record<string, number> = {
-  common: 18,
-  uncommon: 50,
-  rare: 130,
-  epic: 320,
-  legendary: 780,
-  mythic: 1900,
+  common: 2,
+  uncommon: 7,
+  rare: 27,
+  epic: 70,
+  legendary: 210,
+  mythic: 650,
 };
 const WEAPON_PRICE: Record<string, number> = {
-  knife: 25,
-  gun: 75,
-  rifle: 210,
-  sniper: 520,
-  tank: 1200,
-  jet: 3200,
+  knife: 2,
+  gun: 8,
+  rifle: 27,
+  sniper: 70,
+  tank: 200,
+  jet: 650,
 };
 export const CONSUMABLE_ESTIMATES: Record<string, number> = {
   lightAmmo: 0.2,
   ammo: 0.7,
   heavyAmmo: 2.7,
-  bread: 1.8,
+  bread: 1.7,
   steak: 3.7,
-  cookedFish: 7.5,
+  cookedFish: 7.6,
   cocain: 36,
 };
 
@@ -181,7 +220,6 @@ function gearSlotOfItem(item: GameItem): GearSlot | null {
   if (['helmet', 'chest', 'pants', 'boots', 'gloves'].includes(item.usage ?? '')) {
     return item.usage as GearSlot;
   }
-  if (item.code.toLowerCase() === 'cocain') return 'pill';
   if (item.flatStats?.healthRegenPercent) return 'food';
   if (item.flatStats?.percentAttack) return 'ammo';
   return null;
@@ -221,7 +259,7 @@ export function makeGearPiece(
       overridePrice ??
       (slot === 'weapon'
         ? WEAPON_PRICE[item.code] ?? RARITY_PRICE[item.rarity] ?? 100
-        : slot === 'ammo' || slot === 'food' || slot === 'pill'
+        : slot === 'ammo' || slot === 'food'
           ? CONSUMABLE_ESTIMATES[item.code] ?? 1
           : RARITY_PRICE[item.rarity] ?? 100);
   }
@@ -235,10 +273,9 @@ export function makeGearPiece(
     ranges,
     price,
     priceSource,
-    wear: slot === 'weapon' ? 2 : slot === 'ammo' || slot === 'food' || slot === 'pill' ? 0 : 1,
+    wear: slot === 'weapon' ? 2 : slot === 'ammo' || slot === 'food' ? 0 : 1,
   };
   if (slot === 'food') piece.healPercent = stats.healthRegenPercent;
-  if (slot === 'pill') piece.buffPercent = stats.percentAttack;
   return piece;
 }
 
@@ -255,7 +292,6 @@ export function buildGearOptions(
     gloves: [],
     ammo: [],
     food: [],
-    pill: [],
   } as Record<GearSlot, GearPiece[]>;
 
   for (const { slot, itemCodes } of GEAR_SLOTS) {
@@ -275,35 +311,25 @@ export function buildGearOptions(
 export interface CombatSettings {
   militaryRankPercent: number; // bonus % damage dari rank militer
   ammoPerHit: number;          // konsumsi amunisi per serangan (1)
-  wearMultiplier: number;      // pengali keausan gear (1 = default)
   bountyPer1000: number;       // cc yang didapat per 1.000 damage (0 = off)
-  pillBuffPercent: number;     // buff sementara (60)
-  pillBuffHours: number;       // 8
-  pillDebuffPercent: number;   // 60
-  pillDebuffHours: number;     // 15.5
+  pillEnabled: boolean;        // pill/cocain aktif (buff +60% attack)
   regenPerHourPercent: number; // regen HP/hunger per jam (10)
   healthCostPerHit: number;    // HP yang hilang per serangan (10)
   armorDenom: number;          // 40 pada armor/(armor+40)
   dodgeDenom: number;          // 40 pada dodge/(dodge+40)
   dmgReductionCap: number;     // cap total armor DR (0.9)
-  foodEfficiency: number;      // 1
 }
 
 export const DEFAULT_SETTINGS: CombatSettings = {
   militaryRankPercent: 0,
   ammoPerHit: 1,
-  wearMultiplier: 1,
   bountyPer1000: 0,
-  pillBuffPercent: 60,
-  pillBuffHours: 8,
-  pillDebuffPercent: 60,
-  pillDebuffHours: 15.5,
+  pillEnabled: true,
   regenPerHourPercent: 10,
   healthCostPerHit: 10,
   armorDenom: 40,
   dodgeDenom: 40,
   dmgReductionCap: 0.9,
-  foodEfficiency: 1,
 };
 
 export interface CombatStats {
@@ -402,18 +428,10 @@ export function computeCombatStats(
   const ammoPercent = gv(gear.ammo?.stats, 'percentAttack');
   const rankMult = 1 + Math.max(0, settings.militaryRankPercent) / 100;
 
-  const hasPill = Boolean(gear.pill);
-  const pillBurst = hasPill ? settings.pillBuffPercent : 0;
-  const pillCycle = settings.pillBuffHours + settings.pillDebuffHours;
-  const pillAvgFactor =
-    hasPill && pillCycle > 0
-      ? (settings.pillBuffHours * (1 + settings.pillBuffPercent / 100) +
-          settings.pillDebuffHours * (1 - settings.pillDebuffPercent / 100)) /
-        pillCycle
-      : 1;
+  const hasPill = settings.pillEnabled;
+  const pillBurst = hasPill ? 60 : 0;
 
   const attackBurst = attackBase * (1 + ammoPercent / 100) * (1 + pillBurst / 100) * rankMult;
-  const attackAvg = attackBase * (1 + ammoPercent / 100) * pillAvgFactor * rankMult;
 
   const armorTotal = armorSkill + gv(gear.chest?.stats, 'armor') + gv(gear.pants?.stats, 'armor');
   const dodgeTotal = dodgeSkill + gv(gear.boots?.stats, 'dodge');
@@ -431,18 +449,21 @@ export function computeCombatStats(
 
   const critMult = 1 + critDamage / 100;
   const eDPHBurst = critProb * attackBurst * critMult + normalProb * attackBurst + missProb * (attackBurst / 2);
-  const eDPH = critProb * attackAvg * critMult + normalProb * attackAvg + missProb * (attackAvg / 2);
 
-  // Sustain — HP & hunger pulih 10%/jam (24 jam -> x2.4 + full awal = x3.4/hari)
-  const regenMult = 1 + (24 * settings.regenPerHourPercent) / 100;
-  const passiveHealthPerDay = maxHealth * regenMult;
-  const foodPerDay = gear.food ? maxHunger * regenMult * settings.foodEfficiency : 0;
-  const healthFromFoodPerDay = foodPerDay * (gear.food?.healPercent ?? 0) / 100 * maxHealth;
-  const totalHealthPerDay = passiveHealthPerDay + healthFromFoodPerDay;
+  // Sustain — matching war planner model:
+  // Pill reduces regen window to 18h (debuff hours consume part of the day).
+  const regenHours = hasPill ? 18 : 24;
+  const regenRate = settings.regenPerHourPercent / 100; // 0.10
+  const passiveHealthPerDay = maxHealth * regenRate * regenHours;
+  const foodHealPct = gear.food?.healPercent ?? 0;
+  const foodBonus = (foodHealPct / 100) * maxHealth;
+  const foodRegenPerDay = (hasPill || gear.food) ? maxHunger * regenRate * regenHours * foodBonus : 0;
+  const totalHealthPerDay = passiveHealthPerDay + foodRegenPerDay;
   const hitsPerDay = totalHealthPerDay / Math.max(1e-6, expectedHealthPerHit);
-  const dPD = hitsPerDay * eDPH;
 
-  // Ekonomi per serangan
+  const dPD = hitsPerDay * eDPHBurst;
+
+  // Ekonomi per hari (matching war planner)
   const buildCost =
     (gear.weapon?.price ?? 0) +
     (gear.helmet?.price ?? 0) +
@@ -451,31 +472,43 @@ export function computeCombatStats(
     (gear.boots?.price ?? 0) +
     (gear.gloves?.price ?? 0) +
     (gear.ammo?.price ?? 0) +
-    (gear.food?.price ?? 0) +
-    (gear.pill?.price ?? 0);
+    (gear.food?.price ?? 0);
 
+  // Ammo cost: price × ammoPerHit × hitsPerDay
   const ammoCostPerHit = gear.ammo ? (gear.ammo.price ?? 0) * settings.ammoPerHit : 0;
-  const foodCostPerHit = foodPerDay > 0 ? (gear.food?.price ?? 0) * foodPerDay / Math.max(1, hitsPerDay) : 0;
-  const pillCostPerHit = hitsPerDay > 0 ? (gear.pill?.price ?? 0) / Math.max(1, hitsPerDay) : 0;
-  const wearCostPerHit =
-    (settings.wearMultiplier *
-      ((gear.weapon ? (gear.weapon.price * gear.weapon.wear) / 100 : 0) +
-        (gear.helmet ? (gear.helmet.price * gear.helmet.wear) / 100 : 0) +
-        (gear.chest ? (gear.chest.price * gear.chest.wear) / 100 : 0) +
-        (gear.pants ? (gear.pants.price * gear.pants.wear) / 100 : 0) +
-        (gear.boots ? (gear.boots.price * gear.boots.wear) / 100 : 0) +
-        (gear.gloves ? (gear.gloves.price * gear.gloves.wear) / 100 : 0)));
+  const ammoCostPerDay = ammoCostPerHit * hitsPerDay;
+
+  // Food cost: price × hungerLevel × dayMultiplier (pill reduces multiplier)
+  const dayMultiplier = hasPill ? 1.8 : 2.4;
+  const foodCostPerDay = gear.food ? gear.food.price * maxHunger * dayMultiplier : 0;
+  const foodCostPerHit = hitsPerDay > 0 ? foodCostPerDay / hitsPerDay : 0;
+
+  // Pill cost: flat price per day (36cc)
+  const PILL_PRICE = 36;
+  const pillCostPerDay = hasPill ? PILL_PRICE : 0;
+  const pillCostPerHit = hitsPerDay > 0 ? pillCostPerDay / hitsPerDay : 0;
+
+  // Gear wear cost: weapon decay = price/100 × hits, armor decay = price/100 × hits × (1-dodge/(dodge+40))
+  const armorDecayMultiplier = 1 - dodgeRate;
+  const weaponDecayCost = gear.weapon ? (gear.weapon.price / 100) * hitsPerDay : 0;
+  const armorDecayCost =
+    ((gear.helmet ? gear.helmet.price : 0) +
+     (gear.chest ? gear.chest.price : 0) +
+     (gear.pants ? gear.pants.price : 0) +
+     (gear.boots ? gear.boots.price : 0) +
+     (gear.gloves ? gear.gloves.price : 0)) / 100 * hitsPerDay * armorDecayMultiplier;
+  const wearCostPerHit = hitsPerDay > 0 ? (weaponDecayCost + armorDecayCost) / hitsPerDay : 0;
 
   const costPerHit = ammoCostPerHit + foodCostPerHit + pillCostPerHit + wearCostPerHit;
-  const damagePerGold = costPerHit > 0 ? eDPH / costPerHit : 0;
-  const bountyPerHit = (settings.bountyPer1000 * eDPH) / 1000;
+  const damagePerGold = costPerHit > 0 ? eDPHBurst / costPerHit : 0;
+  const bountyPerHit = (settings.bountyPer1000 * eDPHBurst) / 1000;
   const netPerHit = bountyPerHit - costPerHit;
   const paybackHits = netPerHit > 0 ? buildCost / netPerHit : Infinity;
 
   return {
     attackBase,
     attackBurst,
-    attackAvg,
+    attackAvg: attackBurst,
     precision: precisionTotal,
     critChance: critChanceTotal,
     critDamage,
@@ -492,10 +525,10 @@ export function computeCombatStats(
     critProb,
     missProb,
     eDPHBurst,
-    eDPH,
+    eDPH: eDPHBurst,
     passiveHealthPerDay,
-    foodPerDay,
-    healthFromFoodPerDay,
+    foodPerDay: foodRegenPerDay,
+    healthFromFoodPerDay: foodRegenPerDay,
     totalHealthPerDay,
     hitsPerDay,
     dPD,
@@ -540,50 +573,90 @@ export function optimizeSkills(opts: {
   const current = { ...opts.skillLevels };
   const lockedNonCombat = opts.lockedNonCombatPoints ?? 0;
 
-  let levels: Record<CombatSkillKey, number>;
+  let lockedLevels: Record<CombatSkillKey, number>;
   let budget: number;
 
   if (opts.mode === 'respec') {
-    levels = emptySkillLevels();
-    for (const k of exclude) levels[k] = clampLevel(current[k] ?? 0);
+    lockedLevels = emptySkillLevels();
+    for (const k of exclude) lockedLevels[k] = clampLevel(current[k] ?? 0);
     budget = totalPoints - lockedNonCombat;
-    for (const k of exclude) budget -= skillTotalCost(levels[k]);
+    for (const k of exclude) budget -= skillTotalCost(lockedLevels[k]);
   } else {
-    levels = { ...current };
+    lockedLevels = { ...current };
     budget = totalPoints - lockedNonCombat - sumSkillCost(current);
   }
   budget = Math.max(0, budget);
 
-  const evaluate = (l: Record<CombatSkillKey, number>) =>
-    opts.objective === 'dph'
-      ? computeCombatStats(l, opts.gear, opts.settings).eDPHBurst
-      : computeCombatStats(l, opts.gear, opts.settings).dPD;
+  // War Planner approach: exact search with damage/sustain budget split
+  // Damage skills: attack, precision, criticalChance, criticalDamages
+  // Sustain skills: armor, dodge, health, hunger
+  const damageKeys: CombatSkillKey[] = ['attack', 'precision', 'criticalChance', 'criticalDamages'];
+  const sustainKeys: CombatSkillKey[] = ['armor', 'dodge', 'health', 'hunger'];
 
-  let guard = 0;
-  while (budget > 0 && guard++ < 200) {
-    let best: { key: CombatSkillKey; gain: number; cost: number } | null = null;
-    for (const def of COMBAT_SKILLS) {
-      if (exclude.has(def.key)) continue;
-      const l = levels[def.key];
-      if (l >= MAX_SKILL_LEVEL) continue;
-      if (opts.playerLevel < def.unlockAtLevel) continue;
-      const cost = skillPointCost(l + 1);
-      if (cost > budget) continue;
+  // Check which skills are available at player level
+  const availDamage = damageKeys.filter(k => opts.playerLevel >= SKILL_MAP[k].unlockAtLevel && !exclude.has(k));
+  const availSustain = sustainKeys.filter(k => opts.playerLevel >= SKILL_MAP[k].unlockAtLevel && !exclude.has(k));
 
-      const before = evaluate(levels);
-      const next = { ...levels, [def.key]: l + 1 };
-      const after = evaluate(next);
-      const delta = after - before;
-      if (delta <= 0) continue;
-      const gain = delta / cost;
-      if (!best || gain > best.gain) best = { key: def.key, gain, cost };
-    }
-    if (!best) break;
-    levels[best.key] += 1;
-    budget -= best.cost;
+  // Precompute costs for all levels 0..MAX_SKILL_LEVEL
+  const costCache: number[] = [];
+  for (let i = 0; i <= MAX_SKILL_LEVEL; i++) costCache[i] = skillTotalCost(i);
+
+  // Generate all possible skill level combinations within budget for a group
+  type Pattern = { cost: number; levels: number[]; keys: CombatSkillKey[] };
+  function genPatterns(keys: CombatSkillKey[], budgetLimit: number): Pattern[] {
+    if (keys.length === 0) return [{ cost: 0, levels: [], keys: [] }];
+    const results: Pattern[] = [];
+    const helper = (idx: number, usedBudget: number, currentLevels: number[]) => {
+      if (idx === keys.length) {
+        results.push({ cost: usedBudget, levels: [...currentLevels], keys: [...keys] });
+        return;
+      }
+      const key = keys[idx];
+      const lockedLv = lockedLevels[key] ?? 0;
+      for (let lv = lockedLv; lv <= MAX_SKILL_LEVEL; lv++) {
+        const added = costCache[lv] - costCache[lockedLv];
+        if (usedBudget + added > budgetLimit) break;
+        currentLevels.push(lv);
+        helper(idx + 1, usedBudget + added, currentLevels);
+        currentLevels.pop();
+      }
+    };
+    helper(0, 0, []);
+    return results;
   }
 
-  return { levels, spent: sumSkillCost(levels), remaining: budget };
+  // Generate all patterns within full budget
+  const damagePatterns = genPatterns(availDamage, budget);
+  const sustainPatterns = genPatterns(availSustain, budget);
+
+  // Evaluate a combined skill set
+  const evalSkills = (dmgPattern: Pattern, susPattern: Pattern): number => {
+    const allLevels = { ...lockedLevels };
+    for (let i = 0; i < dmgPattern.keys.length; i++) allLevels[dmgPattern.keys[i]] = dmgPattern.levels[i];
+    for (let i = 0; i < susPattern.keys.length; i++) allLevels[susPattern.keys[i]] = susPattern.levels[i];
+    const stats = computeCombatStats(allLevels, opts.gear, opts.settings);
+    return opts.objective === 'dph' ? stats.eDPHBurst : stats.dPD;
+  };
+
+  // Find best combination
+  let bestLevels = { ...lockedLevels };
+  let bestValue = -Infinity;
+
+  for (const dp of damagePatterns) {
+    const remainBudget = budget - dp.cost;
+    for (const sp of sustainPatterns) {
+      if (sp.cost > remainBudget) continue;
+      const val = evalSkills(dp, sp);
+      if (val > bestValue) {
+        bestValue = val;
+        bestLevels = { ...lockedLevels };
+        for (let i = 0; i < dp.keys.length; i++) bestLevels[dp.keys[i]] = dp.levels[i];
+        for (let i = 0; i < sp.keys.length; i++) bestLevels[sp.keys[i]] = sp.levels[i];
+      }
+    }
+  }
+
+  return { levels: bestLevels, spent: sumSkillCost(bestLevels), remaining: budget - sumSkillCost(bestLevels) + sumSkillCost(lockedLevels) };
 }
 
 // ============================================================================
@@ -604,6 +677,7 @@ export function generateBuilds(opts: {
   objective: BuildObjective;
   settings: CombatSettings;
   budget: number;
+  maxRarity?: string;
   topKPerSlot?: number;
   maxResults?: number;
   requireWeapon?: boolean;
@@ -627,13 +701,20 @@ export function generateBuilds(opts: {
     }
   };
 
-  const slots: GearSlot[] = ['weapon', 'helmet', 'chest', 'pants', 'boots', 'gloves', 'ammo', 'food', 'pill'];
+  const slots: GearSlot[] = ['weapon', 'helmet', 'chest', 'pants', 'boots', 'gloves', 'ammo', 'food'];
+
+  const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+  const selectedRarity = opts.maxRarity ?? 'mythic';
 
   // Ranking tiap slot: ambil top-K untuk slot gear (senjata & armor);
   // consumable diikutkan semua karena jumlahnya sedikit.
+  // Filter: gear harus EXACT rarity yang dipilih (kecuali ammo & food).
   const slotCandidates: { slot: GearSlot; options: GearPiece[] }[] = [];
   for (const slot of slots) {
-    const options = gearOptions[slot] ?? [];
+    const options = (gearOptions[slot] ?? []).filter((p) => {
+      if (slot === 'ammo' || slot === 'food') return true;
+      return p.rarity === selectedRarity;
+    });
     const scored = options
       .map((piece) => ({
         piece,
@@ -642,7 +723,7 @@ export function generateBuilds(opts: {
       .sort((a, b) => b.score - a.score);
 
     const keep =
-      slot === 'ammo' || slot === 'food' || slot === 'pill'
+      slot === 'ammo' || slot === 'food'
         ? options
         : scored.slice(0, K).map((s) => s.piece);
     slotCandidates.push({ slot, options: keep });
@@ -659,23 +740,20 @@ export function generateBuilds(opts: {
     }
     const { slot, options } = slotCandidates[idx];
 
-    // Tanpa gear (none) — kecuali weapon: build combat wajib memakai senjata
-    if (!(requireWeapon && slot === 'weapon')) {
+    // Knife = melee weapon, tidak butuh ammo → skip slot ammo
+    if (slot === 'ammo' && gear.weapon?.code === 'knife') {
       recurse(idx + 1, costSoFar);
+      return;
     }
 
+    // Setiap slot WAJIB diisi (tidak ada opsi "tanpa gear")
     for (const piece of options) {
       const c = costSoFar + piece.price;
       if (opts.budget > 0 && c > opts.budget) continue;
-      const prev = gear[slot];
       gear[slot] = piece;
       recurse(idx + 1, c);
-      if (prev) {
-        gear[slot] = prev;
-      } else {
-        delete gear[slot];
-      }
     }
+    delete gear[slot];
   };
 
   recurse(0, 0);
@@ -692,4 +770,224 @@ export function fmtNum(n: number | null | undefined): string {
   if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
   if (abs >= 1e4) return `${(n / 1e3).toFixed(1)}k`;
   return n.toLocaleString('id-ID', { maximumFractionDigits: 1 });
+}
+
+// ============================================================================
+// Combat Simulation
+// ============================================================================
+
+export interface SimSettings {
+  numHits: number;
+  bountyPer1000: number;
+  case1Price: number;
+  case2Price: number;
+  scrapPrice: number;
+  steelPrice: number;
+  scrapConsumedPrice: number;
+}
+
+export const DEFAULT_SIM_SETTINGS: SimSettings = {
+  numHits: 100,
+  bountyPer1000: 0,
+  case1Price: 3.2,
+  case2Price: 2.1,
+  scrapPrice: 0.22,
+  steelPrice: 0.5,
+  scrapConsumedPrice: 0.15,
+};
+
+export interface SimHit {
+  outcome: 'normal' | 'crit' | 'miss' | 'dodge';
+  damage: number;
+  crit: boolean;
+}
+
+export interface SimResult {
+  hits: SimHit[];
+  totalHits: number;
+  totalDamage: number;
+  expectedDamage: number;
+  normalHits: number;
+  critHits: number;
+  missHits: number;
+  dodgeHits: number;
+  critPct: number;
+  missPct: number;
+  dodgePct: number;
+  avgDamage: number;
+  burstDamage: number;
+  costs: {
+    weapon: number;
+    armor: number;
+    ammo: number;
+    food: number;
+    booster: number;
+    total: number;
+  };
+  resources: {
+    steelConsumed: number;
+    scrapConsumed: number;
+  };
+  revenue: {
+    bounty: number;
+    case1Drops: number;
+    case1Revenue: number;
+    case2Drops: number;
+    case2Revenue: number;
+    scrapDrops: number;
+    scrapRevenue: number;
+    total: number;
+  };
+  costPer1kDmg: number;
+  netProfit: number;
+  roi: number;
+}
+
+export function simulateCombat(
+  stats: CombatStats,
+  gear: UnitGear,
+  simSettings: SimSettings,
+  combatSettings: CombatSettings,
+  lootChanceLevel: number,
+): SimResult {
+  const N = Math.max(1, simSettings.numHits);
+  const hits: SimHit[] = [];
+  let totalDamage = 0;
+  let normalHits = 0;
+  let critHits = 0;
+  let missHits = 0;
+  let dodgeHits = 0;
+
+  const hitProb = Math.min(1, stats.precision / 100);
+  const critProb = Math.min(hitProb, stats.critChance / 100);
+  const dodgeProb = stats.dodgeRate;
+  const missProb = Math.max(0, 1 - hitProb);
+
+  const critMult = 1 + stats.critDamage / 100;
+
+  for (let i = 0; i < N; i++) {
+    const roll = Math.random();
+    const dodgeRoll = Math.random();
+
+    if (dodgeRoll < dodgeProb) {
+      hits.push({ outcome: 'dodge', damage: 0, crit: false });
+      dodgeHits++;
+      continue;
+    }
+
+    if (roll < missProb) {
+      hits.push({ outcome: 'miss', damage: 0, crit: false });
+      missHits++;
+      continue;
+    }
+
+    if (roll < missProb + critProb) {
+      const dmg = Math.round(stats.attackBurst * critMult * (0.9 + Math.random() * 0.2));
+      hits.push({ outcome: 'crit', damage: dmg, crit: true });
+      totalDamage += dmg;
+      critHits++;
+    } else {
+      const dmg = Math.round(stats.attackBurst * (0.9 + Math.random() * 0.2));
+      hits.push({ outcome: 'normal', damage: dmg, crit: false });
+      totalDamage += dmg;
+      normalHits++;
+    }
+  }
+
+  const successfulHits = normalHits + critHits;
+
+  // Costs — matching war planner model
+  // Gear decay: weapon = price/100 × hits, armor = price/100 × hits × (1-dodge/(dodge+40))
+  const armorDecayMult = 1 - stats.dodgeRate;
+  const weaponCostPerHit = gear.weapon ? gear.weapon.price / 100 : 0;
+  const armorCostPerHit =
+    ((gear.helmet ? gear.helmet.price : 0) +
+     (gear.chest ? gear.chest.price : 0) +
+     (gear.pants ? gear.pants.price : 0) +
+     (gear.boots ? gear.boots.price : 0) +
+     (gear.gloves ? gear.gloves.price : 0)) / 100 * armorDecayMult;
+  const ammoCostPerHit = gear.ammo ? gear.ammo.price * combatSettings.ammoPerHit : 0;
+
+  // Food cost: price × hungerLevel × dayMultiplier (pill = 1.8, normal = 2.4)
+  const hasPill = combatSettings.pillEnabled;
+  const dayMultiplier = hasPill ? 1.8 : 2.4;
+  const foodCostPerDay = gear.food ? gear.food.price * stats.maxHunger * dayMultiplier : 0;
+  const foodCostPerHit = stats.hitsPerDay > 0 ? foodCostPerDay / stats.hitsPerDay : 0;
+
+  // Pill cost: flat price per day (36cc)
+  const PILL_PRICE = 36;
+  const pillCostPerDay = hasPill ? PILL_PRICE : 0;
+  const pillCostPerHit = stats.hitsPerDay > 0 ? pillCostPerDay / stats.hitsPerDay : 0;
+
+  const weaponTotal = weaponCostPerHit * N;
+  const armorTotal = armorCostPerHit * N;
+  const ammoTotal = ammoCostPerHit * N;
+  const foodTotal = foodCostPerHit * N;
+  const boosterTotal = pillCostPerHit * N;
+  const totalCosts = weaponTotal + armorTotal + ammoTotal + foodTotal + boosterTotal;
+
+  // Loot drops — war planner formula: loot = 0.02 + 0.02 × level
+  const lootRate = Math.min(0.5, 0.02 + 0.02 * lootChanceLevel);
+  const successfulHitsForLoot = successfulHits;
+  const case1Drops = Math.round(lootRate * successfulHitsForLoot);
+  const case2Drops = Math.round((lootRate / 100) * successfulHitsForLoot);
+  const scrapDrops = Math.round(lootRate * 5 * successfulHitsForLoot);
+
+  const case1Revenue = case1Drops * simSettings.case1Price;
+  const case2Revenue = case2Drops * simSettings.case2Price;
+  const scrapRevenue = scrapDrops * simSettings.scrapPrice;
+
+  // Bounty revenue
+  const bountyRevenue = (simSettings.bountyPer1000 * totalDamage) / 1000;
+
+  const totalRevenue = bountyRevenue + case1Revenue + case2Revenue + scrapRevenue;
+
+  // Resources consumed (estimated based on gear)
+  const steelConsumed = Math.round(N * (gear.weapon ? 0.18 : 0));
+  const scrapConsumed = Math.round(N * (
+    (gear.helmet ? 0.1 : 0) + (gear.chest ? 0.12 : 0) + (gear.pants ? 0.08 : 0) +
+    (gear.boots ? 0.06 : 0) + (gear.gloves ? 0.05 : 0)
+  ));
+
+  const costPer1kDmg = totalDamage > 0 ? (totalCosts / totalDamage) * 1000 : 0;
+  const netProfit = totalRevenue - totalCosts;
+  const roi = totalCosts > 0 ? (netProfit / totalCosts) * 100 : 0;
+
+  return {
+    hits,
+    totalHits: N,
+    totalDamage,
+    expectedDamage: Math.round(stats.eDPHBurst * N),
+    normalHits,
+    critHits,
+    missHits,
+    dodgeHits,
+    critPct: N > 0 ? (critHits / N) * 100 : 0,
+    missPct: N > 0 ? (missHits / N) * 100 : 0,
+    dodgePct: N > 0 ? (dodgeHits / N) * 100 : 0,
+    avgDamage: successfulHits > 0 ? Math.round(totalDamage / successfulHits) : 0,
+    burstDamage: Math.round(stats.attackBurst),
+    costs: {
+      weapon: Math.round(weaponTotal * 1000) / 1000,
+      armor: Math.round(armorTotal * 1000) / 1000,
+      ammo: Math.round(ammoTotal * 1000) / 1000,
+      food: Math.round(foodTotal * 1000) / 1000,
+      booster: Math.round(boosterTotal * 1000) / 1000,
+      total: Math.round(totalCosts * 1000) / 1000,
+    },
+    resources: { steelConsumed, scrapConsumed },
+    revenue: {
+      bounty: Math.round(bountyRevenue * 1000) / 1000,
+      case1Drops,
+      case1Revenue: Math.round(case1Revenue * 1000) / 1000,
+      case2Drops,
+      case2Revenue: Math.round(case2Revenue * 1000) / 1000,
+      scrapDrops,
+      scrapRevenue: Math.round(scrapRevenue * 1000) / 1000,
+      total: Math.round(totalRevenue * 1000) / 1000,
+    },
+    costPer1kDmg: Math.round(costPer1kDmg * 1000) / 1000,
+    netProfit: Math.round(netProfit * 1000) / 1000,
+    roi: Math.round(roi * 10) / 10,
+  };
 }

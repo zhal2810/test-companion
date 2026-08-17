@@ -13,11 +13,13 @@ import {
   skillValue, skillTotalCost, clampLevel,
   buildGearOptions, computeCombatStats, optimizeSkills, generateBuilds,
   emptySkillLevels, sumSkillCost, fmtNum, DEFAULT_SETTINGS, GEAR_SLOTS, SLOT_LABEL,
-  STAT_LABELS,
+  STAT_LABELS, ECONOMIC_SKILLS, emptyEconomicSkillLevels,
+  simulateCombat, DEFAULT_SIM_SETTINGS,
 } from '../data/combatConfig';
 import type {
   CombatSkillKey, GearSlot, GearPiece, UnitGear, CombatSettings,
   OptimizeObjective, BuildObjective, BuildCandidate, CombatStats, GearStatKey,
+  EconomicSkillKey, SimSettings, SimResult,
 } from '../data/combatConfig';
 
 interface CombatUnitOptimizerProps {
@@ -42,13 +44,26 @@ const inputCls =
 const selectCls =
   'w-full bg-[#08090C] text-slate-200 border border-slate-800 hover:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-semibold outline-none focus:border-emerald-500/60 transition duration-150 cursor-pointer';
 
+const RARITY_COLORS: Record<string, string> = {
+  common: 'text-slate-400',
+  uncommon: 'text-emerald-400',
+  rare: 'text-sky-400',
+  epic: 'text-purple-400',
+  legendary: 'text-yellow-400',
+  mythic: 'text-rose-400',
+};
+
+function rarityColor(rarity?: string): string {
+  return RARITY_COLORS[rarity ?? 'common'] ?? 'text-slate-400';
+}
+
 function fmtPct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function Card({ children, className = '', id }: { children: React.ReactNode; className?: string; id?: string }) {
   return (
-    <div className={`bg-[#0C0D13] border border-slate-800/60 rounded-xl p-4 md:p-5 ${className}`}>
+    <div id={id} className={`bg-[#0C0D13] border border-slate-800/60 rounded-xl p-4 md:p-5 ${className}`}>
       {children}
     </div>
   );
@@ -146,6 +161,7 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
   const [pointsPerLevel, setPointsPerLevel] = useState(DEFAULT_POINTS_PER_LEVEL);
   const [lockedPoints, setLockedPoints] = useState(0);
   const [skillLevels, setSkillLevels] = useState<Record<CombatSkillKey, number>>(emptySkillLevels());
+  const [economicSkillLevels, setEconomicSkillLevels] = useState<Record<EconomicSkillKey, number>>(emptyEconomicSkillLevels());
   const [equippedGear, setEquippedGear] = useState<UnitGear | null>(null);
   const [gear, setGear] = useState<UnitGear>({});
 
@@ -157,10 +173,25 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
   const [recoLevels, setRecoLevels] = useState<Record<CombatSkillKey, number> | null>(null);
   const [optimizing, setOptimizing] = useState(false);
 
-  const [buildObjective, setBuildObjective] = useState<BuildObjective>('roi');
   const [buildBudget, setBuildBudget] = useState(0);
+  const [maxRarity, setMaxRarity] = useState('mythic');
   const [builds, setBuilds] = useState<BuildCandidate[] | null>(null);
   const [building, setBuilding] = useState(false);
+
+  const [simSettings, setSimSettings] = useState<SimSettings>({ ...DEFAULT_SIM_SETTINGS });
+  const [simResult, setSimResult] = useState<SimResult | null>(null);
+  const [simulating, setSimulating] = useState(false);
+
+  // Sync simSettings prices dari marketPrices
+  useEffect(() => {
+    if (!marketPrices) return;
+    setSimSettings((prev) => ({
+      ...prev,
+      case1Price: marketPrices['case1'] ?? prev.case1Price,
+      case2Price: marketPrices['case2'] ?? prev.case2Price,
+      scrapPrice: marketPrices['scraps'] ?? prev.scrapPrice,
+    }));
+  }, [marketPrices]);
 
   const importedRef = useRef(false);
 
@@ -207,9 +238,14 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
     COMBAT_SKILLS.forEach((def) => {
       newLevels[def.key] = clampLevel(p.skills?.[def.key]?.level ?? 0);
     });
+    const newEconLevels = emptyEconomicSkillLevels();
+    ECONOMIC_SKILLS.forEach((def) => {
+      newEconLevels[def.key] = clampLevel(p.skills?.[def.key]?.level ?? 0);
+    });
     const level = Math.max(1, Number(p.leveling?.level) || 1);
     setPlayerLevel(level);
     setSkillLevels(newLevels);
+    setEconomicSkillLevels(newEconLevels);
     setProfile(p);
 
     // Poin yang dipakai di skill NON-combat (energi, perusahaan, produksi, dst)
@@ -245,7 +281,6 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
           });
           piece.stats = stats;
           if (slot === 'food') piece.healPercent = stats.healthRegenPercent;
-          if (slot === 'pill') piece.buffPercent = stats.percentAttack;
         }
         newGear[slot] = piece;
       });
@@ -258,6 +293,7 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
     setProfile(null);
     setPlayerLevel(1);
     setSkillLevels(emptySkillLevels());
+    setEconomicSkillLevels(emptyEconomicSkillLevels());
     setLockedPoints(0);
     setGear({});
     setEquippedGear(null);
@@ -312,9 +348,10 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
       const results = generateBuilds({
         skillLevels,
         gearOptions,
-        objective: buildObjective,
+        objective: 'dpd',
         settings,
         budget: buildBudget,
+        maxRarity,
       });
       setBuilds(results);
       setBuilding(false);
@@ -327,6 +364,21 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
       copy[slot] = { ...piece };
     });
     setGear(copy);
+  }
+
+  function runSimulation() {
+    setSimulating(true);
+    setTimeout(() => {
+      const result = simulateCombat(
+        stats,
+        gear,
+        { ...simSettings, bountyPer1000: settings.bountyPer1000 },
+        settings,
+        skillLevels.lootChance,
+      );
+      setSimResult(result);
+      setSimulating(false);
+    }, 30);
   }
 
   return (
@@ -388,19 +440,11 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
             onChange={(v) => setSettings((s) => ({ ...s, ammoPerHit: Math.max(0, v) }))}
             min={0}
           />
-          <Field
-            label="Wear Multiplier"
-            value={settings.wearMultiplier}
-            onChange={(v) => setSettings((s) => ({ ...s, wearMultiplier: Math.max(0, v) }))}
-            step={0.1}
-            min={0}
-          />
         </div>
         <p className="text-[10px] text-slate-600 mt-2.5 leading-relaxed">
-          Formula merujuk gameConfig resmi: Attack = (skill + weapon + overflow)×(ammo)×(buff)×(rank);
+          Formula mengikuti WarEra War Planner: Attack = (skill + weapon) × ammo × pill(1.6x) × rank;
           Precision cap 100% (overflow→Attack ×4); Crit Chance cap 60% (overflow→Crit Dmg ×4);
-          Armor DR = armor/(armor+40) cap 90%; HP/rasa lapar pulih 10%/jam. Harga gear (senjata & armor)
-          adalah perkiraan — sesuaikan harga di langkah Pilih Gear.
+          Armor DR = armor/(armor+40) cap 90%; HP/hunger regen 10%/jam. Pill = toggle (+60% ATK, food multiplier 1.8x, harga flat/hari).
         </p>
       </Card>
 
@@ -482,6 +526,14 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
               <span>Health <b className="text-slate-200">{profile.skills?.health?.level ?? 0}</b></span>
               <span>Hunger <b className="text-slate-200">{profile.skills?.hunger?.level ?? 0}</b></span>
             </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-400 font-mono mt-1.5">
+              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mr-1">Economic:</span>
+              <span>Entrepreneurship <b className="text-slate-200">{profile.skills?.entrepreneurship?.level ?? 0}</b></span>
+              <span>Energy <b className="text-slate-200">{profile.skills?.energy?.level ?? 0}</b></span>
+              <span>Production <b className="text-slate-200">{profile.skills?.production?.level ?? 0}</b></span>
+              <span>Companies <b className="text-slate-200">{profile.skills?.companies?.level ?? 0}</b></span>
+              <span>Management <b className="text-slate-200">{profile.skills?.management?.level ?? 0}</b></span>
+            </div>
           </div>
         )}
 
@@ -547,6 +599,18 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
               <Check className="w-3.5 h-3.5" /> Terapkan Rekomendasi
             </button>
           )}
+          <label className="flex items-center gap-1.5 text-slate-400 text-[10px] font-bold uppercase tracking-wider cursor-pointer ml-auto">
+            <input
+              type="checkbox"
+              onChange={(e) => {
+                if (e.target.checked) {
+                  document.getElementById('step-4')?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="w-3.5 h-3.5 accent-emerald-500"
+            />
+            Langsung ke Build
+          </label>
         </div>
 
         <div className="overflow-x-auto">
@@ -626,6 +690,55 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
             </span>
           </div>
         )}
+
+        {/* Economic Skills Table */}
+        <div className="mt-4 pt-4 border-t border-slate-800/60">
+          <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Economic Skills</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[400px]">
+              <thead>
+                <tr className="text-[9px] uppercase tracking-wider text-slate-500">
+                  <th className="py-2 pr-2 font-bold">Skill</th>
+                  <th className="py-2 pr-2 font-bold text-right">Level</th>
+                  <th className="py-2 pr-2 font-bold text-right">Nilai</th>
+                  <th className="py-2 font-bold text-right">Poin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ECONOMIC_SKILLS.map((def) => {
+                  const lv = economicSkillLevels[def.key];
+                  const value = def.base + def.perLevel * clampLevel(lv);
+                  return (
+                    <tr key={def.key} className="border-t border-slate-800/50">
+                      <td className="py-2 pr-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-200">{def.name}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400">economic</span>
+                        </div>
+                        <div className="text-[10px] text-slate-600 mt-0.5">{def.desc}</div>
+                      </td>
+                      <td className="py-2 pr-2 text-right">
+                        <select
+                          value={lv}
+                          onChange={(e) => setEconomicSkillLevels((s) => ({ ...s, [def.key]: clampLevel(Number(e.target.value)) }))}
+                          className={`${selectCls} w-16`}
+                        >
+                          {Array.from({ length: MAX_SKILL_LEVEL + 1 }, (_, i) => (
+                            <option key={i} value={i}>{i}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-2 text-right font-mono text-slate-300">{value}</td>
+                      <td className="py-2 text-right font-mono text-slate-500">
+                        {skillTotalCost(lv)} <span className="text-[9px] text-slate-700">/ max {skillTotalCost(MAX_SKILL_LEVEL)}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </Card>
 
       {/* ============ LANGKAH 3: PILIH GEAR ============ */}
@@ -671,26 +784,38 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
       </Card>
 
       {/* ============ LANGKAH 4: GENERATE BUILDS ============ */}
-      <Card>
+      <Card id="step-4">
         <StepHeader
           step={4}
           title="Generate Builds"
-          subtitle="Cari kombinasi gear terbaik berdasarkan tujuan: damage maksimal, sustain harian, atau ROI (damage per gold)."
+          subtitle="Cari kombinasi gear terbaik untuk Damage Per Hari (DPD)."
           icon={<Target className="w-4 h-4" />}
         />
 
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <label className="block">
-            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Tujuan Build</span>
+            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Max Rarity</span>
             <select
-              value={buildObjective}
-              onChange={(e) => setBuildObjective(e.target.value as BuildObjective)}
+              value={maxRarity}
+              onChange={(e) => setMaxRarity(e.target.value)}
               className={selectCls}
             >
-              <option value="roi">ROI (damage per gold)</option>
-              <option value="dpd">Damage per Hari</option>
-              <option value="dph">Damage per Hit</option>
+              <option value="common">Common</option>
+              <option value="uncommon">Uncommon</option>
+              <option value="rare">Rare</option>
+              <option value="epic">Epic</option>
+              <option value="legendary">Legendary</option>
+              <option value="mythic">Mythic</option>
             </select>
+          </label>
+          <label className="flex items-center gap-2 text-slate-300 text-[10px] font-bold uppercase tracking-wider cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.pillEnabled}
+              onChange={(e) => setSettings((s) => ({ ...s, pillEnabled: e.target.checked }))}
+              className="w-4 h-4 rounded bg-slate-800 border-slate-600 accent-emerald-500"
+            />
+            Pill (+60% ATK)
           </label>
           <Field
             label="Budget Build (cc, 0 = tak terbatas)"
@@ -726,7 +851,6 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
                   key={i}
                   rank={i + 1}
                   build={b}
-                  objective={buildObjective}
                   settings={settings}
                   onApply={() => applyBuild(b)}
                 />
@@ -738,6 +862,211 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
         {!builds && !building && (
           <div className="flex items-center justify-center gap-2 py-8 text-slate-600 text-xs border border-dashed border-slate-800 rounded-xl">
             <ArrowRight className="w-4 h-4" /> Atur skill & gear, lalu tekan Generate Builds
+          </div>
+        )}
+      </Card>
+
+      {/* ============ LANGKAH 5: COMBAT LOG / SIMULATION ============ */}
+      <Card>
+        <StepHeader
+          step={5}
+          title="Combat Log"
+          subtitle="Simulasi aktual dengan RNG — lihat damage, cost, revenue, dan profit secara realistis."
+          icon={<Zap className="w-4 h-4" />}
+        />
+
+        <div className="flex flex-wrap items-end gap-3 mb-4">
+          <Field
+            label="Jumlah Hit"
+            value={simSettings.numHits}
+            onChange={(v) => setSimSettings((s) => ({ ...s, numHits: Math.max(1, Math.round(v)) }))}
+            min={1}
+            max={10000}
+          />
+          <Field
+            label="Harga Case 1 (cc)"
+            value={simSettings.case1Price}
+            onChange={(v) => setSimSettings((s) => ({ ...s, case1Price: Math.max(0, v) }))}
+            step={0.1}
+            min={0}
+          />
+          <Field
+            label="Harga Case 2 (cc)"
+            value={simSettings.case2Price}
+            onChange={(v) => setSimSettings((s) => ({ ...s, case2Price: Math.max(0, v) }))}
+            step={0.1}
+            min={0}
+          />
+          <Field
+            label="Harga Scrap (cc)"
+            value={simSettings.scrapPrice}
+            onChange={(v) => setSimSettings((s) => ({ ...s, scrapPrice: Math.max(0, v) }))}
+            step={0.01}
+            min={0}
+          />
+          <button
+            onClick={runSimulation}
+            disabled={simulating}
+            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs transition duration-150 cursor-pointer disabled:opacity-60"
+          >
+            {simulating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+            Run Simulation
+          </button>
+        </div>
+
+        {simResult && (
+          <div className="space-y-4">
+            {/* Summary Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <StatBox
+                label="Total Damage"
+                value={fmtNum(simResult.totalDamage)}
+                hint={`${simResult.totalHits} hits`}
+                accent="text-white"
+              />
+              <StatBox
+                label="Avg / Hit"
+                value={fmtNum(simResult.avgDamage)}
+                hint={`burst ${fmtNum(simResult.burstDamage)}`}
+              />
+              <StatBox
+                label="Cost / 1k Dmg"
+                value={`${fmtNum(simResult.costPer1kDmg)} G`}
+                accent={simResult.costPer1kDmg > 0 ? 'text-amber-400' : 'text-white'}
+              />
+              <StatBox
+                label="Net Profit"
+                value={`${simResult.netProfit >= 0 ? '+' : ''}${fmtNum(simResult.netProfit)} G`}
+                hint={`ROI ${simResult.roi}%`}
+                accent={simResult.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}
+              />
+            </div>
+
+            {/* Hit Distribution */}
+            <div className="grid grid-cols-4 gap-2">
+              <div className="bg-[#0E1017] border border-slate-800/70 rounded-lg p-2.5 text-center">
+                <div className="text-lg font-mono font-bold text-sky-300">{simResult.normalHits}</div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider">Normal</div>
+              </div>
+              <div className="bg-[#0E1017] border border-slate-800/70 rounded-lg p-2.5 text-center">
+                <div className="text-lg font-mono font-bold text-amber-300">{simResult.critHits} <span className="text-[10px] text-slate-500">({simResult.critPct.toFixed(1)}%)</span></div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider">Crit</div>
+              </div>
+              <div className="bg-[#0E1017] border border-slate-800/70 rounded-lg p-2.5 text-center">
+                <div className="text-lg font-mono font-bold text-slate-400">{simResult.missHits} <span className="text-[10px] text-slate-500">({simResult.missPct.toFixed(1)}%)</span></div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider">Miss</div>
+              </div>
+              <div className="bg-[#0E1017] border border-slate-800/70 rounded-lg p-2.5 text-center">
+                <div className="text-lg font-mono font-bold text-rose-300">{simResult.dodgeHits} <span className="text-[10px] text-slate-500">({simResult.dodgePct.toFixed(1)}%)</span></div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider">Dodge</div>
+              </div>
+            </div>
+
+            {/* Damage vs Expected */}
+            {simResult.expectedDamage > 0 && (
+              <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                <span>Damage: <b className="text-white">{fmtNum(simResult.totalDamage)}</b></span>
+                <span className={simResult.totalDamage >= simResult.expectedDamage ? 'text-emerald-400' : 'text-rose-400'}>
+                  ({simResult.totalDamage >= simResult.expectedDamage ? '+' : ''}
+                  {((simResult.totalDamage - simResult.expectedDamage) / simResult.expectedDamage * 100).toFixed(1)}% vs expected {fmtNum(simResult.expectedDamage)})
+                </span>
+              </div>
+            )}
+
+            {/* Costs & Revenue */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Costs */}
+              <div className="bg-[#0E1017] border border-slate-800/70 rounded-xl p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Costs</span>
+                  <span className="text-xs font-mono font-bold text-rose-300">{fmtNum(simResult.costs.total)} G</span>
+                </div>
+                <div className="space-y-1.5 text-[10px] font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Weapon</span>
+                    <span className="text-slate-300">{fmtNum(simResult.costs.weapon)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Armor</span>
+                    <span className="text-slate-300">{fmtNum(simResult.costs.armor)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Ammo ({simSettings.numHits})</span>
+                    <span className="text-slate-300">{fmtNum(simResult.costs.ammo)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Food</span>
+                    <span className="text-slate-300">{fmtNum(simResult.costs.food)}</span>
+                  </div>
+                  {simResult.costs.booster > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Booster</span>
+                      <span className="text-slate-300">{fmtNum(simResult.costs.booster)}</span>
+                    </div>
+                  )}
+                  {simResult.resources.steelConsumed > 0 && (
+                    <div className="flex justify-between border-t border-slate-800/50 pt-1.5">
+                      <span className="text-slate-500">Steel consumed</span>
+                      <span className="text-slate-400">{simResult.resources.steelConsumed}</span>
+                    </div>
+                  )}
+                  {simResult.resources.scrapConsumed > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Scrap consumed</span>
+                      <span className="text-slate-400">{simResult.resources.scrapConsumed}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Revenue */}
+              <div className="bg-[#0E1017] border border-slate-800/70 rounded-xl p-3.5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Revenue</span>
+                  <span className="text-xs font-mono font-bold text-emerald-300">{fmtNum(simResult.revenue.total)} G</span>
+                </div>
+                <div className="space-y-1.5 text-[10px] font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Bounty</span>
+                    <span className="text-slate-300">{fmtNum(simResult.revenue.bounty)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Case 1 ({simResult.revenue.case1Drops})</span>
+                    <span className="text-slate-300">{fmtNum(simResult.revenue.case1Revenue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Case 2 ({simResult.revenue.case2Drops})</span>
+                    <span className="text-slate-300">{fmtNum(simResult.revenue.case2Revenue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Scrap ({simResult.revenue.scrapDrops})</span>
+                    <span className="text-slate-300">{fmtNum(simResult.revenue.scrapRevenue)}</span>
+                  </div>
+                </div>
+
+                {/* Net Profit Bar */}
+                <div className="mt-3 pt-2 border-t border-slate-800/50">
+                  <div className="flex justify-between text-[10px] font-mono">
+                    <span className="text-slate-400">Net Profit</span>
+                    <span className={`font-bold ${simResult.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {simResult.netProfit >= 0 ? '+' : ''}{fmtNum(simResult.netProfit)} G
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono mt-1">
+                    <span className="text-slate-500">ROI</span>
+                    <span className={`font-bold ${simResult.roi >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {simResult.roi}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!simResult && (
+          <div className="flex items-center justify-center gap-2 py-8 text-slate-600 text-xs border border-dashed border-slate-800 rounded-xl">
+            <Zap className="w-4 h-4" /> Atur jumlah hit & harga item, lalu tekan Run Simulation
           </div>
         )}
       </Card>
@@ -783,8 +1112,8 @@ function GearSlotPicker({
         >
           <option value="">— Kosong —</option>
           {options.map((o) => (
-            <option key={o.code} value={o.code}>
-              {o.name}
+            <option key={o.code} value={o.code} className={rarityColor(o.rarity)}>
+              [{o.rarity}] {o.name}
             </option>
           ))}
         </select>
@@ -795,6 +1124,9 @@ function GearSlotPicker({
           <ItemIcon itemCode={piece.code} size="sm" />
           <div className="flex-1 min-w-0 space-y-1.5">
             <div className="flex flex-wrap gap-1.5">
+              <span className={`text-[10px] font-mono font-bold uppercase ${rarityColor(piece.rarity)}`}>
+                {piece.rarity}
+              </span>
               {(Object.keys(piece.stats) as GearStatKey[]).map((k) => (
                 <span key={k} className="text-[10px] font-mono bg-slate-900 border border-slate-800 rounded-md px-1.5 py-0.5 text-slate-300">
                   {STAT_LABELS[k]} <b className={k === 'percentAttack' || k === 'healthRegenPercent' ? 'text-emerald-400' : 'text-sky-300'}>
@@ -875,17 +1207,14 @@ function BuildCard({
 }: {
   rank: number;
   build: BuildCandidate;
-  objective: BuildObjective;
   settings: CombatSettings;
   onApply: () => void;
 }) {
   const s = build.stats;
-  const metricLabel =
-    objective === 'roi' ? 'Dmg / Gold' : objective === 'dpd' ? 'DPD' : 'DPH';
-  const metricValue =
-    objective === 'roi' ? fmtNum(s.damagePerGold) : objective === 'dpd' ? fmtNum(s.dPD) : fmtNum(s.eDPHBurst);
+  const metricLabel = 'DPD';
+  const metricValue = fmtNum(s.dPD);
 
-  const slots: GearSlot[] = ['weapon', 'helmet', 'chest', 'pants', 'boots', 'gloves', 'ammo', 'food', 'pill'];
+  const slots: GearSlot[] = ['weapon', 'helmet', 'chest', 'pants', 'boots', 'gloves', 'ammo', 'food'];
 
   return (
     <div className={`bg-[#0E1017] border rounded-xl p-3.5 ${rank === 1 ? 'border-emerald-500/40 shadow-lg shadow-emerald-950/20' : 'border-slate-800/70'}`}>
@@ -935,7 +1264,7 @@ function BuildCard({
           .map((sl) => (
             <span
               key={sl}
-              className="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg pl-1 pr-2 py-0.5 text-[10px] text-slate-300"
+              className={`inline-flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg pl-1 pr-2 py-0.5 text-[10px] ${rarityColor(build.gear[sl]!.rarity)}`}
             >
               <ItemIcon itemCode={build.gear[sl]!.code} size="sm" className="!w-4 !h-4" />
               {build.gear[sl]!.name}

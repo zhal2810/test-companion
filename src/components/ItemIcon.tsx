@@ -23,11 +23,18 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
   // (camelCase) jadi 404 dan langsung fallback ke SVG generik.
   const code = itemCode.toLowerCase();
 
-  // If no image error, we attempt to load the actual asset file (e.g., from VS Code local public directory)
+  // Equipment items (helmet1-6, chest1-6, boots1-6, gloves1-6, pants1-6) share
+  // the same base image (helmet.png, chest.png, etc.) — strip trailing digit.
+  const EQUIP_BASES = ['helmet', 'chest', 'boots', 'gloves', 'pants'];
+  const baseName = EQUIP_BASES.find((b) => code.startsWith(b))
+    ? EQUIP_BASES.find((b) => code.startsWith(b))!
+    : itemCode; // preserve original casing for image path (cookedFish.png, lightAmmo.png)
+
+  // If no image error, we attempt to load the actual asset file
   if (!imgError) {
     return (
       <img
-        src={`/assets/items/${itemCode}.png`}
+        src={`/assets/items/${baseName}.png`}
         alt={itemCode}
         className={`${sizeClasses[size]} object-contain select-none ${className}`}
         onError={() => setImgError(true)}
@@ -160,6 +167,82 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
+      default:
+        return null;
+    }
+  };
+
+  const renderEquipIcon = (base: string) => {
+    switch (base) {
+      case 'helmet':
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="helmetGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#475569" />
+              </linearGradient>
+            </defs>
+            <path d="M12 40 C12 20, 52 20, 52 40 L48 48 L16 48 Z" fill="url(#helmetGrad)" stroke="#1E293B" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M20 42 L44 42" stroke="#334155" strokeWidth="2" />
+            <path d="M18 34 L46 34" stroke="#334155" strokeWidth="1.5" />
+            <path d="M28 16 L32 8 L36 16" stroke="#64748B" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        );
+      case 'chest':
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="chestGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#475569" />
+              </linearGradient>
+            </defs>
+            <path d="M16 14 L48 14 L52 54 L12 54 Z" fill="url(#chestGrad)" stroke="#1E293B" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M16 14 L32 8 L48 14" stroke="#64748B" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M28 24 L36 24 L36 36 L28 36 Z" fill="#334155" stroke="#1E293B" strokeWidth="1.5" />
+          </svg>
+        );
+      case 'pants':
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="pantsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#475569" />
+              </linearGradient>
+            </defs>
+            <path d="M14 10 L50 10 L54 56 L36 56 L32 40 L28 56 L10 56 Z" fill="url(#pantsGrad)" stroke="#1E293B" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M14 10 L50 10" stroke="#334155" strokeWidth="2" />
+            <path d="M32 22 L32 40" stroke="#334155" strokeWidth="1.5" />
+          </svg>
+        );
+      case 'boots':
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="bootsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#475569" />
+              </linearGradient>
+            </defs>
+            <path d="M18 8 L30 8 L30 32 L8 38 L8 46 L30 46 L32 48 L36 8 L48 8 L48 32 L64 38 L64 46 L42 46 L40 48 L36 48 L26 48 Z" fill="url(#bootsGrad)" stroke="#1E293B" strokeWidth="2" strokeLinejoin="round" />
+          </svg>
+        );
+      case 'gloves':
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="glovesGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#94A3B8" />
+                <stop offset="100%" stopColor="#475569" />
+              </linearGradient>
+            </defs>
+            <path d="M16 28 L16 8 L24 8 L24 24 L28 24 L28 4 L36 4 L36 24 L40 24 L40 8 L48 8 L48 28 L52 28 L52 56 L12 56 L12 28 Z" fill="url(#glovesGrad)" stroke="#1E293B" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M16 36 L48 36" stroke="#334155" strokeWidth="1.5" />
+            <path d="M16 44 L48 44" stroke="#334155" strokeWidth="1.5" />
+          </svg>
+        );
       default:
         return null;
     }
@@ -672,6 +755,10 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
         );
 
       default: {
+        // Equipment items (helmet, chest, boots, gloves, pants)
+        if (EQUIP_BASES.some((b) => code.startsWith(b))) {
+          return renderEquipIcon(code.replace(/[0-9]+$/, ''));
+        }
         // Senjata militer bisa ber-tier ("sniper1..6"); buang angka, render ikon senjata
         const weaponBase = code.replace(/[0-9]+$/, '');
         if (['knife', 'gun', 'rifle', 'sniper', 'tank', 'jet'].includes(weaponBase)) {
