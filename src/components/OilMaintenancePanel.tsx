@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, Droplet, RefreshCw, AlertCircle, Shield, MapPin } from 'lucide-react';
 import ItemIcon from './ItemIcon';
+import { getCached, setCache, clearCache } from '../utils/trackerCache';
 
 type UpgradeStatus = 'active' | 'activating' | 'off';
 
@@ -55,19 +56,36 @@ export default function OilMaintenancePanel({ countryId, token }: OilMaintenance
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
+  const OIL_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
   const load = useCallback(
     async (force = false) => {
+      const cacheKey = `oil:${countryId}`;
+
+      if (!force) {
+        const cached = getCached<OilMaintenanceData>(cacheKey, OIL_CACHE_TTL);
+        if (cached) {
+          setData(cached);
+          setLoading(false);
+          return;
+        }
+      }
+
       setLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams({ countryId });
-        if (force) params.set('_', String(Date.now()));
+        if (force) {
+          params.set('_', String(Date.now()));
+          clearCache(cacheKey);
+        }
         const headers: Record<string, string> = {};
         if (token) headers['X-API-Key'] = token;
         const res = await fetch(`/api/tracker/oil-maintenance?${params.toString()}`, { headers });
         const json = await res.json();
         if (!json.success || !json.data) throw new Error(json.error || 'Gagal memuat data oil maintenance');
         setData(json.data);
+        setCache(cacheKey, json.data, OIL_CACHE_TTL);
       } catch (err: any) {
         setError(err.message || 'Terjadi kesalahan');
       } finally {

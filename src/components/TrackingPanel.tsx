@@ -19,6 +19,7 @@ import OilMaintenancePanel from './OilMaintenancePanel';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeFifo, Flip, Position } from '../utils/fifo';
 import { fetchWarera } from '../api/apiClient';
+import { getCached, setCache, clearCache } from '../utils/trackerCache';
 
 // Pola ID terpotong (8 karakter hex, hasil .slice(0, 8) dari backend/API).
 // Ini BUKAN nama asli — harus di-resolve dulu via user.getUserById.
@@ -118,9 +119,24 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
   const [dateTo, setDateTo] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
 
+  const TX_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   const loadTransactions = useCallback(
     async (force = false) => {
       if (!token) return;
+
+      // Cek cache kecuali force refresh
+      const cacheKey = `tx:${countryId}`;
+      if (!force) {
+        const cached = getCached<{ transactions: TradeRaw[]; fetchedAt: string }>(cacheKey, TX_CACHE_TTL);
+        if (cached) {
+          setRawTransactions(cached.transactions);
+          setFetchedAt(cached.fetchedAt);
+          setLoading(false);
+          return;
+        }
+      }
+
       setLoading(true);
       setError(null);
       try {
@@ -130,6 +146,7 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
         if (force) {
           // Bypass cache
           params.set('_', String(Date.now()));
+          clearCache(cacheKey);
         }
         const response = await fetch(`/api/tracker/transactions?${params.toString()}`, { headers });
         const json: TrackerResponse = await response.json();
@@ -138,6 +155,7 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
         }
         setRawTransactions(json.data.transactions);
         setFetchedAt(json.data.fetchedAt);
+        setCache(cacheKey, { transactions: json.data.transactions, fetchedAt: json.data.fetchedAt }, TX_CACHE_TTL);
       } catch (err: any) {
         setError(err.message || 'Terjadi kesalahan');
       } finally {
@@ -156,9 +174,16 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
     localStorage.setItem(COUNTRY_STORAGE_KEY, countryId);
   }, [countryId]);
 
-  // Muat daftar negara dari API untuk selector.
+  // Muat daftar negara dari API untuk selector (cache 30 menit).
   useEffect(() => {
     if (!token) return;
+
+    const cached = getCached<{ _id: string; name: string }[]>('countries', 30 * 60 * 1000);
+    if (cached) {
+      setCountries(cached);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       const res = await fetchWarera('country.getAllCountries', {}, token);
@@ -172,11 +197,11 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
               ? res.data.items
               : [];
       if (!cancelled && Array.isArray(list) && list.length > 0) {
-        setCountries(
-          list
-            .map((c: any) => ({ _id: c._id || c.id, name: c.name || c.code || '' }))
-            .filter((c) => c._id),
-        );
+        const mapped = list
+          .map((c: any) => ({ _id: c._id || c.id, name: c.name || c.code || '' }))
+          .filter((c) => c._id);
+        setCountries(mapped);
+        setCache('countries', mapped, 30 * 60 * 1000);
       }
     })();
     return () => {
@@ -299,9 +324,13 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
 
   const fifo = useMemo(() => computeFifo(trades), [trades]);
 
-  // Market value pakai harga pasar dari itemTrading.getPrices
-  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
+  // Market value pakai harga pasar dari itemTrading.getPrices (cache 1 menit)
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>(() => {
+    return getCached<Record<string, number>>('trackerPrices', 60 * 1000) ?? {};
+  });
   useEffect(() => {
+    if (Object.keys(marketPrices).length > 0) return; // sudah ada dari cache init
+
     let cancelled = false;
     (async () => {
       try {
@@ -317,7 +346,10 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
             }
           });
         }
-        if (!cancelled) setMarketPrices(map);
+        if (!cancelled) {
+          setMarketPrices(map);
+          setCache('trackerPrices', map, 60 * 1000);
+        }
       } catch {
         // Biarkan kosong
       }
@@ -391,7 +423,10 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
               </select>
             )}
             <button
-              onClick={() => loadTransactions(true)}
+              onClick={() => {
+                clearCache('trackerPrices');
+                loadTransactions(true);
+              }}
               disabled={loading}
               className="flex items-center gap-1.5 text-slate-400 hover:text-white text-xs px-2.5 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 transition duration-150 cursor-pointer disabled:text-slate-600 disabled:cursor-not-allowed"
             >
@@ -557,6 +592,54 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
 
           {/* OIL MAINTENANCE */}
           <OilMaintenancePanel countryId={countryId} token={token} />
+
+          {/* PAPER COST REFERENCE */}
+          <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-amber-400" />
+              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Biaya Kertas (Paper)</h3>
+            </div>
+            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Aksi butuh kertas */}
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-wider text-amber-500/80 mb-2">Biaya Aksi</div>
+                <div className="space-y-1">
+                  {[
+                    { action: 'Define Sworn Enemy', cost: 10 },
+                    { action: 'Propose Defensive Pact', cost: 10 },
+                    { action: 'Start Presidential Election', cost: 20 },
+                    { action: 'Start Congress Election', cost: 20 },
+                    { action: 'Create Alliance', cost: 20 },
+                    { action: 'Set Country Color', cost: 5 },
+                    { action: 'Set Specialization Item', cost: 50 },
+                  ].map((item) => (
+                    <div key={item.action} className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 truncate">{item.action}</span>
+                      <span className="font-mono text-amber-300 shrink-0 ml-2">{item.cost} 📄</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Transfer fee */}
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-wider text-sky-500/80 mb-2">Transfer Fee (%)</div>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Transfer ke Ally</span>
+                    <span className="font-mono text-sky-300">50%</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Transfer ke External</span>
+                    <span className="font-mono text-sky-300">100%</span>
+                  </div>
+                  <div className="mt-2 text-[9px] text-slate-600 leading-relaxed">
+                    Contoh: kirim 5,000 🪙 ke ally → penerima terima 2,500 🪙 (fee 50%)
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* CURRENT POSITIONS */}
           <div className="bg-[#0C0D13] border border-slate-800 rounded-2xl overflow-hidden">
