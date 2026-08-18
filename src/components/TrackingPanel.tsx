@@ -16,6 +16,7 @@ import {
 import CurrencyIcon from './CurrencyIcon';
 import ItemIcon from './ItemIcon';
 import OilMaintenancePanel from './OilMaintenancePanel';
+import DonationIcon from './DonationIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeFifo, Flip, Position } from '../utils/fifo';
 import { fetchWarera } from '../api/apiClient';
@@ -623,7 +624,10 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
 
               {/* Transfer fee */}
               <div>
-                <div className="text-[9px] font-bold uppercase tracking-wider text-sky-500/80 mb-2">Transfer Fee (%)</div>
+                <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-sky-500/80 mb-2">
+                  <DonationIcon className="w-3.5 h-3.5" />
+                  Transfer Fee (%)
+                </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-slate-400">Transfer ke Ally</span>
@@ -794,7 +798,11 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               <div className="w-5 h-5 shrink-0 flex items-center justify-center">
-                                <ItemIcon itemCode={tx.itemCode} size="sm" className="w-full h-full object-contain" />
+                                {isDonation ? (
+                                  <DonationIcon className="w-full h-full text-amber-400" />
+                                ) : (
+                                  <ItemIcon itemCode={tx.itemCode} size="sm" className="w-full h-full object-contain" />
+                                )}
                               </div>
                               <span className="font-semibold text-slate-200">{getItemName(tx.itemCode)}</span>
                             </div>
