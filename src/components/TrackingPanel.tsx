@@ -787,8 +787,7 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
                       const isSell = tx.sellerCountryId === countryId;
                       const isTradeType = tx.transactionType === 'trading' || tx.transactionType === 'itemMarket';
                       const isDonation = tx.transactionType === 'donation';
-                      const donationOut = isDonation && isSell;
-                      const donationIn = isDonation && isBuy;
+                      const donationIn = isDonation;
                       const counterparty = isBuy
                         ? resolveName(tx.sellerId, tx.sellerName) || '—'
                         : resolveName(tx.buyerId, tx.buyerName) || '—';
@@ -815,8 +814,6 @@ export default function TrackingPanel({ token, onOpenSettings }: TrackerProps) {
                               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold"><TrendingUp className="w-3 h-3" /> BELI</span>
                             ) : isTradeType && isSell ? (
                               <span className="inline-flex items-center gap-1 text-rose-400 font-bold"><TrendingDown className="w-3 h-3" /> JUAL</span>
-                            ) : donationOut ? (
-                              <span className="inline-flex items-center gap-1 text-amber-400 font-bold"><TrendingDown className="w-3 h-3" /> DONASI KELUAR</span>
                             ) : donationIn ? (
                               <span className="inline-flex items-center gap-1 text-amber-400 font-bold"><TrendingUp className="w-3 h-3" /> DONASI MASUK</span>
                             ) : (
