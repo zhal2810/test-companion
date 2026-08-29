@@ -3,12 +3,16 @@ import { normalizeWareraPayload, extractCompanyReferences, normalizeCompanyDetai
 import { GAME_ITEMS } from '../data/gameConfig';
 import { applyGameConfigItems } from '../data/gameConfigStore';
 
+import { DEFAULT_TOKEN } from '../config/appDefaults';
+
+const ENV_TOKEN = (import.meta as any).env?.VITE_WARERA_TOKEN as string | undefined;
+
 const api = axios.create({
   baseURL: '/api/players',
 });
 
 export const fetchWarera = async (procedure: string, input?: any, explicitToken: string | null = null): Promise<{ success: boolean; error: string | null; data: any }> => {
-  const token = explicitToken ?? localStorage.getItem('warera_api_token');
+  const token = explicitToken ?? localStorage.getItem('warera_api_token') ?? (DEFAULT_TOKEN || null) ?? (ENV_TOKEN || null);
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) {

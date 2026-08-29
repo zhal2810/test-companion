@@ -10,6 +10,7 @@ import LiveBattles from './LiveBattles';
 import Logo from './Logo';
 import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { DEFAULT_TOKEN, DEFAULT_USER_ID, DEFAULT_USERNAME } from '../config/appDefaults';
 
 function formatRangeDate(date: Date): string {
   return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
@@ -100,15 +101,40 @@ export default function Dashboard() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [txTypeFilter, setTxTypeFilter] = useState('all');
 
-  // Load Saved config
+  // Load Saved config - support token-only hardcoded
   const loadSavedConfig = () => {
     try {
       const saved = JSON.parse(localStorage.getItem('warera_config') || '{}');
       if (saved.userId && saved.username) {
+        // pastikan token ke-sync ke warera_api_token juga
+        if (saved.token) localStorage.setItem('warera_api_token', saved.token);
         setConfig(saved);
-      } else {
-        setConfig(null);
+        return;
       }
+      const envToken = (import.meta as any).env?.VITE_WARERA_TOKEN as string | undefined;
+      const token = saved.token || localStorage.getItem('warera_api_token') || DEFAULT_TOKEN || envToken || null;
+      const username = saved.username || DEFAULT_USERNAME || "";
+      const userId = saved.userId || DEFAULT_USER_ID || "";
+
+      // mode token-only: simpan token ke localStorage biar fetchWarera auto pakai
+      if (token && !localStorage.getItem('warera_api_token')) {
+        localStorage.setItem('warera_api_token', token);
+      }
+
+      if (username && userId && token) {
+        const autoConfig = {
+          username,
+          userId,
+          token,
+          user: saved.user || { username, _id: userId },
+        };
+        localStorage.setItem('warera_config', JSON.stringify(autoConfig));
+        setConfig(autoConfig);
+        return;
+      }
+      // token-only tanpa username/id: tetap null config tapi token sudah ke-store
+      // biar komponen yang butuh token tetap jalan via fallback DEFAULT_TOKEN
+      setConfig(saved.userId && saved.username ? saved : null);
     } catch (e) {
       setConfig(null);
     }
