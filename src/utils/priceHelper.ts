@@ -92,12 +92,13 @@ export async function getConsistentPrice(
     return { price: cached.price, source: cached.source };
   }
 
-  // Try to fetch latest candle as source of truth
+  // Try to fetch latest candle as source of truth (Pulse hanya support week/month)
   try {
-    const candleRes = await getCandleHistory(itemCode, 'day');
+    const candleRes = await getCandleHistory(itemCode, 'week');
     if (candleRes.success && candleRes.data.length > 0) {
-      const lastCandle = candleRes.data[candleRes.data.length - 1];
-      const candlePrice = lastCandle.close;
+      const sorted = [...candleRes.data].sort((a,b)=> Number(a.time)-Number(b.time));
+      const lastCandle = sorted[sorted.length - 1];
+      const candlePrice = Number(lastCandle.close) || fallbackPrice;
 
       // Cache the candle price
       setCachedPrice(itemCode, candlePrice, 'candle');

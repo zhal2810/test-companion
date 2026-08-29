@@ -4,7 +4,7 @@ import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, Shopping
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
-import { getItemStats } from '../api/apiClient';
+import { getItemStats, getCandleHistory } from '../api/apiClient';
 import { getConsistentPrice, getCacheStats, formatPrice } from '../utils/priceHelper';
 
 const PriceChartModal = React.lazy(() => import('./PriceChartModal'));
@@ -345,12 +345,28 @@ export default function MarketIntel({ token }: MarketIntelProps) {
       const statsMap: Record<string, any> = {};
 
       // Masukkan data dari Pulse snapshot dulu (sebagai base)
+      // Snapshot structure: { prices:{item:price}, battles:{...}, events, ranking, wage... }
+      // Jangan map battles/events sebagai item; hanya prices yang relevan untuk ticker
       if (snapshotRes?.success && snapshotRes.data && typeof snapshotRes.data === 'object') {
-        Object.entries(snapshotRes.data).forEach(([key, val]: [string, any]) => {
-          if (val && typeof val === 'object') {
-            statsMap[key.toLowerCase()] = { ...val };
-          }
-        });
+        const snap: any = snapshotRes.data;
+        if (snap.prices && typeof snap.prices === 'object') {
+          Object.entries(snap.prices).forEach(([key, val]: [string, any]) => {
+            const priceNum = typeof val === 'number' ? val : Number((val as any)?.price ?? (val as any)?.avg ?? 0);
+            if (Number.isFinite(priceNum) && priceNum > 0) {
+              statsMap[key.toLowerCase()] = { price: priceNum, avg: priceNum, ...(typeof val === 'object' ? val : {}) };
+            }
+          });
+        } else {
+          // Fallback: kalau snapshot langsung map per-item (legacy)
+          Object.entries(snap).forEach(([key, val]: [string, any]) => {
+            if (val && typeof val === 'object' && !Array.isArray(val) && key !== 'battles' && key !== 'events' && key !== 'ranking' && key !== 'wage') {
+              // heuristik: hanya masukkan kalau terlihat seperti item stat (ada price/avg/points/change)
+              if ('price' in val || 'avg' in val || 'points' in val || 'change' in val) {
+                statsMap[key.toLowerCase()] = { ...val };
+              }
+            }
+          });
+        }
       }
 
       // Override/merge dengan data dari WarEra stats (lebih prioritas untuk price/volume)
@@ -365,12 +381,54 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         ? normalizePrices(wareraRes.data, previousSnapshot, statsMap)
         : [];
 
-      // ✅ Ensure price consistency by updating from cache/candles
+      // ✅ Ensure price consistency + hitung % dari candle biar sama dengan chart
+      // Grid sebelumnya 0% karena statsMap.points kosong & snapshot.prices tidak ada change
       const consistentPrices = await Promise.all(
         normalized.map(async (entry) => {
           try {
             const result = await getConsistentPrice(entry.item, entry.price);
-            return { ...entry, price: result.price };
+            // Hitung change 24h/7d/30d dari candle week yang sama dipakai chart
+            let candleChange24h: number | null = null;
+            let candleChange7d: number | null = null;
+            let candlePoints: number[] | null = null;
+            try {
+              const candleRes = await getCandleHistory(entry.item, 'week');
+              if (candleRes.success && candleRes.data.length > 1) {
+                const sorted = [...candleRes.data].sort((a,b)=> Number(a.time)-Number(b.time));
+                const closes = sorted.map(c=> Number(c.close)).filter(n=> Number.isFinite(n) && n>0);
+                candlePoints = closes;
+                const last = sorted[sorted.length-1];
+                const lastClose = Number(last.close);
+                // 24h = ~24 candle 1h
+                const target24h = Number(last.time) - 86400;
+                let base24: any = null;
+                for (let i=sorted.length-2;i>=0;i--) if (Number(sorted[i].time) <= target24h) { base24 = sorted[i]; break; }
+                if (!base24) base24 = sorted[0];
+                if (base24 && Number(base24.close)>0) candleChange24h = ((lastClose - Number(base24.close))/Number(base24.close))*100;
+                // 7d = seluruh week (168)
+                const first = sorted[0];
+                if (first && Number(first.close)>0) candleChange7d = ((lastClose - Number(first.close))/Number(first.close))*100;
+              }
+            } catch {}
+            // Merge: prioritas candle > statsMap > fallback
+            const nextChangeByRange = { ...entry.changeByRange };
+            if (candleChange24h !== null && Number.isFinite(candleChange24h)) {
+              nextChangeByRange['24h'] = candleChange24h;
+              // juga update all/7d jika masih null/0
+              if (nextChangeByRange['all'] === 0) nextChangeByRange['all'] = candleChange24h;
+            }
+            if (candleChange7d !== null && Number.isFinite(candleChange7d) && (nextChangeByRange['7d'] === null || nextChangeByRange['7d'] === 0)) {
+              nextChangeByRange['7d'] = candleChange7d;
+            }
+            const activeChange = nextChangeByRange['24h'] ?? nextChangeByRange['all'] ?? entry.changeValue;
+            return { 
+              ...entry, 
+              price: result.price, 
+              changeByRange: nextChangeByRange,
+              changeValue: Number.isFinite(activeChange as number) ? Number(activeChange) : entry.changeValue,
+              change: formatChange(Number.isFinite(activeChange as number) ? Number(activeChange) : entry.changeValue),
+              points: candlePoints ?? entry.points,
+            };
           } catch {
             return entry;
           }
