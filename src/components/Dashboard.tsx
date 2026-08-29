@@ -7,8 +7,9 @@ import MarketIntel from './MarketIntel';
 import NewsEvents from './NewsEvents';
 import TrackingPanel from './TrackingPanel';
 import LiveBattles from './LiveBattles';
+import CombatUnitOptimizer from './CombatUnitOptimizer';
 import Logo from './Logo';
-import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DEFAULT_TOKEN, DEFAULT_USER_ID, DEFAULT_USERNAME } from '../config/appDefaults';
 
@@ -17,7 +18,7 @@ function formatRangeDate(date: Date): string {
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'news' | 'tracking' | 'battle'>('company');  const [config, setConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle'>('company');  const [config, setConfig] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [playerWealth, setPlayerWealth] = useState<any>(null);
 
@@ -74,7 +75,7 @@ export default function Dashboard() {
     
     // Switch tab if horizontal swipe is >60px and significantly larger than vertical movement
     if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
-      const tabs: ('company' | 'transaction' | 'market' | 'news' | 'tracking' | 'battle')[] = ['company', 'transaction', 'market', 'news', 'tracking', 'battle'];
+      const tabs: ('company' | 'transaction' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle')[] = ['company', 'transaction', 'market', 'optimizer', 'news', 'tracking', 'battle'];
       const currentIndex = tabs.indexOf(activeTab);
       
       if (diffX > 0) {
@@ -254,7 +255,6 @@ export default function Dashboard() {
           <div className="min-w-0">
             <h1 className="text-xs sm:text-sm font-bold tracking-tight text-white uppercase flex items-center gap-1.5 truncate">
               <span>WarEra <span className="hidden xs:inline">Companion</span></span> 
-              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 border border-emerald-500/10 rounded font-normal lowercase shrink-0">v0.17</span>
             </h1>
             <p className="hidden sm:block text-[10px] text-slate-500 font-mono">Market & Rekap Portofolio Makro</p>
           </div>
@@ -342,6 +342,12 @@ export default function Dashboard() {
             icon={<TrendingUp className="w-4 h-4" />}
           />
           <TabButton 
+            active={activeTab === 'optimizer'} 
+            onClick={() => setActiveTab('optimizer')}
+            label="Skill"
+            icon={<Target className="w-4 h-4" />}
+          />
+          <TabButton 
             active={activeTab === 'news'} 
             onClick={() => setActiveTab('news')}
             label="Linimasa"
@@ -381,6 +387,11 @@ export default function Dashboard() {
               onClick={() => setActiveTab('market')} 
               className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'market' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
               aria-label="Bursa Pasar"
+            />
+            <button 
+              onClick={() => setActiveTab('optimizer')} 
+              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'optimizer' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+              aria-label="Combat Unit Optimizer"
             />
             <button 
               onClick={() => setActiveTab('news')} 
@@ -521,6 +532,10 @@ export default function Dashboard() {
 
               {activeTab === 'market' && (
                 <MarketIntel token={config?.token} />
+              )}
+
+              {activeTab === 'optimizer' && (
+                <CombatUnitOptimizer userId={config?.userId} token={config?.token} />
               )}
 
               {activeTab === 'news' && (

@@ -479,7 +479,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { regionName, countryCode } = getRegionNameAndCountry(regionId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Deposit <span className="inline-flex items-center gap-1 font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/10"><ItemIcon itemCode={itemCode} size="sm" className="w-4.5 h-4.5 inline-block align-middle" /> {itemName}</span> <span className="text-[#e67e22] font-semibold">⛏️ +{bonusValue}%</span> ditemukan di <span className="font-bold text-white">🏔️ {countryCode ? <CountryFlag countryIdOrCode={countryCode} /> : renderFlagsForIds(ev.countries || data.countries || data.countryId)} {regionName}</span> selama <span className="font-mono font-bold text-emerald-400 bg-emerald-950/20 px-1 py-0.2 rounded border border-emerald-500/10">{duration} hari</span>
+            Deposit <span className="inline-flex items-center gap-1 font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/10"><ItemIcon itemCode={itemCode} size="sm" className="w-4.5 h-4.5 inline-block align-middle" /> {itemName}</span> <span className="text-[#e67e22] font-semibold"> +{bonusValue}%</span> ditemukan di <span className="font-bold text-white"> {countryCode ? <CountryFlag countryIdOrCode={countryCode} /> : renderFlagsForIds(ev.countries || data.countries || data.countryId)} {regionName}</span> selama <span className="font-mono font-bold text-emerald-400 bg-emerald-950/20 px-1 py-0.2 rounded border border-emerald-500/10">{duration} hari</span>
           </span>
         );
       }
@@ -488,7 +488,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { regionName, countryCode } = getRegionNameAndCountry(regionId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Deposit <span className="inline-flex items-center gap-1 font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded"><ItemIcon itemCode={itemCode} size="sm" className="w-4.5 h-4.5 inline-block align-middle" /> {itemName}</span> di wilayah <span className="font-semibold text-white">🏔️ {countryCode ? <CountryFlag countryIdOrCode={countryCode} /> : renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> telah habis dieksploitasi sepenuhnya <span className="text-rose-400">🪹</span>
+            Deposit <span className="inline-flex items-center gap-1 font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded"><ItemIcon itemCode={itemCode} size="sm" className="w-4.5 h-4.5 inline-block align-middle" /> {itemName}</span> di wilayah <span className="font-semibold text-white"> {countryCode ? <CountryFlag countryIdOrCode={countryCode} /> : renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> telah habis dieksploitasi sepenuhnya <span className="text-rose-400">🪹</span>
           </span>
         );
       }
@@ -499,8 +499,8 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: defName } = getCountryNameAndFlag(defId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            <span className="text-red-500 font-extrabold uppercase tracking-wide bg-red-950/40 px-1.5 py-0.5 rounded border border-red-500/10 mr-1.5">PERANG! ⚔️</span>
-            Negara <span className="font-bold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(attId)} /> {attName || 'Pihak Penyerang'}</span> mendeklarasikan perang terbuka terhadap <span className="font-bold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(defId)} /> {defName || 'Pihak Bertahan'}</span>!
+            <span className="text-red-500 font-extrabold uppercase tracking-wide bg-red-950/40 px-1.5 py-0.5 rounded border border-red-500/10 mr-1.5">⚔️</span>
+            Negara <span className="font-bold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(attId)} /> {attName || 'Pihak Penyerang'}</span> mendeklarasikan perang terhadap <span className="font-bold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(defId)} /> {defName || 'Pihak Bertahan'}</span>!
           </span>
         );
       }
@@ -512,7 +512,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: p2Name } = getCountryNameAndFlag(p2Id);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            <span className="text-emerald-400 font-bold bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/10 mr-1.5">DAMAI 🕊️</span>
+            <span className="text-emerald-400 font-bold bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/10 mr-1.5">🕊️</span>
             Perjanjian damai telah disepakati bersama antara negara <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(p1Id)} /> {p1Name || 'Pihak A'}</span> & <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(p2Id)} /> {p2Name || 'Pihak B'}</span>.
           </span>
         );
@@ -524,7 +524,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: p2Name } = getCountryNameAndFlag(p2Id);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            <span className="text-blue-400 font-bold bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-500/10 mr-1.5">PAKS ALIANSI 🛡️</span>
+            <span className="text-blue-400 font-bold bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-500/10 mr-1.5">🛡️</span>
             Pakta pertahanan bersama dibentuk antara negara <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(p1Id)} /> {p1Name}</span> & <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(p2Id)} /> {p2Name}</span>!
           </span>
         );
@@ -537,7 +537,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const amount = data.money || data.amount || 0;
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Transfer dana bantuan keuangan sebesar <span className="text-amber-400 font-bold font-mono">💰 {amount.toLocaleString()} Gold</span> dari negara <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(fromId)} /> {fromName}</span> ke negara <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(toId)} /> {toName}</span> 💸.
+            Transfer dana keuangan sebesar <span className="text-amber-400 font-bold font-mono"> {amount.toLocaleString()} Gold</span> dari negara <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(fromId)} /> {fromName}</span> ke negara <span className="font-semibold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(toId)} /> {toName}</span> .
           </span>
         );
       }
@@ -550,7 +550,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: defName } = getCountryNameAndFlag(defId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Front pertempuran baru <span className="text-orange-500 font-bold bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-500/10 mr-1">🔥 BATTLE OPENED</span> di wilayah  <span className="font-bold text-white"> {renderFlagsForIds(ev.countries || data.countries || data.regionCountry)} {regionName}</span>! <span className="text-slate-400">({attName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(attId)} /> {attName}</> : 'Penyerang'} menyerang {defName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(defId)} /> {defName}</> : 'Bertahan'})</span>
+            Front pertempuran baru <span className="text-orange-500 font-bold bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-500/10 mr-1">terjadi</span> di wilayah  <span className="font-bold text-white"> {renderFlagsForIds(ev.countries || data.countries || data.regionCountry)} {regionName}</span>! <span className="text-slate-400">({attName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(attId)} /> {attName}</> : 'Penyerang'} menyerang {defName ? <><CountryFlag countryIdOrCode={getCountryCodeFromId(defId)} /> {defName}</> : 'Bertahan'})</span>
           </span>
         );
       }
@@ -574,7 +574,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: toName } = getCountryNameAndFlag(toId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Wilayah penting <span className="font-bold text-white"> {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> secara resmi diserahterahkan dari negara <span className="font-bold text-rose-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(fromId)} /> {fromName}</span> kepada negara <span className="font-bold text-emerald-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(toId)} /> {toName}</span> 🗺️.
+            Wilayah<span className="font-bold text-white"> {renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> secara resmi diserahterahkan dari negara <span className="font-bold text-rose-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(fromId)} /> {fromName}</span> kepada negara <span className="font-bold text-emerald-400"><CountryFlag countryIdOrCode={getCountryCodeFromId(toId)} /> {toName}</span> 🗺️.
           </span>
         );
       }
@@ -583,7 +583,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { regionName } = getRegionNameAndCountry(regionId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Pemberontakan massal <span className="text-yellow-500 font-bold bg-yellow-950/40 px-1.5 py-0.5 rounded mr-1"> REVOLT</span> pecah di wilayah <span className="font-bold text-white">{renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> akibat ketegangan politik!
+            Revolt<span className="text-yellow-500 font-bold bg-yellow-950/40 px-1.5 py-0.5 rounded mr-1"> sedang terjadi</span> di wilayah <span className="font-bold text-white">{renderFlagsForIds(ev.countries || data.countries)} {regionName}</span> 
           </span>
         );
       }
@@ -592,7 +592,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: bankName } = getCountryNameAndFlag(bankId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Krisis Keuangan! Negara <span className="font-bold text-rose-500"><CountryFlag countryIdOrCode={getCountryCodeFromId(bankId)} /> {bankName || 'Suatu Negara'}</span> secara resmi mengumumkan <span className="font-extrabold text-rose-500 underline decoration-rose-500/40">BANKRUPTCY 💸</span> karena kas negara terkuras habis.
+            Negara <span className="font-bold text-rose-500"><CountryFlag countryIdOrCode={getCountryCodeFromId(bankId)} /> {bankName || 'Suatu Negara'}</span> secara resmi mengumumkan <span className="font-extrabold text-rose-500 underline decoration-rose-500/40">BANKRUPTCY </span> karena kas negara terkuras habis.
           </span>
         );
       }
@@ -610,7 +610,7 @@ export default function NewsEvents({ token }: NewsEventsProps) {
         const { name: countryName } = getCountryNameAndFlag(countryId);
         return (
           <span className="text-slate-200 text-xs sm:text-sm leading-relaxed">
-            Negara <span className="font-bold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(countryId)} /> {countryName}</span> resmi bergabung sebagai anggota baru dari aliansi global <span className="font-bold text-[#f1c40f]">🤝 {data.allianceName || 'Aliansi Baru'}</span>!
+            Negara <span className="font-bold text-white"><CountryFlag countryIdOrCode={getCountryCodeFromId(countryId)} /> {countryName}</span> resmi bergabung sebagai anggota baru dari aliansi  <span className="font-bold text-[#f1c40f]">🤝 {data.allianceName || 'Aliansi Baru'}</span>!
           </span>
         );
       }

@@ -255,9 +255,19 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
         }),
       }));
 
+    // Hanya item yang menjadi input (rawCode) di productionNeeds perusahaan lain
+    // yang boleh menampilkan checkbox Supply Internal MFG.
+    const inputItemCodes = new Set<string>();
+    results.forEach((r: CompanyProdResult) => {
+      if (r.productionNeeds) {
+        Object.keys(r.productionNeeds as Record<string, number>).forEach((code) => inputItemCodes.add(code));
+      }
+    });
+
     // Raw material pool hanya berasal dari company yang boleh memasok internal.
     const pool: Record<string, number> = {};
-    // Hanya consumer dengan Supply Internal MFG ON yang mengambil dari pool.
+    // Hanya consumer dengan Supply Internal MFG ON yang mengambil dari pool,
+    // dan hanya jika item mereka sendiri dipakai oleh pabrik lain.
     const consumedTotal: Record<string, number> = {};
 
     results.forEach((r: CompanyProdResult) => {
@@ -265,7 +275,8 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
         pool[r.itemCode] = (pool[r.itemCode] || 0) + r.dailyProduction;
       }
 
-      if (internalSupplyIds[r.companyId] !== false && r.productionNeeds) {
+      const isUsedAsInput = inputItemCodes.has(r.itemCode);
+      if (isUsedAsInput && internalSupplyIds[r.companyId] !== false && r.productionNeeds) {
         Object.entries(r.productionNeeds as Record<string, number>).forEach(([rawCode, ratio]) => {
           consumedTotal[rawCode] = (consumedTotal[rawCode] || 0) + r.dailyProduction * ratio;
         });
@@ -339,7 +350,10 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
         marketPrice: number;
       }[] = [];
 
-      if (r.productionNeeds) {
+      // Hanya tampilkan material breakdown (dan checkbox Supply Internal MFG)
+      // untuk perusahaan yang produknya memang dipakai sebagai input pabrik lain.
+      const isUsedAsInput = inputItemCodes.has(r.itemCode);
+      if (isUsedAsInput && r.productionNeeds) {
         materialBreakdown = Object.entries(r.productionNeeds as Record<string, number>).map(([rawCode, ratio]) => {
           const qty = r.dailyProduction * ratio;
           const marketPrice = priceOf(rawCode);

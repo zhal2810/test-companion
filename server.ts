@@ -55,7 +55,7 @@ async function startServer() {
   const PORT = Number(process.env.PORT || 3000);
 
   // ✅ FIX #1: CORS yang aman (jangan wildcard + credentials)
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',');
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000').split(',');
   app.use(cors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
@@ -232,6 +232,54 @@ async function startServer() {
     } catch (err: any) {
       console.error('[Oil Maintenance Error]', err);
       return res.status(502).json({ success: false, error: 'Gagal mengambil data maintenance oil' });
+    }
+  });
+
+  // 2.4.1 Tracker Transactions — riwayat transaksi per negara
+  app.get('/api/tracker/transactions', async (req, res) => {
+    const countryId = String(req.query.countryId || '6813b6d546e731854c7ac829');
+    const transactionType = String(req.query.transactionType || '') || undefined;
+    try {
+      const all: any[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 200; page++) {
+        const input: Record<string, any> = { countryId, limit: 100 };
+        if (transactionType) input.transactionType = transactionType;
+        if (cursor) input.cursor = cursor;
+
+        const json = await callCommunity('transaction.getPaginatedTransactions', input);
+        const data = json?.result?.data;
+        const items = Array.isArray(data?.items) ? data.items : [];
+        all.push(...items);
+        cursor = data?.nextCursor || null;
+        if (!cursor) break;
+      }
+
+      const toNum = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+
+      const transactions = all.map((t: any) => ({
+        _id: t?._id || '',
+        itemCode: t?.itemCode || '',
+        money: toNum(t?.money),
+        quantity: toNum(t?.quantity),
+        unitPrice: toNum(t?.quantity) > 0 ? toNum(t?.money) / toNum(t?.quantity) : 0,
+        sellerId: t?.sellerId || '',
+        buyerId: t?.buyerId || '',
+        sellerName: '',
+        buyerName: '',
+        sellerCountryId: t?.sellerCountryId || '',
+        buyerCountryId: t?.buyerCountryId || '',
+        transactionType: t?.transactionType || '',
+        createdAt: t?.createdAt || t?.offerCreatedAt || '',
+      }));
+
+      res.json({
+        success: true,
+        data: { countryId, fetchedAt: new Date().toISOString(), total: transactions.length, transactions },
+      });
+    } catch (err: any) {
+      console.error('[Tracker Transactions] Error:', err);
+      res.status(502).json({ success: false, error: 'Gagal mengambil data transaksi negara' });
     }
   });
 
