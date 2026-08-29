@@ -592,9 +592,6 @@ export default function MarketIntel({ token }: MarketIntelProps) {
               Bursa Komoditas Real-time
             </h3>
           </div>
-          <p className="text-[10.5px] text-slate-400">
-            Harga komoditas pasar global diperbarui langsung dari official server WarEra.
-          </p>
         </div>
         
         <div className="flex items-center gap-2 flex-wrap">

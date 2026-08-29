@@ -767,7 +767,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           </div>
 
           <div className="text-[8.5px] text-slate-600">
-            ⚠️ Bukan saran finansial — biaya produksi memakai upah {effectiveWagePerPP.toFixed(3)} cc/PP {manualWagePerPP.trim() !== '' ? '(manual)' : 'snapshot WarEra Pulse'}.
+            ⚠️ Bukan saran finansial — biaya produksi memakai upah {effectiveWagePerPP.toFixed(3)} cc/PP {manualWagePerPP.trim() !== '' ? '(manual)' : ''}.
           </div>
         </div>
 

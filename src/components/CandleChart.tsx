@@ -210,9 +210,7 @@ export default function CandleChart({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
-          Candle · WarEra Pulse Gateway
-        </div>
+        
 
         <div className="flex gap-1">
           {TIMEFRAMES.map((t) => (
@@ -250,13 +248,7 @@ export default function CandleChart({
         )}
       </div>
 
-      <div className="text-[10px] text-slate-600 mt-2">
-        Data candle dari{' '}
-        <span className="text-slate-500">
-          warera-pulse.info
-        </span>{' '}
-        — sumber pihak ketiga, bukan API resmi WarEra.
-      </div>
+      
     </div>
   );
 }

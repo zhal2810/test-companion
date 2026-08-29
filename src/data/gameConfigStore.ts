@@ -14,7 +14,7 @@ export const ITEM_NAMES: Record<string, string> = {
   // Weapons
   knife: 'Knife', gun: 'Gun', rifle: 'Rifle', sniper: 'Sniper', tank: 'Tank', jet: 'Jet',
   // Cases
-  case1: 'Case (Legendary)', case2: 'Case (Mythic)',
+  case1: 'Case', case2: 'Elite Case',
   // Equipment
   helmet1: 'Helmet I', helmet2: 'Helmet II', helmet3: 'Helmet III', helmet4: 'Helmet IV',
   helmet5: 'Helmet V', helmet6: 'Helmet VI',

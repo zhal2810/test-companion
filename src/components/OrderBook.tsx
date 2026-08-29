@@ -166,7 +166,7 @@ export default function OrderBook({
             Bursa Pasar · Bid & Offer
           </div>
           <div className="text-[9px] text-slate-600 mt-0.5">
-            10 order terbaik ditampilkan dari data order book.
+            10 order taratas ditampilkan dari data order book.
           </div>
         </div>
 
@@ -222,7 +222,7 @@ export default function OrderBook({
 
         <div className="rounded-lg border border-slate-800 bg-slate-900/20 px-2.5 py-2">
           <div className="text-[8px] uppercase tracking-wider text-slate-600 font-bold">
-            Data API
+            Total Orders
           </div>
           <div className="text-xs font-mono font-black text-slate-300">
             {buyOrders.length + sellOrders.length} orders
