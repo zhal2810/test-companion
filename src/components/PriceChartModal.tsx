@@ -56,7 +56,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const [liveTrades, setLiveTrades] = useState<LiveTransaction[]>([]);
   const [liveTradesLoading, setLiveTradesLoading] = useState(false);
   const [isFilteredByItem, setIsFilteredByItem] = useState(false);
-  const [priceSource, setPriceSource] = useState<'candle' | 'cache' | 'api' | 'fallback'>('fallback');
+  const [priceSource, setPriceSource] = useState<'candle' | 'cache' | 'api' | 'fallback' | 'live' | 'snapshot'>('fallback');
   const [manualWagePerPP, setManualWagePerPP] = useState<string>(() => {
     const saved = localStorage.getItem('warera_wage_per_pp');
     return saved !== null ? saved : '';
@@ -187,7 +187,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     loadLiveTrades();
     const interval = setInterval(() => {
       loadLiveTrades();
-    }, 15000); // refresh otomatis tiap 15 detik
+    }, 8000); // realtime: 8 detik (dari 15s)
     return () => clearInterval(interval);
   }, [item.item]);
 
@@ -208,21 +208,33 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const lastCandle = hasCandles ? filteredCandles[filteredCandles.length - 1] : null;
   const firstCandle = hasCandles ? filteredCandles[0] : null;
 
-  const displayPrice = lastCandle ? lastCandle.close : item.price;
+  // Live price realtime dari transaksi terakhir (3s lalu 3.589) - override candle 3.578 yang telat 10 jam
+  const liveLatestPrice = React.useMemo(() => {
+    if (!liveTrades || liveTrades.length === 0) return null;
+    const tx = liveTrades[0] as any;
+    const p = Number(tx?.price ?? (tx?.money && tx?.quantity ? tx.money/tx.quantity : 0));
+    if (!Number.isFinite(p) || p <= 0) return null;
+    const t = tx?.createdAt ? new Date(tx.createdAt).getTime() : (tx?.offerAt ? new Date(tx.offerAt).getTime() : 0);
+    // pakai kalau transaksi < 30 menit
+    if (t && Date.now() - t > 30*60*1000) return null;
+    return p;
+  }, [liveTrades]);
 
-  // ✅ Get consistent price from cache/candle (for price source indicator)
+  const displayPrice = liveLatestPrice ?? (lastCandle ? lastCandle.close : item.price);
+  const isLivePrice = liveLatestPrice !== null && Number.isFinite(liveLatestPrice) && liveLatestPrice !== lastCandle?.close;
+
+  // ✅ Get consistent price from cache/candle (for price source indicator) - realtime: live > snapshot > candle
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (lastCandle) {
-        const result = await getConsistentPrice(item.item, lastCandle.close);
-        if (!cancelled) setPriceSource(result.source);
-      }
+      const fallback = lastCandle ? lastCandle.close : item.price;
+      const result = await getConsistentPrice(item.item, fallback);
+      if (!cancelled) setPriceSource(result.source as any);
     })();
     return () => {
       cancelled = true;
     };
-  }, [item.item, lastCandle]);
+  }, [item.item, lastCandle, liveLatestPrice]);
   
   // % perubahan 24 jam — dihitung dari candle (candle terakhir vs candle ~24 jam
   // lalu), sumber yang sama dengan warera-pulse. changeByRange['24h'] hanya dipakai
@@ -383,11 +395,14 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
         </div>
 
         <div className="flex items-center gap-3">
-          {/* PRICE & CHANGE BADGE IN HEADER */}
+          {/* PRICE & CHANGE BADGE IN HEADER - realtime indicator */}
           <div className="text-right">
-            <div className="text-sm font-mono font-black text-white">{formatPrice(displayPrice)}</div>
+            <div className="text-sm font-mono font-black text-white flex items-center justify-end gap-1.5">
+              {formatPrice(displayPrice)}
+              {isLivePrice && <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 py-0.5 rounded font-black animate-pulse">LIVE</span>}
+            </div>
             <div className={`text-[10px] font-mono font-bold flex items-center justify-end gap-0.5 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{displayChange.toFixed(2)}%
+              {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{displayChange.toFixed(2)}% {isLivePrice && <span className="text-[8px] text-slate-500">• real-time</span>}
             </div>
           </div>
 
