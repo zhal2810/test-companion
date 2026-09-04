@@ -2,23 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { fetchWarera } from '../api/apiClient';
 import { Key, Trash2, User, Settings, Check, X, Loader2, AlertCircle } from 'lucide-react';
 
-async function searchUser(username: string, token: string) {
-  // search.searchAnything hanya mengembalikan { userIds: [...] } — array ID,
-  // bukan object user lengkap. Jadi kita ambil ID pertama (match terbaik),
-  // lalu fetch profil lengkapnya lewat user.getUserById.
-  const searchResult = await fetchWarera('search.searchAnything', { searchText: username }, token || null);
+async function searchUsers(query: string, token: string): Promise<any[]> {
+  const searchResult = await fetchWarera('search.searchAnything', { searchText: query }, token || null);
   if (!searchResult.success) throw new Error(searchResult.error || 'Gagal mencari pemain');
-
-  const userId = searchResult.data?.userIds?.[0];
-  if (!userId) throw new Error('User tidak ditemukan');
-
-  const profileResult = await fetchWarera('user.getUserById', { userId }, token || null);
-  if (!profileResult.success) throw new Error(profileResult.error || 'Gagal memuat profil');
-
-  const user = profileResult.data;
-  if (!user) throw new Error('Gagal memuat profil user');
-
-  return user; // { _id, username, avatarUrl, ... }
+  const ids: string[] = Array.isArray(searchResult.data?.userIds) ? searchResult.data.userIds.slice(0, 8) : [];
+  if (ids.length === 0) throw new Error('User tidak ditemukan');
+  const profiles = await Promise.all(ids.map(async (uid) => {
+    try {
+      const r = await fetchWarera('user.getUserById', { userId: uid }, token || null);
+      return r.success ? r.data : null;
+    } catch { return null; }
+  }));
+  return profiles.filter(Boolean);
+}
+async function searchUser(username: string, token: string) {
+  const list = await searchUsers(username, token);
+  if (!list.length) throw new Error('User tidak ditemukan');
+  return list[0];
 }
 
 interface ApiConfigModalProps {
@@ -32,6 +32,8 @@ export default function ApiConfigModal({ isOpen, onClose }: ApiConfigModalProps)
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [foundUser, setFoundUser] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -46,12 +48,53 @@ export default function ApiConfigModal({ isOpen, onClose }: ApiConfigModalProps)
       }
       setStatus(null);
       setErrorMsg('');
+      setSearchResults([]);
     }
   }, [isOpen]);
+
+  // Autocomplete: ketik zxz -> muncul list pilihan (bukan langsung ZxZ2008)
+  useEffect(() => {
+    const q = username.trim();
+    if (q.length < 2) { setSearchResults([]); return; }
+    if (foundUser && foundUser.username?.toLowerCase() === q.toLowerCase()) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const list = await searchUsers(q, token.trim());
+        if (!cancelled) setSearchResults(list);
+      } catch { if (!cancelled) setSearchResults([]); }
+      if (!cancelled) setSearching(false);
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [username, token]);
+
+  const handlePickUser = async (user:any) => {
+    setUsername(user.username);
+    setFoundUser(user);
+    setSearchResults([]);
+    setStatus('success');
+    // auto save on pick
+    localStorage.setItem('warera_config', JSON.stringify({
+      username: user.username,
+      userId: user._id,
+      token: token.trim() || null,
+      user,
+    }));
+    if (token.trim()) localStorage.setItem('warera_api_token', token.trim());
+    else localStorage.removeItem('warera_api_token');
+    setTimeout(() => onClose(), 600);
+  };
 
   const handleSave = async () => {
     if (!username.trim()) {
       setErrorMsg('Username wajib diisi');
+      setStatus('error');
+      return;
+    }
+    // jika ada hasil pencarian list, pakai pilihan pertama - jangan auto save tanpa pilihan
+    if (searchResults.length > 1) {
+      setErrorMsg('Pilih salah satu dari daftar pencarian di bawah');
       setStatus('error');
       return;
     }
@@ -129,14 +172,34 @@ export default function ApiConfigModal({ isOpen, onClose }: ApiConfigModalProps)
             <input
               type="text"
               value={username}
-              onChange={(e) => { setUsername(e.target.value); setStatus(null); }}
-              placeholder="e.g. Siapa Gitu"
+              onChange={(e) => { setUsername(e.target.value); setStatus(null); setFoundUser(null); }}
+              placeholder="Ketik zxz lalu pilih dari daftar"
               className="w-full bg-[#08090C] border border-slate-800 focus:border-emerald-500/50 rounded-lg py-2.5 pl-10 pr-4 text-slate-200 placeholder-slate-600 outline-none transition duration-200 text-sm"
             />
+            {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 animate-spin" />}
           </div>
           <span className="block text-[10px] text-slate-500 mt-1.5">
-            Cari Nama Anda Di sini 
+            Ketik min 2 huruf, muncul beberapa pilihan baru pilih lalu Save
           </span>
+          {/* DROPDOWN HASIL PENCARIAN */}
+          {searchResults.length > 0 && (
+            <div className="mt-1.5 bg-[#08090C] border border-slate-800 rounded-lg overflow-hidden max-h-[180px] overflow-y-auto">
+              {searchResults.map((u:any)=>(
+                <button
+                  key={u._id}
+                  onClick={()=>handlePickUser(u)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-slate-800/60 text-left transition"
+                >
+                  {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="w-6 h-6 rounded-full border border-slate-700 object-cover" /> : <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] text-slate-400">{u.username?.[0]}</div>}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold text-slate-200 truncate">{u.username}</div>
+                    <div className="text-[10px] text-slate-500 truncate">ID: {u._id?.slice(0,8)}...</div>
+                  </div>
+                  <span className="text-[10px] text-emerald-400 font-bold">Pilih</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* FORM FIELD: API TOKEN */}
