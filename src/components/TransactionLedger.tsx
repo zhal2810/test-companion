@@ -218,34 +218,130 @@ export default function TransactionLedger({ transactions, userId, filterActive =
   return (
     <div className="bg-[#10121A]/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 md:p-6 text-slate-100">
       
-      {/* HEADER SECTION */}
-      <div className="flex items-center gap-2 mb-5">
-        <Wallet className="w-5 h-5 text-emerald-400" />
-        <h3 className="text-base font-bold tracking-tight text-white uppercase">
-          Dompet Ekonomi
-        </h3>
+      {/* HEADER SECTION - Daily P&L Tracker ala gambar tapi Indonesia */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <Wallet className="w-5 h-5 text-emerald-400" />
+          <h3 className="text-base font-bold tracking-tight text-white uppercase">
+            Pelacak P&amp;L Harian
+          </h3>
+          <span className="hidden sm:inline text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">Reset 02:00 WIB</span>
+        </div>
+        <span className="text-[10px] text-slate-500 font-mono">Hari Ini vs Kemarin</span>
       </div>
 
-      {/* 1. TOP BAR (RINGKASAN KEKAYAAN) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-6">
-        <SummaryBox 
-          label="Total Pemasukan" 
-          value={<>+{formatMoney(totalIncome)} <CurrencyIcon /></>} 
-          highlight="positive" 
-          icon={<ArrowUpRight className="w-4 h-4 text-emerald-400" />}
-        />
-        <SummaryBox 
-          label="Total Pengeluaran" 
-          value={<>-{formatMoney(totalExpense)} <CurrencyIcon /></>} 
-          highlight="negative" 
-          icon={<ArrowDownLeft className="w-4 h-4 text-rose-400" />}
-        />
-        <SummaryBox 
-          label="Kekayaan Bersih" 
-          value={<>{netWealth >= 0 ? '+' : ''}{formatMoney(netWealth)} <CurrencyIcon /></>} 
-          highlight={netWealth >= 0 ? 'positive' : 'negative'} 
-          icon={<Wallet className="w-4 h-4 text-emerald-400" />}
-        />
+      {/* 1. DAILY P&L TRACKER TABLE - mirip screenshot */}
+      {(() => {
+        // Reset 02:00 WIB = pakai local time 02:00
+        const now = new Date();
+        const todayReset = new Date(now); todayReset.setHours(2,0,0,0);
+        if (now < todayReset) todayReset.setDate(todayReset.getDate()-1);
+        const yesterdayReset = new Date(todayReset); yesterdayReset.setDate(yesterdayReset.getDate()-1);
+        const isInToday = (d:string) => { const t=new Date(d).getTime(); return t >= todayReset.getTime(); };
+        const isInYesterday = (d:string) => { const t=new Date(d).getTime(); return t >= yesterdayReset.getTime() && t < todayReset.getTime(); };
+        const txToday = transactions.filter(t=>isInToday(t.createdAt));
+        const txYesterday = transactions.filter(t=>isInYesterday(t.createdAt));
+        const ledgerToday = calculateLedger(txToday, userId);
+        const ledgerYesterday = calculateLedger(txYesterday, userId);
+        // Kategori turunan
+        const cat = (ledger:LedgerResult) => {
+          // hitung tied up = sisa stok * avgCost
+          // rekonstruksi dari itemState via biaya tertahan = totalBought - realised cost
+          // sederhana: tied = totalBoughtMoney - (totalSoldMoney - profitNiaga) => modal yang belum terealisasi
+          const profitNiaga = ledger.itemBreakdown.reduce((s:any,it:any)=>s+Number(it.profit||0),0);
+          const realisedCost = ledger.totalSoldMoney - profitNiaga;
+          const tied = Math.max(0, ledger.totalBoughtMoney - realisedCost);
+          // deteksi konsumsi/keausan/case dari rows label
+          const sumBy = (pred:(r:EnrichedTransaction)=>boolean)=> ledger.rows.filter(pred).reduce((s,r)=>s+Math.abs(Number(r.moneySafe||0)),0);
+          const konsumsi = sumBy(r=> /consumption|konsumsi/i.test(r.transactionType));
+          const keausan = sumBy(r=> /wear|repair|keausan|perbaikan/i.test(r.transactionType));
+          const biayaCase = sumBy(r=> /case/i.test(r.itemCode||'') || /case/i.test(r.transactionType));
+          const donasi = sumBy(r=> /donat|tip|donation/i.test(r.transactionType) && r.direction==='expense');
+          const lootValue = sumBy(r=> /loot|jarah|reward/i.test(r.transactionType) && r.direction==='income');
+          const otherIncome = Math.max(0, ledger.totalIncome - ledger.totalSoldMoney - ledger.totalWageReceived - lootValue);
+          const otherExpense = Math.max(0, ledger.totalExpense - ledger.totalWagePaid - konsumsi - keausan - biayaCase - donasi - tied);
+          return { profitNiaga, tied, konsumsi, keausan, biayaCase, donasi, lootValue, otherIncome, otherExpense };
+        };
+        const cToday = cat(ledgerToday);
+        const cYesterday = cat(ledgerYesterday);
+        const row = (label:string, vToday:number, vYesterday:number, opts?:{sign?:'pos'|'neg'|'auto', bold?:boolean, indent?:boolean, muted?:boolean})=>{
+          const fmt=(v:number,sign:'pos'|'neg'|'auto'='auto')=>{
+            if (Math.abs(v)<0.005) return '0.00';
+            const s = sign==='pos'?'+': sign==='neg'?'-': v>=0?'+':'';
+            return s+formatMoney(Math.abs(v));
+          };
+          const cls=(v:number)=>{
+            if (opts?.muted) return 'text-slate-500';
+            if (v>0.005) return 'text-emerald-400';
+            if (v<-0.005) return 'text-rose-400';
+            return 'text-slate-400';
+          };
+          const vT = label.startsWith('Konsumsi')||label.startsWith('Keausan')||label.startsWith('Biaya')||label.startsWith('Gaji Karyawan')||label.startsWith('Donasi')||label.startsWith('Tertahan')||label.startsWith('Tidak')? -Math.abs(vToday) : vToday;
+          const vY = label.startsWith('Konsumsi')||label.startsWith('Keausan')||label.startsWith('Biaya')||label.startsWith('Gaji Karyawan')||label.startsWith('Donasi')||label.startsWith('Tertahan')||label.startsWith('Tidak')? -Math.abs(vYesterday) : vYesterday;
+          // income keep +, expense show -
+          const isExpense = opts?.sign==='neg' || /Konsumsi|Keausan|Biaya|Gaji Karyawan|Donasi|Tertahan|Tidak/.test(label);
+          const showT = isExpense? -Math.abs(vToday) : vToday;
+          const showY = isExpense? -Math.abs(vYesterday) : vYesterday;
+          return (
+            <div className={`grid grid-cols-3 text-[11px] font-mono py-1.5 px-2 ${opts?.bold?'bg-slate-800/50 font-bold':'hover:bg-slate-800/20'} ${opts?.indent?'pl-4':''} border-b border-slate-800/30`}>
+              <span className={`truncate ${opts?.bold?'text-slate-200':'text-slate-400'} ${opts?.indent?'':'font-bold uppercase text-[10px] tracking-wider'}`}>{label}</span>
+              <span className={`text-right ${cls(showT)}`}>{fmt(showT)}</span>
+              <span className={`text-right ${cls(showY)}`}>{fmt(showY)}</span>
+            </div>
+          );
+        };
+        const totalPnlToday = (ledgerToday.totalIncome - (ledgerToday.totalExpense - cToday.tied));
+        const totalPnlYesterday = (ledgerYesterday.totalIncome - (ledgerYesterday.totalExpense - cYesterday.tied));
+        // Gold delta: pakai netWealth today vs yesterday (simpel)
+        const goldDeltaToday = ledgerToday.netWealth;
+        const goldDeltaYesterday = ledgerYesterday.netWealth;
+        return (
+          <div className="mb-6 bg-[#0C0D13] border border-slate-800 rounded-xl overflow-hidden">
+            <div className="grid grid-cols-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-[#07080E] px-2 py-1.5 border-b border-slate-800">
+              <span>Kategori</span><span className="text-right">Hari Ini</span><span className="text-right">Kemarin</span>
+            </div>
+            <div className="bg-emerald-950/10 text-emerald-400 text-[10px] font-black tracking-widest px-2 py-1 border-b border-slate-800">PENDAPATAN</div>
+            {row('Penjualan', ledgerToday.totalSoldMoney, ledgerYesterday.totalSoldMoney, {sign:'pos', indent:true})}
+            {row('Upah', ledgerToday.totalWageReceived, ledgerYesterday.totalWageReceived, {sign:'pos', indent:true})}
+            {row('Nilai Loot', cToday.lootValue, cYesterday.lootValue, {sign:'pos', indent:true})}
+            {row('Lain-lain', cToday.otherIncome, cYesterday.otherIncome, {sign:'pos', indent:true})}
+            <div className="bg-rose-950/10 text-rose-400 text-[10px] font-black tracking-widest px-2 py-1 border-y border-slate-800">BEBAN</div>
+            {row('Konsumsi', cToday.konsumsi, cYesterday.konsumsi, {sign:'neg', indent:true})}
+            {row('Keausan/Perbaikan', cToday.keausan, cYesterday.keausan, {sign:'neg', indent:true})}
+            {row('Biaya Case', cToday.biayaCase, cYesterday.biayaCase, {sign:'neg', indent:true})}
+            {row('Gaji Karyawan', ledgerToday.totalWagePaid, ledgerYesterday.totalWagePaid, {sign:'neg', indent:true})}
+            {row('Donasi/Lain-lain', cToday.donasi + cToday.otherExpense, cYesterday.donasi + cYesterday.otherExpense, {sign:'neg', indent:true})}
+            {row('Tertahan di Pembelian', cToday.tied, cYesterday.tied, {sign:'neg', indent:true, muted:true})}
+            {row('Tidak Terlacak', 0, 0, {sign:'neg', indent:true, muted:true})}
+            <div className="bg-slate-800/20 text-slate-300 text-[10px] font-bold px-2 py-1 border-y border-slate-800 flex justify-between"><span>Keberuntungan Case</span><span className="font-mono text-[10px] text-slate-500">—</span></div>
+            <div className="grid grid-cols-3 text-xs font-mono font-black py-2 px-2 bg-slate-900/40 border-b border-slate-800">
+              <span className="text-slate-200 uppercase text-[11px]">Total P&amp;L</span>
+              <span className={`text-right ${totalPnlToday>=0?'text-emerald-400':'text-rose-400'}`}>{totalPnlToday>=0?'+':''}{formatMoney(totalPnlToday)}</span>
+              <span className={`text-right ${totalPnlYesterday>=0?'text-emerald-400':'text-rose-400'}`}>{totalPnlYesterday>=0?'+':''}{formatMoney(totalPnlYesterday)}</span>
+            </div>
+            <div className="grid grid-cols-3 text-xs font-mono font-bold py-2 px-2 bg-emerald-950/10">
+              <span className="text-sky-400 uppercase text-[11px]">Delta Gold</span>
+              <span className={`text-right ${goldDeltaToday>=0?'text-emerald-400':'text-rose-400'}`}>{goldDeltaToday>=0?'+':''}{formatMoney(goldDeltaToday)}</span>
+              <span className={`text-right ${goldDeltaYesterday>=0?'text-emerald-400':'text-rose-400'}`}>{goldDeltaYesterday>=0?'+':''}{formatMoney(goldDeltaYesterday)}</span>
+            </div>
+            <div className="px-2 py-2 bg-[#07080E] border-t border-slate-800 text-[9px] leading-snug text-slate-500">
+              P&amp;L = Pendapatan − Beban (pembelian hanya dihitung saat terkonsumsi). Delta Gold = Gold Live − Start. *Keberuntungan Case = selisih antara nilai loot dan nilai case saat dibuka. Laba/rugi hanya dihitung saat dibuka, profit/loss hanya dihitung saat terjual di market.
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* RINGKASAN KEKAYAAN SPLIT - tetap untuk konteks cepat */}
+      <div className="grid grid-cols-3 gap-2 mb-6">
+        <div className="bg-[#0C0D13] p-2.5 rounded-lg border border-emerald-500/15 flex justify-between items-center">
+          <div><div className="text-[9px] uppercase font-bold text-slate-500">Total Pemasukan</div><div className="text-xs font-mono font-bold text-emerald-400 flex gap-1">+{formatMoney(totalIncome)} <CurrencyIcon /></div></div><ArrowUpRight className="w-3 h-3 text-emerald-400" />
+        </div>
+        <div className="bg-[#0C0D13] p-2.5 rounded-lg border border-rose-500/15 flex justify-between items-center">
+          <div><div className="text-[9px] uppercase font-bold text-slate-500">Total Pengeluaran</div><div className="text-xs font-mono font-bold text-rose-400 flex gap-1">-{formatMoney(totalExpense)} <CurrencyIcon /></div></div><ArrowDownLeft className="w-3 h-3 text-rose-400" />
+        </div>
+        <div className="bg-[#0C0D13] p-2.5 rounded-lg border border-slate-700 flex justify-between items-center">
+          <div><div className="text-[9px] uppercase font-bold text-slate-500">Kekayaan Bersih</div><div className={`text-xs font-mono font-bold flex gap-1 ${netWealth>=0?'text-emerald-400':'text-rose-400'}`}>{netWealth>=0?'+':''}{formatMoney(netWealth)} <CurrencyIcon /></div></div><Wallet className="w-3 h-3 text-slate-500" />
+        </div>
       </div>
 
       {/* 2. RIWAYAT TRADING (Grid Layout) */}
