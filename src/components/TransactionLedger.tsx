@@ -383,8 +383,9 @@ export default function TransactionLedger({ transactions, userId, filterActive =
           <div className="max-h-[300px] overflow-y-auto space-y-1 pr-1.5 custom-scrollbar">
             {rows.map((tx) => {
               const isOut = tx.direction === 'buy' || tx.direction === 'expense';
-              const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : tx.direction === 'income' ? tx.sellerId : tx.direction === 'expense' ? tx.buyerId : null;
-              const cp = counterpartId ? userCache[counterpartId] : null;
+              const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : tx.direction === 'income' ? (tx as any).buyerId : tx.direction === 'expense' ? (tx as any).sellerId || (tx as any).sellerMuId : (tx as any).sellerId || (tx as any).buyerId || (tx as any).sellerMuId;
+              const isSelf = counterpartId === userId;
+              const cp = counterpartId && !isSelf ? userCache[counterpartId] : null;
               const lootExtra = (tx as any).lootCode ? <span className="ml-1 text-[10px] text-slate-500">({(tx as any).lootCode})</span> : null;
               return (
                 <div
@@ -396,10 +397,10 @@ export default function TransactionLedger({ transactions, userId, filterActive =
                     {formatDate(tx.createdAt)}
                   </span>
 
-                  <span className={`font-medium truncate flex items-center gap-1.5 ${isOut ? 'text-amber-500/95' : 'text-sky-400/95'}`}>
+                    <span className={`font-medium truncate flex items-center gap-1.5 ${isOut ? 'text-amber-500/95' : 'text-sky-400/95'}`}>
                     <span className="truncate">{tx.displayLabel} {tx.quantity ? <span className="text-slate-600 font-mono">({tx.quantity}u)</span> : ''}{lootExtra}</span>
                     {cp && <span className="hidden lg:inline-flex items-center gap-1 text-[10px] text-slate-500 shrink-0">→ {cp.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full" />}{cp.username}</span>}
-                    {!cp && counterpartId && <span className="hidden lg:inline text-[10px] text-slate-600">→ {counterpartId.slice(0,6)}...</span>}
+                    {!cp && counterpartId && !isSelf && <span className="hidden lg:inline text-[10px] text-slate-600">→ {counterpartId.slice(0,6)}...</span>}
                   </span>
 
                   <span className="text-right text-slate-200 font-mono font-medium flex items-center justify-end gap-1">
@@ -415,8 +416,9 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         <div className="sm:hidden space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
           {rows.map((tx) => {
             const isOut = tx.direction === 'buy' || tx.direction === 'expense';
-            const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : null;
-            const cp = counterpartId ? userCache[counterpartId] : null;
+            const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : tx.direction === 'income' ? (tx as any).buyerId : tx.direction === 'expense' ? (tx as any).sellerId || (tx as any).sellerMuId : (tx as any).sellerId || (tx as any).buyerId || (tx as any).sellerMuId;
+            const isSelf = counterpartId === userId;
+            const cp = counterpartId && !isSelf ? userCache[counterpartId] : null;
             return (
               <div
                 key={tx._id}
@@ -431,6 +433,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
                     {formatDate(tx.createdAt)}
                   </span>
                   {cp && <span className="flex items-center gap-1 text-[10px] text-slate-500">→ {cp.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3 h-3 rounded-full" />}{cp.username}</span>}
+                  {!cp && counterpartId && isSelf && <span className="text-[10px] text-slate-600">→ (diri sendiri)</span>}
                 </div>
                 
                 <div className="text-right shrink-0 ml-3">
