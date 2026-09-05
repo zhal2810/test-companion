@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { GameItem } from '../types';
 import { GAME_CONFIG_ITEMS, RawGameItem } from './gameConfigSnapshot';
 
-// Nama tampilan ramah (API hanya menyediakan kode item, tanpa nama publik).
+// Nama tampilan ramah - sesuai warera.realmarijn.nl/market (Rare Helmet bukan helmet3)
 export const ITEM_NAMES: Record<string, string> = {
   // Raw
   limestone: 'Limestone', grain: 'Grain', livestock: 'Livestock', fish: 'Fish', iron: 'Iron',
@@ -14,18 +14,18 @@ export const ITEM_NAMES: Record<string, string> = {
   // Weapons
   knife: 'Knife', gun: 'Gun', rifle: 'Rifle', sniper: 'Sniper', tank: 'Tank', jet: 'Jet',
   // Cases
-  case1: 'Case', case2: 'Elite Case',
-  // Equipment
-  helmet1: 'Helmet I', helmet2: 'Helmet II', helmet3: 'Helmet III', helmet4: 'Helmet IV',
-  helmet5: 'Helmet V', helmet6: 'Helmet VI',
-  chest1: 'Chest I', chest2: 'Chest II', chest3: 'Chest III', chest4: 'Chest IV',
-  chest5: 'Chest V', chest6: 'Chest VI',
-  boots1: 'Boots I', boots2: 'Boots II', boots3: 'Boots III', boots4: 'Boots IV',
-  boots5: 'Boots V', boots6: 'Boots VI',
-  gloves1: 'Gloves I', gloves2: 'Gloves II', gloves3: 'Gloves III', gloves4: 'Gloves IV',
-  gloves5: 'Gloves V', gloves6: 'Gloves VI',
-  pants1: 'Pants I', pants2: 'Pants II', pants3: 'Pants III', pants4: 'Pants IV',
-  pants5: 'Pants V', pants6: 'Pants VI',
+  case1: 'Normal Case', case2: 'Elite Case',
+  // Equipment - rarity prefix biar helmet3 = Rare Helmet
+  helmet1: 'Common Helmet', helmet2: 'Uncommon Helmet', helmet3: 'Rare Helmet', helmet4: 'Epic Helmet',
+  helmet5: 'Legendary Helmet', helmet6: 'Mythic Helmet',
+  chest1: 'Common Chest', chest2: 'Uncommon Chest', chest3: 'Rare Chest', chest4: 'Epic Chest',
+  chest5: 'Legendary Chest', chest6: 'Mythic Chest',
+  boots1: 'Common Boots', boots2: 'Uncommon Boots', boots3: 'Rare Boots', boots4: 'Epic Boots',
+  boots5: 'Legendary Boots', boots6: 'Mythic Boots',
+  gloves1: 'Common Gloves', gloves2: 'Uncommon Gloves', gloves3: 'Rare Gloves', gloves4: 'Epic Gloves',
+  gloves5: 'Legendary Gloves', gloves6: 'Mythic Gloves',
+  pants1: 'Common Pants', pants2: 'Uncommon Pants', pants3: 'Rare Pants', pants4: 'Epic Pants',
+  pants5: 'Legendary Pants', pants6: 'Mythic Pants',
 };
 
 // Nama fallback dari kode bila tidak ada di ITEM_NAMES.
