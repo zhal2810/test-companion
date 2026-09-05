@@ -73,8 +73,8 @@ export default function Dashboard() {
     const diffX = touchStartX - touchEndX;
     const diffY = touchStartY - touchEndY;
     
-    // Switch tab if horizontal swipe is >60px and significantly larger than vertical movement
-    if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+    // Swipe hanya di nav, threshold diperberat biar tidak kesenggol pas scroll
+    if (Math.abs(diffX) > 90 && Math.abs(diffX) > Math.abs(diffY) * 2) {
       const tabs: ('company' | 'transaction' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle')[] = ['company', 'transaction', 'market', 'optimizer', 'news', 'tracking', 'battle'];
       const currentIndex = tabs.indexOf(activeTab);
       
@@ -293,9 +293,6 @@ export default function Dashboard() {
 
       {/* DASHBOARD CORE CONTAINER */}
       <main 
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         className="max-w-7xl mx-auto px-4 md:px-8 py-6 space-y-6"
       >
 
@@ -321,8 +318,13 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* TAB NAVIGATION */}
-        <div className="flex border-b border-slate-800/80 gap-1 overflow-x-auto scrollbar-none flex-nowrap">
+        {/* TAB NAVIGATION - swipe hanya di nav, bukan di konten */}
+        <div 
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className="flex border-b border-slate-800/80 gap-1 overflow-x-auto scrollbar-none flex-nowrap touch-pan-y"
+        >
           <TabButton 
             active={activeTab === 'company'} 
             onClick={() => setActiveTab('company')}
