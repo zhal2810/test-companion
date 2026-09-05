@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownLeft, Calendar
 import CurrencyIcon from './CurrencyIcon';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
-import { fetchWarera } from '../api/apiClient';
+import { fetchWarera, getMarketSnapshot } from '../api/apiClient';
 
 function formatMoney(value: number): string {
   if (value === null || value === undefined || isNaN(value)) return "0";
@@ -232,6 +232,33 @@ export default function TransactionLedger({ transactions, userId, filterActive =
   const [userCache, setUserCache] = useState<Record<string, {username:string, avatarUrl:string}>>({});
   const [muCache, setMuCache] = useState<Record<string, string>>(()=>{ try{ const a=JSON.parse(localStorage.getItem('warera_mu_alias')||'{}'); // bersihkan cache truncated lama MU 69929a biar refetch jadi Komando Lapis Inti
     Object.keys(a).forEach(k=>{ if(typeof a[k]==='string' && a[k].startsWith('MU ') && a[k].length<=10) delete a[k]; }); return a; }catch{ return {}; } });
+  const [priceMap, setPriceMap] = useState<Record<string, number>>({});
+  useEffect(()=>{
+    getMarketSnapshot().then(res=>{
+      if(res.success && res.data){
+        const m: Record<string,number> = {};
+        const prices = (res.data as any).prices || res.data;
+        if(prices && typeof prices==='object'){
+          Object.entries(prices).forEach(([k,v]:[string,any])=>{
+            const n = typeof v==='number'? v : Number((v as any)?.price ?? (v as any)?.avg ?? 0);
+            if(Number.isFinite(n) && n>0) m[k.toLowerCase()] = n;
+          });
+        }
+        if(Object.keys(m).length) setPriceMap(m);
+      }
+    }).catch(()=>{});
+    // fallback via itemTrading.getPrices
+    fetchWarera('itemTrading.getPrices', {}).then(res=>{
+      if(res.success && res.data){
+        const m: Record<string,number> = {};
+        Object.entries(res.data as any).forEach(([k,v]:[string,any])=>{
+          const n = typeof v==='number'? v : Number((v as any)?.avg ?? (v as any)?.price ?? 0);
+          if(Number.isFinite(n) && n>0) m[k.toLowerCase()] = n;
+        });
+        if(Object.keys(m).length) setPriceMap(prev=> Object.keys(prev).length ? prev : m);
+      }
+    }).catch(()=>{});
+  },[]);
   useEffect(() => {
     const userIds = Array.from(new Set(rows.flatMap(r=>[r.sellerId, r.buyerId]).filter(Boolean) as string[])).filter(id=>id!==userId);
     const muIds = Array.from(new Set(rows.filter(r=>r.transactionType==='donation').flatMap(r=>[(r as any).sellerMuId, (r as any).sellerCountryId]).filter(Boolean) as string[]));
@@ -301,21 +328,29 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         const txYesterday = transactions.filter(t=>isInYesterday(t.createdAt));
         const ledgerToday = calculateLedger(txToday, userId);
         const ledgerYesterday = calculateLedger(txYesterday, userId);
-        // Kategori turunan
+        // Kategori turunan - Nilai Loot dari openCase loot × harga pasar (biar tidak 0.00)
         const cat = (ledger:LedgerResult) => {
-          // hitung tied up = sisa stok * avgCost
-          // rekonstruksi dari itemState via biaya tertahan = totalBought - realised cost
-          // sederhana: tied = totalBoughtMoney - (totalSoldMoney - profitNiaga) => modal yang belum terealisasi
           const profitNiaga = ledger.itemBreakdown.reduce((s:any,it:any)=>s+Number(it.profit||0),0);
           const realisedCost = ledger.totalSoldMoney - profitNiaga;
           const tied = Math.max(0, ledger.totalBoughtMoney - realisedCost);
-          // deteksi konsumsi/keausan/case dari rows label
           const sumBy = (pred:(r:EnrichedTransaction)=>boolean)=> ledger.rows.filter(pred).reduce((s,r)=>s+Math.abs(Number(r.moneySafe||0)),0);
           const konsumsi = sumBy(r=> /consumption|konsumsi/i.test(r.transactionType));
           const keausan = sumBy(r=> /wear|repair|keausan|perbaikan/i.test(r.transactionType));
           const biayaCase = sumBy(r=> /case/i.test(r.itemCode||'') || /case/i.test(r.transactionType));
           const donasi = sumBy(r=> /donat|tip|donation/i.test(r.transactionType) && r.direction==='expense');
-          const lootValue = sumBy(r=> /loot|jarah|reward/i.test(r.transactionType) && r.direction==='income');
+          // Nilai Loot: openCase loot × harga pasar (biar +39 kayak gambar, bukan 0)
+          let lootValue = sumBy(r=> /loot|jarah|reward/i.test(r.transactionType) && r.direction==='income');
+          if (lootValue < 0.01) {
+            const openCases = ledger.rows.filter(r=> r.transactionType==='openCase');
+            let sum = 0;
+            for(const oc of openCases){
+              const code = (oc as any).lootCode || (oc as any)?.item?.code;
+              if(!code) continue;
+              const p = priceMap[code.toLowerCase()] ?? priceMap[code] ?? 0;
+              if(p>0) sum += p;
+            }
+            if(sum>0) lootValue = sum;
+          }
           const otherIncome = Math.max(0, ledger.totalIncome - ledger.totalSoldMoney - ledger.totalWageReceived - lootValue);
           const otherExpense = Math.max(0, ledger.totalExpense - ledger.totalWagePaid - konsumsi - keausan - biayaCase - donasi - tied);
           return { profitNiaga, tied, konsumsi, keausan, biayaCase, donasi, lootValue, otherIncome, otherExpense };
