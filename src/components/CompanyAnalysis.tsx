@@ -200,7 +200,22 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
     handleAnalyse();
   }, [userId, token]);
 
-  const handleAnalyse = async () => {
+  const handleAnalyse = async (force=false) => {
+    const cacheKey = `warera_company_cache_${userId}`;
+    if (!force) {
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          const c = JSON.parse(raw);
+          if (c.timestamp && Date.now() - c.timestamp < 5*60*1000 && c.userId===userId) {
+            setData(c.data); setMarketPrices(c.marketPrices||{}); setWorkersByCompanyId(c.workersByCompanyId||{});
+            // bonus tetap fresh 5 menit juga, tapi fetch di background biar tidak blank
+            loadProductionBonuses(c.data?.companies || []);
+            return;
+          }
+        }
+      } catch {}
+    }
     setIsLoading(true);
     setErrorMsg('');
     const result = await getCompaniesByUserId(userId, token);
@@ -234,6 +249,8 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
         );
 
         setWorkersByCompanyId(enrichedWorkersByCompany);
+        // cache 5 menit biar pindah nav tidak loading lagi
+        try { localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), userId, data: result, marketPrices: priceRes.success?priceRes.data:{}, workersByCompanyId: enrichedWorkersByCompany })); } catch {}
       }
     } else {
       setErrorMsg(result.error || 'Gagal memuat profil atau perusahaan');
@@ -425,7 +442,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={handleAnalyse} 
+            onClick={()=>handleAnalyse(true)} 
             disabled={isLoading} 
             className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-[#e67e22] hover:text-[#f39c12] text-xs font-bold px-3 py-1.5 rounded-lg transition duration-200 cursor-pointer"
           >
