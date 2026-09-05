@@ -330,9 +330,15 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         const ledgerYesterday = calculateLedger(txYesterday, userId);
         // Kategori turunan - Nilai Loot dari openCase loot × harga pasar (biar tidak 0.00)
         const cat = (ledger:LedgerResult) => {
-          const profitNiaga = ledger.itemBreakdown.reduce((s:any,it:any)=>s+Number(it.profit||0),0);
-          const realisedCost = ledger.totalSoldMoney - profitNiaga;
-          const tied = Math.max(0, ledger.totalBoughtMoney - realisedCost);
+          // Tertahan yang benar: sisa stok qtyHeld * avgHargaBeli (Tank 210, Steak 52 sisa 42, dll) bukan 0
+          let tied = 0;
+          for(const it of ledger.itemBreakdown as any[]){
+            const remain = (it.totalBoughtQty||0) - (it.totalSoldQty||0);
+            if(remain>0 && it.totalBoughtQty>0){
+              const avg = it.totalBoughtMoney / it.totalBoughtQty;
+              tied += remain * avg;
+            }
+          }
           const sumBy = (pred:(r:EnrichedTransaction)=>boolean)=> ledger.rows.filter(pred).reduce((s,r)=>s+Math.abs(Number(r.moneySafe||0)),0);
           const konsumsi = sumBy(r=> /consumption|konsumsi/i.test(r.transactionType));
           const keausan = sumBy(r=> /wear|repair|keausan|perbaikan/i.test(r.transactionType));
@@ -358,6 +364,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         const cToday = cat(ledgerToday);
         const cYesterday = cat(ledgerYesterday);
         const row = (label:string, vToday:number, vYesterday:number, opts?:{sign?:'pos'|'neg'|'auto', bold?:boolean, indent?:boolean, muted?:boolean})=>{
+          if (Math.abs(vToday)<0.005 && Math.abs(vYesterday)<0.005) return null; // hide 0.00/0.00
           const fmt=(v:number,sign:'pos'|'neg'|'auto'='auto')=>{
             if (Math.abs(v)<0.005) return '0.00';
             const s = sign==='pos'?'+': sign==='neg'?'-': v>=0?'+':'';
@@ -369,9 +376,6 @@ export default function TransactionLedger({ transactions, userId, filterActive =
             if (v<-0.005) return 'text-rose-400';
             return 'text-slate-400';
           };
-          const vT = label.startsWith('Konsumsi')||label.startsWith('Keausan')||label.startsWith('Biaya')||label.startsWith('Gaji Karyawan')||label.startsWith('Donasi')||label.startsWith('Tertahan')||label.startsWith('Tidak')? -Math.abs(vToday) : vToday;
-          const vY = label.startsWith('Konsumsi')||label.startsWith('Keausan')||label.startsWith('Biaya')||label.startsWith('Gaji Karyawan')||label.startsWith('Donasi')||label.startsWith('Tertahan')||label.startsWith('Tidak')? -Math.abs(vYesterday) : vYesterday;
-          // income keep +, expense show -
           const isExpense = opts?.sign==='neg' || /Konsumsi|Keausan|Biaya|Gaji Karyawan|Donasi|Tertahan|Tidak/.test(label);
           const showT = isExpense? -Math.abs(vToday) : vToday;
           const showY = isExpense? -Math.abs(vYesterday) : vYesterday;
