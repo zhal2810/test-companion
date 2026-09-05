@@ -255,8 +255,8 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         // cek alias manual dulu
         try{ const aliases = JSON.parse(localStorage.getItem('warera_mu_alias')||'{}'); if(aliases[mid]) return [mid, aliases[mid]] as const; }catch{}
         try{
-          // coba MU dulu, fallback country
-          let res = await fetchWarera('militaryUnit.getMuById', {muId: mid}, null);
+          // coba MU dulu, fallback country - mu.getById yang benar (bukan militaryUnit)
+          let res = await fetchWarera('mu.getById', {muId: mid}, null);
           let name = (res as any)?.data?.name || (res as any)?.data?.title;
           if (!name) {
             res = await fetchWarera('country.getCountryById', {countryId: mid}, null);
