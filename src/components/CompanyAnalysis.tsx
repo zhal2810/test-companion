@@ -74,10 +74,18 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
   const [regionsDict, setRegionsDict] = useState<Record<string, any>>({});
   const [productionBonusDict, setProductionBonusDict] = useState<Record<string, any>>({});
   const [workersByCompanyId, setWorkersByCompanyId] = useState<Record<string, any[]>>({});
-  const [entrepreneurshipLevel, setEntrepreneurshipLevel] = useState<number>(() => {
-    const saved = localStorage.getItem('warera_entrepreneurship');
-    const num = Number(saved);
-    return Number.isFinite(num) && num > 0 ? num : 0;
+  const [entrepreneurshipByCompany, setEntrepreneurshipByCompany] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(`warera_entrepreneurship_by_company_${userId || 'anon'}`);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    // migrasi dari global lama
+    try {
+      const old = localStorage.getItem('warera_entrepreneurship');
+      const n = Number(old);
+      if (Number.isFinite(n) && n>0) return {};
+    } catch {}
+    return {};
   });
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
   const [marketPrices, setMarketPrices] = useState<Record<string, any>>({});
@@ -416,20 +424,6 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
           {data?.playerData?.username ? `Pemain: ${data.playerData.username}` : 'Company Analysis'}
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-[11px] text-slate-400" title="PP/day tambahan dari skill Entrepreneurship, ditambahkan ke Total PP. Diisi manual.">
-            <span className="uppercase tracking-wider text-[10px] font-bold">Entrepreneurship PP</span>
-            <input
-              type="number"
-              min={0}
-              value={entrepreneurshipLevel}
-              onChange={(e) => {
-                const num = Number(e.target.value);
-                setEntrepreneurshipLevel(Number.isFinite(num) ? num : 0);
-                localStorage.setItem('warera_entrepreneurship', String(num));
-              }}
-              className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center outline-none focus:border-indigo-500"
-            />
-          </label>
           <button 
             onClick={handleAnalyse} 
             disabled={isLoading} 
@@ -452,7 +446,8 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
                 comp={comp}
                 regionsDict={regionsDict}
                 productionBonus={comp?._id ? productionBonusDict[comp._id] : undefined}
-                entrepreneurshipLevel={entrepreneurshipLevel}
+                entrepreneurshipLevel={comp?._id ? (entrepreneurshipByCompany[comp._id] || 0) : 0}
+                onEntrepreneurshipChange={(val:number)=> comp?._id && setEntrepreneurshipByCompany(prev=>{ const next={...prev, [comp._id]: val}; localStorage.setItem(`warera_entrepreneurship_by_company_${userId||'anon'}`, JSON.stringify(next)); return next; })}
                 workers={comp?._id ? (workersByCompanyId[comp._id] || []) : []}
                 isExpanded={expandedId === id}
                 onToggle={() => setExpandedId(prev => prev === id ? null : id)}
@@ -490,6 +485,7 @@ function CompanyListItem({
   regionsDict,
   productionBonus,
   entrepreneurshipLevel = 0,
+  onEntrepreneurshipChange,
   isExpanded,
   onToggle,
   marketPrices,
@@ -852,8 +848,14 @@ function CompanyListItem({
                         />
                       </label>
 
-                      <DetailRow label="Total PP / day" value={`${totalPP.toFixed(2)} PP`} />
-                      <DetailRow label="Entrepreneurship PP" value={entPP > 0 ? `+${entPP} PP` : '0 PP'} valueColor={entPP > 0 ? 'text-[#f5c542]' : undefined} />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500">Total PP / day</span>
+                        <span className="text-xs font-mono text-slate-300">{totalPP.toFixed(2)} PP</span>
+                      </div>
+                      <label className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-[#f5c542]">Entrepreneurship PP (per pabrik)</span>
+                        <input type="number" min={0} value={entrepreneurshipLevel} onChange={e=>{ const n=Number(e.target.value); if(onEntrepreneurshipChange) onEntrepreneurshipChange(Number.isFinite(n)&&n>=0?n:0); }} className="w-16 bg-slate-900 border border-slate-800 rounded px-1 py-0.5 text-xs font-mono text-center text-white" />
+                      </label>
 
                       {excludedFromInternal ? (
                         <>
@@ -898,8 +900,14 @@ function CompanyListItem({
                     </>
                   ) : (
                     <>
-                      <DetailRow label="Total PP / day" value={`${totalPP.toFixed(1)} PP`} />
-                      <DetailRow label="Entrepreneurship PP" value={entPP > 0 ? `+${entPP} PP` : '0 PP'} valueColor={entPP > 0 ? 'text-[#f5c542]' : undefined} />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500">Total PP / day</span>
+                        <span className="text-xs font-mono text-slate-300">{totalPP.toFixed(1)} PP</span>
+                      </div>
+                      <label className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-[#f5c542]">Entrepreneurship PP (per pabrik)</span>
+                        <input type="number" min={0} value={entrepreneurshipLevel} onChange={e=>{ const n=Number(e.target.value); if(onEntrepreneurshipChange) onEntrepreneurshipChange(Number.isFinite(n)&&n>=0?n:0); }} className="w-16 bg-slate-900 border border-slate-800 rounded px-1 py-0.5 text-xs font-mono text-center text-white" />
+                      </label>
                       <DetailRow label="Units produced" value={`${shownDailyProduction} ${itemName}`} />
                       <DetailRow label="Market price / unit" value={<>{itemPrice.toFixed(3)} <CurrencyIcon /></>} />
 
