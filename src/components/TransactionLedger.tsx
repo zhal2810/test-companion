@@ -230,7 +230,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
 
   // Counterpart cache untuk pure catatan transaksi (dari/ke siapa) - kayak screenshot JHONTHORZ 42×0.14 → ZXZ
   const [userCache, setUserCache] = useState<Record<string, {username:string, avatarUrl:string}>>({});
-  const [muCache, setMuCache] = useState<Record<string, string>>({});
+  const [muCache, setMuCache] = useState<Record<string, string>>(()=>{ try{ return JSON.parse(localStorage.getItem('warera_mu_alias')||'{}'); }catch{ return {}; } });
   useEffect(() => {
     const userIds = Array.from(new Set(rows.flatMap(r=>[r.sellerId, r.buyerId]).filter(Boolean) as string[])).filter(id=>id!==userId);
     const muIds = Array.from(new Set(rows.filter(r=>r.transactionType==='donation').flatMap(r=>[(r as any).sellerMuId, (r as any).sellerCountryId]).filter(Boolean) as string[]));
@@ -252,6 +252,8 @@ export default function TransactionLedger({ transactions, userId, filterActive =
     }
     if (missingMu.length) {
       Promise.all(missingMu.map(async (mid)=>{
+        // cek alias manual dulu
+        try{ const aliases = JSON.parse(localStorage.getItem('warera_mu_alias')||'{}'); if(aliases[mid]) return [mid, aliases[mid]] as const; }catch{}
         try{
           // coba MU dulu, fallback country
           let res = await fetchWarera('militaryUnit.getMuById', {muId: mid}, null);
@@ -265,7 +267,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
       })).then(pairs=>{
         const m: Record<string,string> = {};
         pairs.forEach(([k,v])=>m[k]=v);
-        setMuCache(prev=>({...prev, ...m}));
+        setMuCache(prev=>{ const next={...prev, ...m}; localStorage.setItem('warera_mu_alias', JSON.stringify(next)); return next; });
       });
     }
   }, [rows, userId]);
@@ -435,7 +437,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
 
                     <span className={`font-medium truncate flex items-center gap-1.5 ${isOut ? 'text-amber-500/95' : 'text-sky-400/95'}`}>
                     <span className="truncate">{tx.displayLabel} {tx.quantity ? <span className="text-slate-600 font-mono">({tx.quantity}u)</span> : ''}{lootExtra}</span>
-                    {displayCounterpart && <span className="hidden lg:inline-flex items-center gap-1 text-[10px] text-slate-500 shrink-0">→ {cp?.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full" />}{displayCounterpart}</span>}
+                    {displayCounterpart && <button onClick={()=>{ const cur=muCache[counterpartId!]||displayCounterpart; const nxt=prompt(`Ganti nama untuk ${counterpartId!.slice(0,8)}`, cur); if(nxt && nxt.trim()){ const next={...muCache, [counterpartId!]: nxt.trim()}; setMuCache(next); localStorage.setItem('warera_mu_alias', JSON.stringify(next)); }}} title="Klik untuk ganti nama MU" className="hidden lg:inline-flex items-center gap-1 text-[10px] text-slate-500 shrink-0 hover:text-emerald-400 cursor-pointer">→ {cp?.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full" />}{displayCounterpart} ✎</button>}
                     {showTrunc && <span className="hidden lg:inline text-[10px] text-slate-600">→ {counterpartId!.slice(0,6)}...</span>}
                   </span>
 
@@ -480,7 +482,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
                     <Calendar className="w-3 h-3 text-slate-600 shrink-0" />
                     {formatDate(tx.createdAt)}
                   </span>
-                  {counterpartLabel && <span className="flex items-center gap-1 text-[10px] text-slate-500">→ {cp?.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3 h-3 rounded-full" />}{counterpartLabel}</span>}
+                  {counterpartLabel && <button onClick={()=>{ if(!counterpartId) return; const cur=muCache[counterpartId]||counterpartLabel; const nxt=prompt(`Ganti nama untuk ${counterpartId.slice(0,8)}`, cur); if(nxt && nxt.trim()){ const next={...muCache, [counterpartId]: nxt.trim()}; setMuCache(next); localStorage.setItem('warera_mu_alias', JSON.stringify(next)); }}} className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-emerald-400">→ {cp?.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3 h-3 rounded-full" />}{counterpartLabel} ✎</button>}
                   {!counterpartLabel && counterpartId && isSelf && <span className="text-[10px] text-slate-600">→ (diri sendiri)</span>}
                 </div>
                 
