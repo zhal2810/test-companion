@@ -233,10 +233,19 @@ export default function TransactionLedger({ transactions, userId, filterActive =
   const [muCache, setMuCache] = useState<Record<string, string>>(()=>{ try{ const a=JSON.parse(localStorage.getItem('warera_mu_alias')||'{}'); // bersihkan cache truncated lama MU 69929a biar refetch jadi Komando Lapis Inti
     Object.keys(a).forEach(k=>{ if(typeof a[k]==='string' && a[k].startsWith('MU ') && a[k].length<=10) delete a[k]; }); return a; }catch{ return {}; } });
   const [priceMap, setPriceMap] = useState<Record<string, number>>({});
+  // Equipment median dari warera.realmarijn.nl/market (30d) buat loot openCase - pulse tidak ada equipment
+  const EQUIP_FALLBACK: Record<string,number> = {
+    boots6:414.99,chest6:325,gloves6:380,helmet6:329,pants6:324.755,jet:403,
+    boots5:159.69,chest5:111.8,gloves5:152.97,helmet5:110,pants5:111,tank:141,
+    boots4:57.489,chest4:44.799,gloves4:51.89,helmet4:48.497,pants4:44.39,sniper:45.799,
+    boots3:12.83,chest3:13,gloves3:12.97,helmet3:12.958,pants3:13,rifle:12.198,
+    boots2:3.925,chest2:3.98,gloves2:3.94,helmet2:3.945,pants2:3.973,gun:3.86,
+    boots1:1.399,chest1:1.48,gloves1:1.399,helmet1:1.6,pants1:1.494,knife:1.7
+  };
   useEffect(()=>{
     getMarketSnapshot().then(res=>{
       if(res.success && res.data){
-        const m: Record<string,number> = {};
+        const m: Record<string,number> = {...EQUIP_FALLBACK};
         const prices = (res.data as any).prices || res.data;
         if(prices && typeof prices==='object'){
           Object.entries(prices).forEach(([k,v]:[string,any])=>{
@@ -246,11 +255,11 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         }
         if(Object.keys(m).length) setPriceMap(m);
       }
-    }).catch(()=>{});
+    }).catch(()=> setPriceMap({...EQUIP_FALLBACK}));
     // fallback via itemTrading.getPrices
     fetchWarera('itemTrading.getPrices', {}).then(res=>{
       if(res.success && res.data){
-        const m: Record<string,number> = {};
+        const m: Record<string,number> = {...EQUIP_FALLBACK};
         Object.entries(res.data as any).forEach(([k,v]:[string,any])=>{
           const n = typeof v==='number'? v : Number((v as any)?.avg ?? (v as any)?.price ?? 0);
           if(Number.isFinite(n) && n>0) m[k.toLowerCase()] = n;
@@ -258,6 +267,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         if(Object.keys(m).length) setPriceMap(prev=> Object.keys(prev).length ? prev : m);
       }
     }).catch(()=>{});
+    if(!Object.keys(priceMap).length) setPriceMap({...EQUIP_FALLBACK});
   },[]);
   useEffect(() => {
     const userIds = Array.from(new Set(rows.flatMap(r=>[r.sellerId, r.buyerId]).filter(Boolean) as string[])).filter(id=>id!==userId);
