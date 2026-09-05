@@ -61,6 +61,10 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     const saved = localStorage.getItem('warera_wage_per_pp');
     return saved !== null ? saved : '';
   });
+  const [manualBonusPP, setManualBonusPP] = useState<string>(() => {
+    const saved = localStorage.getItem('warera_bonus_pp');
+    return saved !== null ? saved : '';
+  });
 
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
@@ -280,9 +284,16 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return Number.isFinite(num) && num >= 0 ? num : (avgWagePerPP ?? DEFAULT_AVG_WAGE_PER_PP);
   }, [manualWagePerPP, avgWagePerPP]);
 
+  // Bonus PP manual % (misal 20 = PP efektif 10/(1+0.2)=8.33, labor turun)
+  const effectiveBonusPP = React.useMemo(() => {
+    if (manualBonusPP.trim() === '') return 0;
+    const n = Number(manualBonusPP);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }, [manualBonusPP]);
+
   const marginResult = React.useMemo(
-    () => calculateProductionMargin(item.item, priceMap, effectiveWagePerPP),
-    [item.item, priceMap, effectiveWagePerPP]
+    () => calculateProductionMargin(item.item, priceMap, effectiveWagePerPP, effectiveBonusPP),
+    [item.item, priceMap, effectiveWagePerPP, effectiveBonusPP]
   );
 
   const orderBookImbalance = React.useMemo(() => {
@@ -564,7 +575,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 mb-2">
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                 <span className="text-[8.5px] uppercase text-slate-500 font-bold">Upah/PP</span>
                 <input
                   type="number"
@@ -590,7 +601,32 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                     reset
                   </button>
                 ) : (
-                  <span className="text-[8.5px] text-slate-600">auto (snapshot)</span>
+                  <span className="text-[8.5px] text-slate-600">auto</span>
+                )}
+                <span className="text-[8.5px] uppercase text-slate-500 font-bold ml-1">Bonus PP%</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={manualBonusPP}
+                  onChange={(e) => {
+                    setManualBonusPP(e.target.value);
+                    localStorage.setItem('warera_bonus_pp', e.target.value);
+                  }}
+                  placeholder="0"
+                  title="Bonus produksi % - mengurangi PP efektif. Misal 20% = PP 10 jadi 8.33, Upah turun."
+                  className="w-14 bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] font-mono text-white text-center outline-none focus:border-indigo-500"
+                />
+                {manualBonusPP.trim() !== '' && (
+                  <button
+                    onClick={() => {
+                      setManualBonusPP('');
+                      localStorage.removeItem('warera_bonus_pp');
+                    }}
+                    className="text-[8.5px] text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
+                  >
+                    reset
+                  </button>
                 )}
               </div>
               

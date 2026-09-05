@@ -52,7 +52,8 @@ const BUY_MARGIN_THRESHOLD = -2;  // margin <= ini → produksi nggak menguntung
 export function calculateProductionMargin(
   itemCode: string,
   marketPrices: Record<string, number>,
-  avgWagePerPP: number = DEFAULT_AVG_WAGE_PER_PP
+  avgWagePerPP: number = DEFAULT_AVG_WAGE_PER_PP,
+  bonusPPPercent: number = 0
 ): ProductionMarginResult | null {
   const item = GAME_ITEMS[itemCode];
   if (!item) return null;
@@ -74,7 +75,8 @@ export function calculateProductionMargin(
     }
   }
 
-  const laborCost = item.productionPoints * avgWagePerPP;
+  const effectivePP = bonusPPPercent > 0 ? item.productionPoints / (1 + bonusPPPercent / 100) : item.productionPoints;
+  const laborCost = effectivePP * avgWagePerPP;
   const costPerUnit = materialCost + laborCost;
 
   if (costPerUnit <= 0) return null;
