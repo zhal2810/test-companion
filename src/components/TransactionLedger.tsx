@@ -347,10 +347,10 @@ export default function TransactionLedger({ transactions, userId, filterActive =
           const donasi = sumBy(r=> /donat|tip|donation/i.test(r.transactionType) && r.direction==='expense');
           // Nilai Loot: openCase loot × harga pasar (biar +39 kayak gambar, bukan 0)
           let lootValue = sumBy(r=> /loot|jarah|reward/i.test(r.transactionType) && r.direction==='income');
+          const openCasesArr = ledger.rows.filter(r=> r.transactionType==='openCase');
           if (lootValue < 0.01) {
-            const openCases = ledger.rows.filter(r=> r.transactionType==='openCase');
             let sum = 0;
-            for(const oc of openCases){
+            for(const oc of openCasesArr){
               const code = (oc as any).lootCode || (oc as any)?.item?.code;
               if(!code) continue;
               const p = priceMap[code.toLowerCase()] ?? priceMap[code] ?? 0;
@@ -358,9 +358,11 @@ export default function TransactionLedger({ transactions, userId, filterActive =
             }
             if(sum>0) lootValue = sum;
           }
+          const casesOpened = openCasesArr.length;
+          const casesProfit = lootValue - biayaCase;
           const otherIncome = Math.max(0, ledger.totalIncome - ledger.totalSoldMoney - ledger.totalWageReceived - lootValue);
           const otherExpense = Math.max(0, ledger.totalExpense - ledger.totalWagePaid - konsumsi - keausan - biayaCase - donasi - tied);
-          return { profitNiaga, tied, konsumsi, keausan, biayaCase, donasi, lootValue, otherIncome, otherExpense };
+          return { profitNiaga, tied, konsumsi, keausan, biayaCase, donasi, lootValue, casesOpened, casesProfit, otherIncome, otherExpense };
         };
         const cToday = cat(ledgerToday);
         const cYesterday = cat(ledgerYesterday);
@@ -411,7 +413,15 @@ export default function TransactionLedger({ transactions, userId, filterActive =
             {row('Donasi/Lain-lain', cToday.donasi + cToday.otherExpense, cYesterday.donasi + cYesterday.otherExpense, {sign:'neg', indent:true})}
             {row('Tertahan di Pembelian', cToday.tied, cYesterday.tied, {sign:'neg', indent:true, muted:true})}
             {row('Tidak Terlacak', 0, 0, {sign:'neg', indent:true, muted:true})}
-            <div className="bg-slate-800/20 text-slate-300 text-[10px] font-bold px-2 py-1 border-y border-slate-800 flex justify-between"><span>Keberuntungan Case</span><span className="font-mono text-[10px] text-slate-500">—</span></div>
+            <div className="bg-slate-800/20 text-slate-300 text-[10px] font-bold px-2 py-1 border-y border-slate-800 grid grid-cols-3">
+              <span>Keberuntungan Case</span>
+              <span className="text-right font-mono text-[10px] col-span-1">
+                {cToday.casesOpened>0 ? `${cToday.casesOpened}x opened (${cToday.casesProfit>=0?'+':''}${formatMoney(cToday.casesProfit)} Gold)` : '—'}
+              </span>
+              <span className="text-right font-mono text-[10px] hidden sm:block">
+                {cYesterday.casesOpened>0 ? `${cYesterday.casesOpened}x opened (${cYesterday.casesProfit>=0?'+':''}${formatMoney(cYesterday.casesProfit)} Gold)` : '—'}
+              </span>
+            </div>
             <div className="grid grid-cols-3 text-xs font-mono font-black py-2 px-2 bg-slate-900/40 border-b border-slate-800">
               <span className="text-slate-200 uppercase text-[11px]">Total P&amp;L</span>
               <span className={`text-right ${totalPnlToday>=0?'text-emerald-400':'text-rose-400'}`}>{totalPnlToday>=0?'+':''}{formatMoney(totalPnlToday)}</span>
