@@ -259,7 +259,7 @@ export default function CompanyAnalysis({ userId, token }: CompanyAnalysisProps)
           productionBonus: productionBonusDict[c._id],
           workers: workersByCompanyId[c._id] || [],
           itemsConfig,
-          entrepreneurshipPP: entrepreneurshipLevel,
+          entrepreneurshipPP: entrepreneurshipByCompany[c._id] || 0,
         }),
       }));
 
