@@ -47,7 +47,7 @@ export const searchPlayerCompanies = async (username: string): Promise<{ success
 
     const [profileRes, companiesListRes] = await Promise.all([
       fetchWarera('user.getUserById', { userId }),
-      fetchWarera('company.getCompanies', { userId, perPage: 10 })
+      fetchWarera('company.getCompanies', { userId, perPage: 100 })
     ]);
 
     let detailedCompanies: any[] = [];
@@ -78,7 +78,7 @@ export const getCompaniesByUserId = async (userId: string, token: string | null 
   try {
     const [profileRes, companiesListRes] = await Promise.all([
       fetchWarera('user.getUserById', { userId }, token),
-      fetchWarera('company.getCompanies', { userId, perPage: 10 }, token)
+      fetchWarera('company.getCompanies', { userId, perPage: 100 }, token)
     ]);
 
     if (!profileRes.success) throw new Error(profileRes.error || 'Gagal mengambil profil');
