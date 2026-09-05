@@ -331,6 +331,7 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         // Kategori turunan - Nilai Loot dari openCase loot × harga pasar (biar tidak 0.00)
         const cat = (ledger:LedgerResult) => {
           // Tertahan yang benar: sisa stok qtyHeld * avgHargaBeli (Tank 210, Steak 52 sisa 42, dll) bukan 0
+          const profitNiaga = ledger.itemBreakdown.reduce((s:any,it:any)=>s+Number(it.profit||0),0);
           let tied = 0;
           for(const it of ledger.itemBreakdown as any[]){
             const remain = (it.totalBoughtQty||0) - (it.totalSoldQty||0);
