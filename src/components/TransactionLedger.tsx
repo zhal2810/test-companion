@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownLeft, Calendar, FileText, AlertCircle } from 'lucide-react';
 import CurrencyIcon from './CurrencyIcon';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
+import { fetchWarera } from '../api/apiClient';
 
 function formatMoney(value: number): string {
   if (value === null || value === undefined || isNaN(value)) return "0";
@@ -227,6 +228,26 @@ export default function TransactionLedger({ transactions, userId, filterActive =
 
   const { rows, itemBreakdown, totalIncome, totalExpense, netWealth, totalBoughtMoney, totalSoldMoney } = calculateLedger(transactions, userId);
 
+  // Counterpart cache untuk pure catatan transaksi (dari/ke siapa) - kayak screenshot JHONTHORZ 42×0.14 → ZXZ
+  const [userCache, setUserCache] = useState<Record<string, {username:string, avatarUrl:string}>>({});
+  useEffect(() => {
+    const ids = Array.from(new Set(rows.flatMap(r=>[r.sellerId, r.buyerId]).filter(Boolean) as string[])).filter(id=>id!==userId);
+    if (!ids.length) return;
+    const missing = ids.filter(id=>!userCache[id]);
+    if (!missing.length) return;
+    Promise.all(missing.map(async (uid)=>{
+      try{
+        const res = await fetchWarera('user.getUserById', {userId: uid}, null);
+        const u = res.data;
+        return [uid, {username: u?.username || uid.slice(0,8), avatarUrl: u?.avatarUrl || ''}] as const;
+      }catch{ return [uid, {username: uid.slice(0,8), avatarUrl: ''}] as const; }
+    })).then(pairs=>{
+      const m: Record<string, {username:string, avatarUrl:string}> = {};
+      pairs.forEach(([k,v])=>m[k]=v);
+      setUserCache(prev=>({...prev, ...m}));
+    });
+  }, [rows, userId]);
+
   return (
     <div className="bg-[#10121A]/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-5 md:p-6 text-slate-100">
       
@@ -345,54 +366,44 @@ export default function TransactionLedger({ transactions, userId, filterActive =
 
 
 
-      {/* 3. RIWAYAT TRANSAKSI (SEMUA TIPE) */}
+      {/* 3. RIWAYAT TRANSAKSI - pure catatan transaksi (tanpa Net Profit, sudah di P&L) + lawan transaksi */}
       <div>
         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 pb-1 border-b border-slate-800/80">
-          Semua Mutasi Ledger
+          Semua Mutasi Ledger <span className="normal-case font-normal text-[10px] text-slate-600">— pure catatan, P&L di atas</span>
         </h4>
 
-        {/* Desktop View Table */}
+        {/* Desktop View Table - 3 kol: Waktu | Aktivitas + lawan | Volume */}
         <div className="hidden sm:block">
-          <div className="grid grid-cols-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 px-2">
+          <div className="grid grid-cols-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 px-2">
             <span>Waktu</span>
-            <span>Aktivitas</span>
+            <span>Aktivitas (dari/ke)</span>
             <span className="text-right">Volume (cc)</span>
-            <span className="text-right">Net Profit</span>
           </div>
 
-          <div className="max-h-[260px] overflow-y-auto space-y-1 pr-1.5 custom-scrollbar">
+          <div className="max-h-[300px] overflow-y-auto space-y-1 pr-1.5 custom-scrollbar">
             {rows.map((tx) => {
               const isOut = tx.direction === 'buy' || tx.direction === 'expense';
+              const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : tx.direction === 'income' ? tx.sellerId : tx.direction === 'expense' ? tx.buyerId : null;
+              const cp = counterpartId ? userCache[counterpartId] : null;
+              const lootExtra = (tx as any).lootCode ? <span className="ml-1 text-[10px] text-slate-500">({(tx as any).lootCode})</span> : null;
               return (
                 <div
                   key={tx._id}
-                  className="grid grid-cols-4 text-xs py-2 px-2.5 border border-transparent hover:border-slate-800 hover:bg-slate-900/10 rounded-lg transition duration-150 items-center"
+                  className="grid grid-cols-3 text-xs py-2 px-2.5 border border-transparent hover:border-slate-800 hover:bg-slate-900/10 rounded-lg transition duration-150 items-center"
                 >
-                  {/* Tanggal */}
                   <span className="text-slate-500 text-[10.5px] font-mono flex items-center gap-1">
                     <Calendar className="w-3 h-3 text-slate-600" />
                     {formatDate(tx.createdAt)}
                   </span>
 
-                  {/* Aktivitas */}
-                  <span className={`font-medium truncate ${isOut ? 'text-amber-500/95' : 'text-sky-400/95'}`}>
-                    {tx.displayLabel} {tx.quantity ? <span className="text-slate-600 font-mono">({tx.quantity}u)</span> : ''}
+                  <span className={`font-medium truncate flex items-center gap-1.5 ${isOut ? 'text-amber-500/95' : 'text-sky-400/95'}`}>
+                    <span className="truncate">{tx.displayLabel} {tx.quantity ? <span className="text-slate-600 font-mono">({tx.quantity}u)</span> : ''}{lootExtra}</span>
+                    {cp && <span className="hidden lg:inline-flex items-center gap-1 text-[10px] text-slate-500 shrink-0">→ {cp.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full" />}{cp.username}</span>}
+                    {!cp && counterpartId && <span className="hidden lg:inline text-[10px] text-slate-600">→ {counterpartId.slice(0,6)}...</span>}
                   </span>
 
-                  {/* Nilai Transaksi */}
-                  <span className="text-right text-slate-200 font-mono font-medium">
-                    {formatMoney(tx.moneySafe)}
-                  </span>
-
-                  {/* Profit (Khusus Jual Barang) */}
-                  <span className="text-right font-mono text-xs">
-                    {tx.profitThisTx !== null ? (
-                      <span className={tx.profitThisTx >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                        {tx.profitThisTx >= 0 ? '+' : ''}{formatMoney(tx.profitThisTx)}
-                      </span>
-                    ) : (
-                      <span className="text-slate-800">—</span>
-                    )}
+                  <span className="text-right text-slate-200 font-mono font-medium flex items-center justify-end gap-1">
+                    {formatMoney(tx.moneySafe)} <CurrencyIcon />
                   </span>
                 </div>
               );
@@ -401,15 +412,17 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         </div>
 
         {/* Mobile View Stacked List */}
-        <div className="sm:hidden space-y-2 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
+        <div className="sm:hidden space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
           {rows.map((tx) => {
             const isOut = tx.direction === 'buy' || tx.direction === 'expense';
+            const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : null;
+            const cp = counterpartId ? userCache[counterpartId] : null;
             return (
               <div
                 key={tx._id}
                 className="bg-slate-900/10 hover:bg-slate-900/20 border border-slate-800/40 hover:border-slate-700/40 p-3 rounded-lg transition duration-150 flex justify-between items-center text-xs"
               >
-                <div className="space-y-1 min-w-0">
+                <div className="space-y-1 min-w-0 flex-1">
                   <span className={`font-bold block truncate ${isOut ? 'text-amber-500/95' : 'text-sky-400/95'}`}>
                     {tx.displayLabel} {tx.quantity ? <span className="text-slate-500 font-mono text-[10px]">({tx.quantity}u)</span> : ''}
                   </span>
@@ -417,19 +430,14 @@ export default function TransactionLedger({ transactions, userId, filterActive =
                     <Calendar className="w-3 h-3 text-slate-600 shrink-0" />
                     {formatDate(tx.createdAt)}
                   </span>
+                  {cp && <span className="flex items-center gap-1 text-[10px] text-slate-500">→ {cp.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3 h-3 rounded-full" />}{cp.username}</span>}
                 </div>
                 
-                <div className="text-right space-y-1 shrink-0 ml-3">
+                <div className="text-right shrink-0 ml-3">
                   <span className="text-slate-200 font-mono font-medium flex items-center justify-end gap-1">
                     {formatMoney(tx.moneySafe)} <CurrencyIcon />
                   </span>
-                  {tx.profitThisTx !== null ? (
-                    <span className={`text-[10px] font-mono block font-bold ${tx.profitThisTx >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      Profit: {tx.profitThisTx >= 0 ? '+' : ''}{formatMoney(tx.profitThisTx)}
-                    </span>
-                  ) : (
-                    <span className="text-slate-600 text-[9px] block">—</span>
-                  )}
+                  <span className="text-[10px] text-slate-600">—</span>
                 </div>
               </div>
             );
