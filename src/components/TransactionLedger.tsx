@@ -157,7 +157,19 @@ function calculateLedger(transactions: Transaction[], userId: string): LedgerRes
         enrichedTx.displayLabel = `🔺 Jual ${itemDisplayName}`;
       }
     }
-    // 3. TIPE LAINNYA (Tip, Donasi, Open Case, dll)
+    // 3. OPEN CASE - bawa item loot (gun, Rare Helmet dll) -> tampilkan nama rarity
+    else if (tx.transactionType === 'openCase') {
+      const caseCode = tx.itemCode || 'case1';
+      const caseName = (GAME_ITEMS[caseCode] || GAME_ITEMS[caseCode.toLowerCase()])?.name || caseCode;
+      const lootCode = (tx as any)?.item?.code || (tx as any)?.itemCode || '';
+      const lootItem = lootCode ? (GAME_ITEMS[lootCode] || GAME_ITEMS[lootCode.toLowerCase()]) : null;
+      const lootName = lootItem?.name || lootCode || 'Unknown';
+      enrichedTx.direction = 'neutral';
+      enrichedTx.displayLabel = `📦 Buka ${caseName} → 🎁 ${lootName}`;
+      // simpan lootCode untuk icon di tabel
+      (enrichedTx as any).lootCode = lootCode;
+    }
+    // 3b. TIPE LAINNYA (Tip, Donasi, dll)
     else {
       if (tx.buyerId === userId) {
         enrichedTx.direction = 'expense';
