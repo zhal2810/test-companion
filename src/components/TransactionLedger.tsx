@@ -230,22 +230,44 @@ export default function TransactionLedger({ transactions, userId, filterActive =
 
   // Counterpart cache untuk pure catatan transaksi (dari/ke siapa) - kayak screenshot JHONTHORZ 42×0.14 → ZXZ
   const [userCache, setUserCache] = useState<Record<string, {username:string, avatarUrl:string}>>({});
+  const [muCache, setMuCache] = useState<Record<string, string>>({});
   useEffect(() => {
-    const ids = Array.from(new Set(rows.flatMap(r=>[r.sellerId, r.buyerId]).filter(Boolean) as string[])).filter(id=>id!==userId);
-    if (!ids.length) return;
-    const missing = ids.filter(id=>!userCache[id]);
-    if (!missing.length) return;
-    Promise.all(missing.map(async (uid)=>{
-      try{
-        const res = await fetchWarera('user.getUserById', {userId: uid}, null);
-        const u = res.data;
-        return [uid, {username: u?.username || uid.slice(0,8), avatarUrl: u?.avatarUrl || ''}] as const;
-      }catch{ return [uid, {username: uid.slice(0,8), avatarUrl: ''}] as const; }
-    })).then(pairs=>{
-      const m: Record<string, {username:string, avatarUrl:string}> = {};
-      pairs.forEach(([k,v])=>m[k]=v);
-      setUserCache(prev=>({...prev, ...m}));
-    });
+    const userIds = Array.from(new Set(rows.flatMap(r=>[r.sellerId, r.buyerId]).filter(Boolean) as string[])).filter(id=>id!==userId);
+    const muIds = Array.from(new Set(rows.filter(r=>r.transactionType==='donation').flatMap(r=>[(r as any).sellerMuId, (r as any).sellerCountryId]).filter(Boolean) as string[]));
+    if (!userIds.length && !muIds.length) return;
+    const missingUsers = userIds.filter(id=>!userCache[id]);
+    const missingMu = muIds.filter(id=>!muCache[id]);
+    if (missingUsers.length) {
+      Promise.all(missingUsers.map(async (uid)=>{
+        try{
+          const res = await fetchWarera('user.getUserById', {userId: uid}, null);
+          const u = res.data;
+          return [uid, {username: u?.username || uid.slice(0,8), avatarUrl: u?.avatarUrl || ''}] as const;
+        }catch{ return [uid, {username: uid.slice(0,8), avatarUrl: ''}] as const; }
+      })).then(pairs=>{
+        const m: Record<string, {username:string, avatarUrl:string}> = {};
+        pairs.forEach(([k,v])=>m[k]=v);
+        setUserCache(prev=>({...prev, ...m}));
+      });
+    }
+    if (missingMu.length) {
+      Promise.all(missingMu.map(async (mid)=>{
+        try{
+          // coba MU dulu, fallback country
+          let res = await fetchWarera('militaryUnit.getMuById', {muId: mid}, null);
+          let name = (res as any)?.data?.name || (res as any)?.data?.title;
+          if (!name) {
+            res = await fetchWarera('country.getCountryById', {countryId: mid}, null);
+            name = (res as any)?.data?.name;
+          }
+          return [mid, name || `MU ${mid.slice(0,6)}`] as const;
+        }catch{ return [mid, `MU ${mid.slice(0,6)}`] as const; }
+      })).then(pairs=>{
+        const m: Record<string,string> = {};
+        pairs.forEach(([k,v])=>m[k]=v);
+        setMuCache(prev=>({...prev, ...m}));
+      });
+    }
   }, [rows, userId]);
 
   return (
@@ -383,10 +405,24 @@ export default function TransactionLedger({ transactions, userId, filterActive =
           <div className="max-h-[300px] overflow-y-auto space-y-1 pr-1.5 custom-scrollbar">
             {rows.map((tx) => {
               const isOut = tx.direction === 'buy' || tx.direction === 'expense';
-              const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : tx.direction === 'income' ? (tx as any).buyerId : tx.direction === 'expense' ? (tx as any).sellerId || (tx as any).sellerMuId : (tx as any).sellerId || (tx as any).buyerId || (tx as any).sellerMuId;
+              const isDonation = tx.transactionType === 'donation';
+              let counterpartId: string | null = null;
+              let counterpartLabel: string | null = null;
+              if (isDonation) {
+                counterpartId = (tx as any).sellerMuId || (tx as any).sellerCountryId || (tx as any).sellerId || null;
+                if (counterpartId) counterpartLabel = muCache[counterpartId] || `MU ${counterpartId.slice(0,6)}...`;
+              } else {
+                counterpartId = tx.direction === 'sell' ? tx.buyerId! : tx.direction === 'buy' ? tx.sellerId! : tx.direction === 'income' ? (tx as any).buyerId : tx.direction === 'expense' ? (tx as any).sellerId : (tx as any).sellerId || (tx as any).buyerId;
+                if (counterpartId && counterpartId !== userId) {
+                  const cp = userCache[counterpartId];
+                  counterpartLabel = cp ? cp.username : null;
+                }
+              }
               const isSelf = counterpartId === userId;
-              const cp = counterpartId && !isSelf ? userCache[counterpartId] : null;
+              const cp = counterpartId && !isSelf && !isDonation ? userCache[counterpartId] : null;
               const lootExtra = (tx as any).lootCode ? <span className="ml-1 text-[10px] text-slate-500">({(tx as any).lootCode})</span> : null;
+              const displayCounterpart = isDonation ? counterpartLabel : (cp ? cp.username : null);
+              const showTrunc = !isDonation && counterpartId && !isSelf && !cp;
               return (
                 <div
                   key={tx._id}
@@ -399,8 +435,8 @@ export default function TransactionLedger({ transactions, userId, filterActive =
 
                     <span className={`font-medium truncate flex items-center gap-1.5 ${isOut ? 'text-amber-500/95' : 'text-sky-400/95'}`}>
                     <span className="truncate">{tx.displayLabel} {tx.quantity ? <span className="text-slate-600 font-mono">({tx.quantity}u)</span> : ''}{lootExtra}</span>
-                    {cp && <span className="hidden lg:inline-flex items-center gap-1 text-[10px] text-slate-500 shrink-0">→ {cp.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full" />}{cp.username}</span>}
-                    {!cp && counterpartId && !isSelf && <span className="hidden lg:inline text-[10px] text-slate-600">→ {counterpartId.slice(0,6)}...</span>}
+                    {displayCounterpart && <span className="hidden lg:inline-flex items-center gap-1 text-[10px] text-slate-500 shrink-0">→ {cp?.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3.5 h-3.5 rounded-full" />}{displayCounterpart}</span>}
+                    {showTrunc && <span className="hidden lg:inline text-[10px] text-slate-600">→ {counterpartId!.slice(0,6)}...</span>}
                   </span>
 
                   <span className="text-right text-slate-200 font-mono font-medium flex items-center justify-end gap-1">
@@ -416,9 +452,21 @@ export default function TransactionLedger({ transactions, userId, filterActive =
         <div className="sm:hidden space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
           {rows.map((tx) => {
             const isOut = tx.direction === 'buy' || tx.direction === 'expense';
-            const counterpartId = tx.direction === 'sell' ? tx.buyerId : tx.direction === 'buy' ? tx.sellerId : tx.direction === 'income' ? (tx as any).buyerId : tx.direction === 'expense' ? (tx as any).sellerId || (tx as any).sellerMuId : (tx as any).sellerId || (tx as any).buyerId || (tx as any).sellerMuId;
+            const isDonation = tx.transactionType === 'donation';
+            let counterpartId: string | null = null;
+            let counterpartLabel: string | null = null;
+            if (isDonation) {
+              counterpartId = (tx as any).sellerMuId || (tx as any).sellerCountryId || (tx as any).sellerId || null;
+              if (counterpartId) counterpartLabel = muCache[counterpartId] || `MU ${counterpartId.slice(0,6)}...`;
+            } else {
+              counterpartId = tx.direction === 'sell' ? tx.buyerId! : tx.direction === 'buy' ? tx.sellerId! : tx.direction === 'income' ? (tx as any).buyerId : tx.direction === 'expense' ? (tx as any).sellerId : (tx as any).sellerId || (tx as any).buyerId;
+              if (counterpartId && counterpartId !== userId) {
+                const cp2 = userCache[counterpartId];
+                counterpartLabel = cp2 ? cp2.username : null;
+              }
+            }
             const isSelf = counterpartId === userId;
-            const cp = counterpartId && !isSelf ? userCache[counterpartId] : null;
+            const cp = counterpartId && !isSelf && !isDonation ? userCache[counterpartId] : null;
             return (
               <div
                 key={tx._id}
@@ -432,8 +480,8 @@ export default function TransactionLedger({ transactions, userId, filterActive =
                     <Calendar className="w-3 h-3 text-slate-600 shrink-0" />
                     {formatDate(tx.createdAt)}
                   </span>
-                  {cp && <span className="flex items-center gap-1 text-[10px] text-slate-500">→ {cp.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3 h-3 rounded-full" />}{cp.username}</span>}
-                  {!cp && counterpartId && isSelf && <span className="text-[10px] text-slate-600">→ (diri sendiri)</span>}
+                  {counterpartLabel && <span className="flex items-center gap-1 text-[10px] text-slate-500">→ {cp?.avatarUrl && <img src={cp.avatarUrl} alt="" className="w-3 h-3 rounded-full" />}{counterpartLabel}</span>}
+                  {!counterpartLabel && counterpartId && isSelf && <span className="text-[10px] text-slate-600">→ (diri sendiri)</span>}
                 </div>
                 
                 <div className="text-right shrink-0 ml-3">
