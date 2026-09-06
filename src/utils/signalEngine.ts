@@ -79,7 +79,21 @@ export function calculateProductionMargin(
   const laborCost = effectivePP * avgWagePerPP;
   const costPerUnit = materialCost + laborCost;
 
-  if (costPerUnit <= 0) return null;
+  if (costPerUnit <= 0) {
+    // Raw tanpa pekerja: cost 0 tapi harga pasar >0 => selalu menguntungkan (free gathering)
+    if (item.type === 'raw' && marketPrice > 0) {
+      return {
+        itemCode,
+        marketPrice,
+        materialCost,
+        laborCost,
+        costPerUnit: 0,
+        marginPercent: 999, // anggap menguntungkan tak hingga
+        missingInputPrices,
+      };
+    }
+    return null;
+  }
 
   const marginPercent = ((marketPrice - costPerUnit) / costPerUnit) * 100;
 

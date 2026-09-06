@@ -41,7 +41,7 @@ function formatVolume(value: any): string {
 
 export default function PriceChartModal({ item, onClose, priceMap = {}, avgWagePerPP, isInline = false }: PriceChartModalProps) {
   const [chartView, setChartView] = React.useState<'line' | 'candle'>('candle');
-  const [displayTf, setDisplayTf] = useState('week'); // 'week' (7D·1H) | 'month' (30D·12H)
+  const [displayTf, setDisplayTf] = useState('day'); // 'day' 24H·1H default, 'week' 7D, 'month' 30D
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
@@ -69,8 +69,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   const points = Array.isArray(item.points) ? item.points : [];
   const chartData = points.map((price, index) => ({ index, price }));
 
-  // WarEra Pulse hanya mendukung 'week' (7D · 1H, 168 candle) dan 'month' (30D · 12H, 61 candle)
-  const fetchTf = displayTf;
+  // WarEra Pulse hanya mendukung 'week' (7D · 1H, 168 candle) dan 'month' (30D · 12H, 61 candle) -> 24H pakai week lalu slice 24
+  const fetchTf = displayTf === 'day' ? 'week' : displayTf;
 
   useEffect(() => {
     let cancelled = false;
@@ -201,12 +201,13 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return [...candles].sort((a, b) => Number(a.time) - Number(b.time));
   }, [candles]);
 
-  // Saring candle sesuai timeframe visual yang dipilih (slice)
+  // Saring candle sesuai timeframe visual yang dipilih (slice) - 24H = 24 candle terakhir dari week
   const filteredCandles = React.useMemo(() => {
     if (sortedCandles.length === 0) return [];
+    if (displayTf === 'day') return sortedCandles.slice(-24);
     // 'week' (7D · 1H) dan 'month' (30D · 12H) menampilkan semua candle yang ditarik
     return sortedCandles;
-  }, [sortedCandles]);
+  }, [sortedCandles, displayTf]);
 
   const hasCandles = filteredCandles.length > 0;
   const lastCandle = hasCandles ? filteredCandles[filteredCandles.length - 1] : null;
