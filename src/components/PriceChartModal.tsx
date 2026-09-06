@@ -339,6 +339,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     if(!simBuyPrice && bestOffer) setSimBuyPrice(String(bestOffer));
     if(!simSellPrice && bestBid) setSimSellPrice(String(bestBid));
   }, [bestOffer, bestBid]);
+  // Reset simulasi saat ganti item biar tidak nempel harga Pill 36.827
+  useEffect(()=>{ setSimBuyPrice(''); setSimSellPrice(''); }, [item.item]);
 
   const signalResult = React.useMemo(
     () => computeMarketSignal(
@@ -745,57 +747,30 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
               </ul>
             </div>
 
-            {/* COLUMN 2: ANALISIS TEKNIKAL (MA & RSI) */}
+            {/* COLUMN 2: FAIR VALUE ANCHOR (ganti Teknikal) */}
             <div className="border border-slate-800/50 bg-[#0E1017] rounded-lg p-3">
               <div className="flex items-center justify-between mb-2 border-b border-slate-800/60 pb-1.5">
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                    Teknikal (MA & RSI)
-                  </span>
-                  <span className="text-[8.5px] bg-slate-800 text-slate-400 px-1 rounded font-mono font-bold uppercase">
-                    {techDataPeriod}
-                  </span>
-                </div>
-                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${techSignalStyle.className}`}>
-                  {techSignalStyle.label}
-                </span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Fair Value Anchor</span>
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${signalStyle.className}`}>{signalStyle.label}</span>
               </div>
-
-              {technicalSignalResult.hasSufficientData ? (
-                <div className="grid grid-cols-3 gap-1.5 mb-2 text-[10px]">
-                  <div>
-                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">MA9 / MA21</div>
-                    <div className="font-mono font-bold text-slate-300">
-                      {formatPrice(technicalSignalResult.ma9)} / {formatPrice(technicalSignalResult.ma21)}
-                    </div>
+              {signalResult.fairValue ? (
+                <>
+                  <div className="grid grid-cols-2 gap-1.5 mb-2 text-[10px]">
+                    <div><div className="text-[8.5px] uppercase text-slate-500 font-bold">Fair</div><div className="font-mono font-bold text-slate-300">{formatPrice(signalResult.fairValue.fairValue)}</div></div>
+                    <div><div className="text-[8.5px] uppercase text-slate-500 font-bold">Ask/Bid</div><div className="font-mono font-bold text-slate-300">{formatPrice(bestOffer ?? 0)} / {formatPrice(bestBid ?? 0)}</div></div>
+                    <div><div className="text-[8.5px] uppercase text-slate-500 font-bold">Max Buy</div><div className="font-mono font-bold text-emerald-400">{formatPrice(signalResult.bestOffer ?? signalResult.fairValue.orderBookMid ?? signalResult.fairValue.fairValue)}</div></div>
+                    <div><div className="text-[8.5px] uppercase text-slate-500 font-bold">Rich Sell</div><div className="font-mono font-bold text-rose-400">{formatPrice(signalResult.bestBid ?? signalResult.fairValue.orderBookMid ?? signalResult.fairValue.fairValue)}</div></div>
+                    <div className="col-span-2"><div className="text-[8.5px] uppercase text-slate-500 font-bold">Deviation</div><div className={`font-mono font-bold ${signalResult.fairValue.deviationPercent>=0?'text-rose-400':'text-emerald-400'}`}>{signalResult.fairValue.deviationPercent>=0?'+':''}{signalResult.fairValue.deviationPercent.toFixed(2)}% vs Fair</div></div>
                   </div>
-                  <div>
-                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">MA20 Trend</div>
-                    <div className={`font-mono font-bold ${technicalSignalResult.trend === 'uptrend' ? 'text-emerald-400' : technicalSignalResult.trend === 'downtrend' ? 'text-rose-400' : 'text-slate-400'}`}>
-                      {formatPrice(technicalSignalResult.ma20)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[8.5px] uppercase text-slate-500 font-bold">RSI (14)</div>
-                    <div className={`font-mono font-bold ${technicalSignalResult.rsi > 70 ? 'text-rose-400 font-black animate-pulse' : technicalSignalResult.rsi < 30 ? 'text-emerald-400 font-black' : 'text-slate-300'}`}>
-                      {technicalSignalResult.rsi.toFixed(1)}
-                    </div>
-                  </div>
-                </div>
+                  <ul className="space-y-0.5 mt-1">
+                    {signalResult.reasons.slice(0,4).map((r,i)=>(
+                      <li key={i} className="text-[9.5px] text-slate-500 flex gap-1 leading-snug"><span>•</span><span>{r}</span></li>
+                    ))}
+                  </ul>
+                </>
               ) : (
-                <div className="text-[9.5px] text-slate-500 bg-slate-900/40 p-2 rounded border border-slate-800/40 text-center mb-2">
-                  Data candle kurang dari 22 bar untuk indikator teknikal.
-                </div>
+                <div className="text-[9.5px] text-slate-500">Fair Value tidak tersedia</div>
               )}
-
-              <ul className="space-y-0.5 mt-1">
-                {technicalSignalResult.reasons.map((reason, idx) => (
-                  <li key={idx} className="text-[9.5px] text-slate-500 flex gap-1 leading-snug">
-                    <span>•</span>
-                    <span>{reason}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
 
           </div>
