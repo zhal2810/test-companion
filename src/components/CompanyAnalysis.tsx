@@ -658,15 +658,27 @@ function CompanyListItem({
           {/* LOKASI & STORAGE BAR */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
-            {/* LOKASI */}
+            {/* LOKASI - Region dengan bendera LV -> 🇱🇻 Kurzeme */}
             <div className="bg-[#090A0E] border border-slate-800/80 p-3.5 rounded-lg flex items-start gap-3">
               <MapPin className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
               <div>
                 <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Yurisdiksi & Lokasi Geopolitik
+                  Region
                 </span>
-                <p className="text-xs text-slate-300 font-medium whitespace-pre-line leading-relaxed">
-                  {locationText}
+                <p className="text-xs text-slate-300 font-medium whitespace-pre-line leading-relaxed flex items-center gap-1.5">
+                  {(() => {
+                    const flag = (() => {
+                      const code = (countryCode || '').toUpperCase();
+                      if (code.length !== 2) return '';
+                      const A = 0x1F1E6;
+                      return String.fromCodePoint(A + code.charCodeAt(0) - 65, A + code.charCodeAt(1) - 65);
+                    })();
+                    const regionName = regionData?.displayName || regionData?.name || regionData?.code || '—';
+                    return <><span>{flag}</span><span>{regionName}</span><span className="text-slate-500 text-[10px]">{countryCode ? `(${countryCode})` : ''}</span></>;
+                  })()}
+                </p>
+                <p className="text-[10px] text-slate-500 whitespace-pre-line leading-relaxed">
+                  {locationText.split('\n').slice(1).join('\n')}
                 </p>
                 {productionBonus && (
                   <div className="text-[10px] text-emerald-500 mt-2 space-y-0.5 border-t border-slate-900 pt-2 font-mono">
