@@ -292,16 +292,6 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }, [manualBonusPP]);
 
-  // Simulator Lokal Buy/Sell tanpa fee
-  const [simBuyPrice, setSimBuyPrice] = useState<string>('');
-  const [simBuyQty, setSimBuyQty] = useState<string>('100');
-  const [simSellPrice, setSimSellPrice] = useState<string>('');
-  const [simSellQty, setSimSellQty] = useState<string>('100');
-  useEffect(()=>{
-    if(!simBuyPrice && bestOffer) setSimBuyPrice(String(bestOffer));
-    if(!simSellPrice && bestBid) setSimSellPrice(String(bestBid));
-  }, [bestOffer, bestBid]);
-
   const marginResult = React.useMemo(
     () => calculateProductionMargin(item.item, priceMap, effectiveWagePerPP, effectiveBonusPP),
     [item.item, priceMap, effectiveWagePerPP, effectiveBonusPP]
@@ -339,6 +329,16 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     const prices = orderBookRaw?.sell?.map((o) => Number(o.price)).filter((p) => Number.isFinite(p) && p > 0) || [];
     return prices.length ? Math.min(...prices) : null;
   }, [orderBookRaw]);
+
+  // Simulator Lokal Buy/Sell tanpa fee - setelah bestBid/bestOffer biar tidak TDZ
+  const [simBuyPrice, setSimBuyPrice] = useState<string>('');
+  const [simBuyQty, setSimBuyQty] = useState<string>('100');
+  const [simSellPrice, setSimSellPrice] = useState<string>('');
+  const [simSellQty, setSimSellQty] = useState<string>('100');
+  useEffect(()=>{
+    if(!simBuyPrice && bestOffer) setSimBuyPrice(String(bestOffer));
+    if(!simSellPrice && bestBid) setSimSellPrice(String(bestBid));
+  }, [bestOffer, bestBid]);
 
   const signalResult = React.useMemo(
     () => computeMarketSignal(
