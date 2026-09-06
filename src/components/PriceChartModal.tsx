@@ -359,22 +359,22 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
         className: 'bg-slate-500/15 text-slate-400 border-slate-500/30'
       };
 
-  // Sinyal teknikal dihitung menggunakan data tren yang lebih lengkap (sortedCandles) agar indikator MA/RSI presisi
+  // Sinyal teknikal ikut timeframe chart (24H/7D/30D) biar request teknikal 24H langsung kebaca
   const technicalSignalResult = React.useMemo(
-    () => computeTechnicalSignal(sortedCandles),
-    [sortedCandles]
+    () => computeTechnicalSignal(filteredCandles),
+    [filteredCandles]
   );
 
   // Periode data yang benar-benar dipakai untuk indikator teknikal (MA/RSI),
-  // dihitung dari rentang waktu candle asli — bukan timeframe tampilan chart.
+  // ikut filteredCandles (24H = 24 jam, 7D = 7 hari)
   const techDataPeriod = React.useMemo(() => {
-    if (sortedCandles.length === 0) return 'Tanpa Data';
-    const times = sortedCandles.map((c) => Number(c.time));
+    if (filteredCandles.length === 0) return 'Tanpa Data';
+    const times = filteredCandles.map((c) => Number(c.time));
     const spanHours = (Math.max(...times) - Math.min(...times)) / 3600;
     if (spanHours < 24) return `${Math.max(1, Math.round(spanHours))} Jam`;
     if (spanHours < 720) return `${Math.round(spanHours / 24)} Hari`;
     return `${Math.round(spanHours / 720)} Bulan`;
-  }, [sortedCandles]);
+  }, [filteredCandles]);
 
   const techSignalStyle = {
     buy: { label: 'BUY', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
