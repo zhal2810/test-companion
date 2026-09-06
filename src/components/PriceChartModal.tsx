@@ -292,6 +292,16 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }, [manualBonusPP]);
 
+  // Simulator Lokal Buy/Sell tanpa fee
+  const [simBuyPrice, setSimBuyPrice] = useState<string>('');
+  const [simBuyQty, setSimBuyQty] = useState<string>('100');
+  const [simSellPrice, setSimSellPrice] = useState<string>('');
+  const [simSellQty, setSimSellQty] = useState<string>('100');
+  useEffect(()=>{
+    if(!simBuyPrice && bestOffer) setSimBuyPrice(String(bestOffer));
+    if(!simSellPrice && bestBid) setSimSellPrice(String(bestBid));
+  }, [bestOffer, bestBid]);
+
   const marginResult = React.useMemo(
     () => calculateProductionMargin(item.item, priceMap, effectiveWagePerPP, effectiveBonusPP),
     [item.item, priceMap, effectiveWagePerPP, effectiveBonusPP]
@@ -821,6 +831,62 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           <div className="text-[8.5px] text-slate-600">
             ⚠️ Bukan saran finansial — biaya produksi memakai upah {effectiveWagePerPP.toFixed(3)} cc/PP {manualWagePerPP.trim() !== '' ? '(manual)' : ''}.
           </div>
+        </div>
+
+        {/* SIMULATOR LOKAL - Buy/Sell tanpa fee */}
+        <div className="border border-slate-800/80 bg-[#0E1017] rounded-xl p-3 space-y-2">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800/60 pb-1.5">Simulasi Lokal (Tanpa Fee)</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-slate-900/40 border border-slate-800 rounded-lg p-2">
+              <div className="text-[9px] uppercase text-emerald-500 font-bold mb-1">BUY</div>
+              <div className="flex gap-1 mb-1">
+                <input type="number" step={0.001} value={simBuyPrice} onChange={e=>setSimBuyPrice(e.target.value)} placeholder={bestOffer?String(bestOffer):'1.654'} className="flex-1 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white" />
+                <span className="text-[10px] text-slate-500 self-center">×</span>
+                <input type="number" step={1} value={simBuyQty} onChange={e=>setSimBuyQty(e.target.value)} placeholder="100" className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white text-center" />
+              </div>
+              <div className="flex gap-1 flex-wrap mb-1">
+                {[100,500,1000,5000,10000].map(v=>(
+                  <button key={v} onClick={()=>setSimBuyQty(String(v))} className={`text-[9px] px-1.5 py-0.5 rounded border ${simBuyQty===String(v)?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{v>=1000?`${v/1000}k`:v}</button>
+                ))}
+              </div>
+              <div className="text-[10px] font-mono text-slate-400">Total: <span className="text-white font-bold">{(() => { const p=Number(simBuyPrice), q=Number(simBuyQty); return Number.isFinite(p)&&Number.isFinite(q)? formatPrice(p*q):'—'; })()}</span></div>
+            </div>
+            <div className="bg-slate-900/40 border border-slate-800 rounded-lg p-2">
+              <div className="text-[9px] uppercase text-rose-500 font-bold mb-1">SELL</div>
+              <div className="flex gap-1 mb-1">
+                <input type="number" step={0.001} value={simSellPrice} onChange={e=>setSimSellPrice(e.target.value)} placeholder={bestBid?String(bestBid):'1.655'} className="flex-1 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white" />
+                <span className="text-[10px] text-slate-500 self-center">×</span>
+                <input type="number" step={1} value={simSellQty} onChange={e=>setSimSellQty(e.target.value)} placeholder="100" className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white text-center" />
+              </div>
+              <div className="flex gap-1 flex-wrap mb-1">
+                {[100,500,1000,5000,10000].map(v=>(
+                  <button key={v} onClick={()=>setSimSellQty(String(v))} className={`text-[9px] px-1.5 py-0.5 rounded border ${simSellQty===String(v)?'bg-rose-500/20 text-rose-400 border-rose-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{v>=1000?`${v/1000}k`:v}</button>
+                ))}
+              </div>
+              <div className="text-[10px] font-mono text-slate-400">Total: <span className="text-white font-bold">{(() => { const p=Number(simSellPrice), q=Number(simSellQty); return Number.isFinite(p)&&Number.isFinite(q)? formatPrice(p*q):'—'; })()}</span></div>
+            </div>
+          </div>
+          {(() => {
+            const bp=Number(simBuyPrice), bq=Number(simBuyQty), sp=Number(simSellPrice), sq=Number(simSellQty);
+            if(!Number.isFinite(bp)||!Number.isFinite(bq)||!Number.isFinite(sp)||!Number.isFinite(sq)||bq<=0||sq<=0) return <div className="text-[10px] text-slate-600 text-center">Isi harga & qty buy/sell</div>;
+            const totalBuy=bp*bq, totalSell=sp*sq;
+            const gross=totalSell-totalBuy;
+            const roi= totalBuy>0? (gross/totalBuy*100):0;
+            const profitPerUnit = sq>0? gross/sq : 0;
+            const breakEven = sq>0? totalBuy/sq : 0;
+            const fair = signalResult.fairValue?.fairValue ?? displayPrice;
+            const vsFairBuy = fair>0? ((bp-fair)/fair*100):0;
+            const vsFairSell = fair>0? ((sp-fair)/fair*100):0;
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">Gross</div><div className={`font-bold ${gross>=0?'text-emerald-400':'text-rose-400'}`}>{gross>=0?'+':''}{formatPrice(gross)}</div></div>
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">ROI</div><div className={`font-bold ${roi>=0?'text-emerald-400':'text-rose-400'}`}>{roi>=0?'+':''}{roi.toFixed(2)}%</div></div>
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">Profit/Unit</div><div className={`font-bold ${profitPerUnit>=0?'text-emerald-400':'text-rose-400'}`}>{profitPerUnit>=0?'+':''}{formatPrice(profitPerUnit)}</div></div>
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">Break-even</div><div className="font-bold text-slate-300">{formatPrice(breakEven)}</div></div>
+                <div className="col-span-2 sm:col-span-4 text-[9px] text-slate-500 text-center">vs Fair {formatPrice(fair)}: Buy {vsFairBuy>=0?'+':''}{vsFairBuy.toFixed(2)}% / Sell {vsFairSell>=0?'+':''}{vsFairSell.toFixed(2)}%</div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* LIVE TRADE FEED */}
