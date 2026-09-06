@@ -667,14 +667,10 @@ function CompanyListItem({
                 </span>
                 <p className="text-xs text-slate-300 font-medium whitespace-pre-line leading-relaxed flex items-center gap-1.5">
                   {(() => {
-                    const flag = (() => {
-                      const code = (countryCode || '').toUpperCase();
-                      if (code.length !== 2) return '';
-                      const A = 0x1F1E6;
-                      return String.fromCodePoint(A + code.charCodeAt(0) - 65, A + code.charCodeAt(1) - 65);
-                    })();
+                    const code = (countryData?.code || regionData?.countryData?.code || '').toUpperCase();
+                    const flag = code.length===2 ? String.fromCodePoint(0x1F1E6 + code.charCodeAt(0)-65, 0x1F1E6 + code.charCodeAt(1)-65) : '';
                     const regionName = regionData?.displayName || regionData?.name || regionData?.code || '—';
-                    return <><span>{flag}</span><span>{regionName}</span><span className="text-slate-500 text-[10px]">{countryCode ? `(${countryCode})` : ''}</span></>;
+                    return <><span>{flag}</span><span>{regionName}</span><span className="text-slate-500 text-[10px]">{code ? `(${code})` : ''}</span></>;
                   })()}
                 </p>
                 <p className="text-[10px] text-slate-500 whitespace-pre-line leading-relaxed">
