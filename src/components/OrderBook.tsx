@@ -1,6 +1,7 @@
 import React from 'react';
 import type { MarketOrder } from '../api/apiClient';
 import { formatPrice } from '../utils/priceHelper';
+import CurrencyIcon from './CurrencyIcon';
 
 interface OrderBookProps {
   buyOrders: MarketOrder[];
@@ -123,8 +124,9 @@ function OrderTable({
                   {formatNumber(order.quantity)}
                 </div>
 
-                <div className="col-span-2 text-right text-[9px] font-mono text-slate-400">
-                  ${formatNumber(total, 2)}
+                <div className="col-span-2 text-right text-[9px] font-mono text-slate-400 flex items-center justify-end gap-1">
+                  <span>{formatNumber(total, 2)}</span>
+                  <CurrencyIcon className="w-3 h-3 inline-block" />
                 </div>
 
                 <div className="col-span-3 text-right text-[8.5px] font-mono text-slate-600">

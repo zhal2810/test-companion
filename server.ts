@@ -13,6 +13,56 @@ const CACHE_TTL_MS = 60_000; // 60 detik
 // ─── Sumber data: API komunitas warera.realmarijn.nl (satu-satunya) ──
 // api2.warera.io & gateway.warerastats.io sudah TIDAK dipakai lagi.
 
+// ─── UserLite cache + throttle (hindari 429 Cloudflare) ──
+const USER_LITE_TTL_MS = 5 * 60 * 1000; // 5 menit
+const USER_LITE_CONCURRENCY = 5;
+const USER_LITE_DELAY_MS = 120;
+const userLiteCache = new Map<string, { username: string; avatarUrl: string; fetchedAt: number }>();
+
+async function fetchUserLiteThrottled(userIds: string[]): Promise<Map<string, { username: string; avatarUrl: string }>> {
+  const result = new Map<string, { username: string; avatarUrl: string }>();
+  // isi dari cache dulu
+  const toFetch: string[] = [];
+  for (const id of userIds) {
+    const cached = userLiteCache.get(id);
+    if (cached && Date.now() - cached.fetchedAt < USER_LITE_TTL_MS) {
+      result.set(id, { username: cached.username, avatarUrl: cached.avatarUrl });
+    } else {
+      toFetch.push(id);
+    }
+  }
+  if (toFetch.length === 0) return result;
+
+  // batch 5 concurrent + delay antar batch
+  for (let i = 0; i < toFetch.length; i += USER_LITE_CONCURRENCY) {
+    const batch = toFetch.slice(i, i + USER_LITE_CONCURRENCY);
+    await Promise.all(batch.map(async (userId) => {
+      try {
+        // retry 429 sekali
+        let data: any = await callCommunity('user.getUserLite', { userId }, 4000);
+        if (!data) {
+          await new Promise(r => setTimeout(r, 800));
+          data = await callCommunity('user.getUserLite', { userId }, 4000);
+        }
+        const user = data?.result?.data;
+        const entry = {
+          username: user?.username || `${userId.slice(0, 8)}...`,
+          avatarUrl: user?.avatarUrl || '',
+        };
+        userLiteCache.set(userId, { ...entry, fetchedAt: Date.now() });
+        result.set(userId, entry);
+      } catch {
+        const fallback = { username: `${userId.slice(0, 8)}...`, avatarUrl: '' };
+        result.set(userId, fallback);
+      }
+    }));
+    if (i + USER_LITE_CONCURRENCY < toFetch.length) {
+      await new Promise(r => setTimeout(r, USER_LITE_DELAY_MS));
+    }
+  }
+  return result;
+}
+
 interface MarketResponse {
   [key: string]: any;
   _meta?: {
@@ -330,25 +380,7 @@ async function startServer() {
         )
       ) as string[];
 
-      const userCache = new Map<string, { username: string; avatarUrl: string }>();
-
-      await Promise.all(
-        userIds.map(async (userId) => {
-          try {
-            const userData = await callCommunity('user.getUserLite', { userId }, 4000);
-            const user = userData?.result?.data;
-            userCache.set(userId, {
-              username: user?.username || `${userId.slice(0, 8)}...`,
-              avatarUrl: user?.avatarUrl || '',
-            });
-          } catch {
-            userCache.set(userId, {
-              username: `${userId.slice(0, 8)}...`,
-              avatarUrl: '',
-            });
-          }
-        })
-      );
+      const userCache = await fetchUserLiteThrottled(userIds);
 
       const enrich = (order: any) => {
         const user = order?.user ? userCache.get(order.user) : undefined;
@@ -414,25 +446,6 @@ async function startServer() {
         });
       }
 
-      const userCache = new Map<string, { username: string; avatarUrl: string }>();
-
-      const resolveUser = async (userId: string) => {
-        if (userCache.has(userId)) return;
-        try {
-          const userData = await callCommunity('user.getUserLite', { userId }, 4000);
-          const user = userData?.result?.data;
-          userCache.set(userId, {
-            username: user?.username || `${userId.slice(0, 8)}...`,
-            avatarUrl: user?.avatarUrl || '',
-          });
-        } catch {
-          userCache.set(userId, {
-            username: `${userId.slice(0, 8)}...`,
-            avatarUrl: '',
-          });
-        }
-      };
-
       const userIds = Array.from(
         new Set(
           rawTransactions
@@ -441,7 +454,7 @@ async function startServer() {
         )
       ) as string[];
 
-      await Promise.all(userIds.map(resolveUser));
+      const userCache = await fetchUserLiteThrottled(userIds);
 
       const trades = rawTransactions
         .map((tx: any) => {
@@ -628,26 +641,7 @@ async function startServer() {
         )
       ) as string[];
 
-      const userCache = new Map<string, { username: string; avatarUrl: string }>();
-
-      // Fetch user data in parallel — dari API komunitas
-      await Promise.all(
-        userIds.map(async (userId) => {
-          try {
-            const userData = await callCommunity('user.getUserLite', { userId }, 3000);
-            const user = userData?.result?.data;
-            userCache.set(userId, {
-              username: user?.username || `${userId.slice(0, 8)}...`,
-              avatarUrl: user?.avatarUrl || '',
-            });
-          } catch {
-            userCache.set(userId, {
-              username: `${userId.slice(0, 8)}...`,
-              avatarUrl: '',
-            });
-          }
-        })
-      );
+      const userCache = await fetchUserLiteThrottled(userIds);
 
       // Enrich transactions with user data
       const enrichedTransactions = transactions.map((t: any) => {

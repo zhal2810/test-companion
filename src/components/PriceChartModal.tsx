@@ -6,6 +6,7 @@ import CandleChart from './CandleChart';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransaction, getMarketOrders, type MarketOrder } from '../api/apiClient';
 import OrderBook from './OrderBook';
+import CurrencyIcon from './CurrencyIcon';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
 import { getConsistentPrice, formatPrice } from '../utils/priceHelper';
 
@@ -909,14 +910,14 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                     minute: '2-digit',
                     second: '2-digit'
                   });
-                  const offerType = offer.type || 'offer';
-                  const typeColor = offerType === 'buy' ? 'text-emerald-400' : offerType === 'sell' ? 'text-rose-400' : 'text-slate-400';
+                  const offerType = 'trading';
+                  const typeColor = 'text-sky-400';
 
                   return (
                     <div key={offer._id || offer.offerId || idx} className="grid grid-cols-12 gap-2 items-center px-3 py-1 hover:bg-slate-900/30 text-[9.5px] font-mono transition duration-150">
                       <div className="col-span-2 text-slate-500 text-[9px]">{timeStr}</div>
                       <div className={`col-span-2 font-bold text-[8.5px] uppercase ${typeColor}`}>
-                        {offerType === 'buy' ? 'BELI' : offerType === 'sell' ? 'JUAL' : offerType}
+                        TRADING
                       </div>
                       <div className="col-span-2 flex items-center gap-1.5 min-w-0">
                         {offer.avatarUrl && (
@@ -939,8 +940,9 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                         <span className="text-slate-300 truncate text-[8.5px]">{offer.usernameSeller || 'Unknown'}</span>
                       </div>
                       <div className="col-span-2 text-right text-slate-300 font-bold text-[9px]">{(offer.quantity || 0).toLocaleString('id-ID')}</div>
-                      <div className="col-span-2 text-right leading-tight">
+                      <div className="col-span-2 text-right leading-tight flex items-center justify-end gap-1">
                         <span className="text-emerald-400 font-bold text-[9px]">{formatPrice(offer.price || 0)}</span>
+                        <CurrencyIcon className="w-2.5 h-2.5 inline-block" />
                       </div>
                     </div>
                   );
