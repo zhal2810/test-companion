@@ -688,7 +688,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                       <span className="flex items-center gap-2 min-w-0">
                         <span className="w-5 h-5 flex items-center justify-center shrink-0"><ItemIcon itemCode={entry.item} size="sm" className="w-full h-full object-contain" /></span>
                         <span className="flex flex-col min-w-0">
-                          <span className="text-[11px] font-black text-white uppercase truncate leading-none">{entry.item}</span>
+                          <span className="text-[11px] font-black text-white uppercase truncate leading-none flex items-center gap-1">{entry.item} <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black border shrink-0 leading-none ${entry.signal==='buy'?'bg-emerald-500/15 text-emerald-400 border-emerald-500/30': entry.signal==='sell'?'bg-rose-500/15 text-rose-400 border-rose-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{entry.signal==='buy'?'B':entry.signal==='sell'?'S':'H'}</span></span>
                           <span className="text-[9px] text-slate-500 truncate">{entry.name}</span>
                         </span>
                       </span>
