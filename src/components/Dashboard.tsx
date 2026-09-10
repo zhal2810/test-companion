@@ -11,14 +11,14 @@ import CombatUnitOptimizer from './CombatUnitOptimizer';
 import Logo from './Logo';
 import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { DEFAULT_TOKEN, DEFAULT_USER_ID, DEFAULT_USERNAME } from '../config/appDefaults';
+import { DEFAULT_TOKEN, DEFAULT_USER_ID, DEFAULT_USERNAME, SHOW_ONLY_MARKET } from '../config/appDefaults';
 
 function formatRangeDate(date: Date): string {
   return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle'>('company');  const [config, setConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle'>(SHOW_ONLY_MARKET ? 'market' : 'company');  const [config, setConfig] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [playerWealth, setPlayerWealth] = useState<any>(null);
 
@@ -68,6 +68,7 @@ export default function Dashboard() {
   };
 
   const handleTouchEnd = () => {
+    if (SHOW_ONLY_MARKET) return;
     if (touchStartX === null || touchEndX === null || touchStartY === null || touchEndY === null) return;
     
     const diffX = touchStartX - touchEndX;
@@ -260,34 +261,36 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* CONNECTION CARD */}
-        <div className="flex items-center gap-2 shrink-0">
-          {config ? (
-            <button 
-              onClick={() => setIsConfigOpen(true)}
-              className="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-lg py-1.5 px-2.5 flex items-center gap-2 text-xs transition duration-200 cursor-pointer max-w-[150px] sm:max-w-none"
-            >
-              {config.user?.avatarUrl ? (
-                <img src={config.user.avatarUrl} alt="" className="w-4 h-4 rounded-full border border-emerald-500/20 object-cover shrink-0" />
-              ) : (
-                <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-[9px] font-bold shrink-0">
-                  {config.username.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <span className="font-bold text-white truncate max-w-[65px] sm:max-w-[120px]">{config.username}</span>
-              <Settings className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </button>
-          ) : (
-            <button 
-              onClick={() => setIsConfigOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition duration-200 cursor-pointer shadow-lg shadow-emerald-950/20 shrink-0"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden xxs:inline">Connect Player</span>
-              <span className="inline xxs:hidden">Connect</span>
-            </button>
-          )}
-        </div>
+        {/* CONNECTION CARD - hidden jika SHOW_ONLY_MARKET */}
+        {!SHOW_ONLY_MARKET && (
+          <div className="flex items-center gap-2 shrink-0">
+            {config ? (
+              <button 
+                onClick={() => setIsConfigOpen(true)}
+                className="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-lg py-1.5 px-2.5 flex items-center gap-2 text-xs transition duration-200 cursor-pointer max-w-[150px] sm:max-w-none"
+              >
+                {config.user?.avatarUrl ? (
+                  <img src={config.user.avatarUrl} alt="" className="w-4 h-4 rounded-full border border-emerald-500/20 object-cover shrink-0" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-[9px] font-bold shrink-0">
+                    {config.username.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="font-bold text-white truncate max-w-[65px] sm:max-w-[120px]">{config.username}</span>
+                <Settings className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              </button>
+            ) : (
+              <button 
+                onClick={() => setIsConfigOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition duration-200 cursor-pointer shadow-lg shadow-emerald-950/20 shrink-0"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span className="hidden xxs:inline">Connect Player</span>
+                <span className="inline xxs:hidden">Connect</span>
+              </button>
+            )}
+          </div>
+        )}
 
       </header>
 
@@ -296,8 +299,8 @@ export default function Dashboard() {
         className="max-w-7xl mx-auto px-4 md:px-8 py-6 space-y-6"
       >
 
-        {/* PROFILE PROMPT FOR DISCONNECTED STATES */}
-        {!config && (
+        {/* PROFILE PROMPT FOR DISCONNECTED STATES - hidden jika SHOW_ONLY_MARKET */}
+        {!SHOW_ONLY_MARKET && !config && (
           <div className="bg-gradient-to-r from-emerald-950/20 via-slate-950/20 to-slate-950/20 border border-emerald-500/25 rounded-xl p-5 md:p-6 flex items-start gap-4 animate-fade-in shadow-xl">
             <AlertCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
             <div className="flex-1 space-y-1.5">
@@ -318,103 +321,119 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* TAB NAVIGATION - swipe hanya di nav, bukan di konten */}
-        <div 
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          className="flex border-b border-slate-800/80 gap-1 overflow-x-auto scrollbar-none flex-nowrap touch-pan-y"
-        >
-          <TabButton 
-            active={activeTab === 'company'} 
-            onClick={() => setActiveTab('company')}
-            label="Pabrik Anda"
-            icon={<Building2 className="w-4 h-4" />}
-          />
-          <TabButton 
-            active={activeTab === 'transaction'} 
-            onClick={() => setActiveTab('transaction')}
-            label="Buku Transaksi"
-            icon={<Wallet className="w-4 h-4" />}
-          />
-          <TabButton 
-            active={activeTab === 'market'} 
-            onClick={() => setActiveTab('market')}
-            label="Bursa Pasar"
-            icon={<TrendingUp className="w-4 h-4" />}
-          />
-          <TabButton 
-            active={activeTab === 'optimizer'} 
-            onClick={() => setActiveTab('optimizer')}
-            label="Skill"
-            icon={<Target className="w-4 h-4" />}
-          />
-          <TabButton 
-            active={activeTab === 'news'} 
-            onClick={() => setActiveTab('news')}
-            label="Linimasa"
-            icon={<Newspaper className="w-4 h-4" />}
-          />
-          <TabButton 
-            active={activeTab === 'tracking'} 
-            onClick={() => setActiveTab('tracking')}
-            label="Tracking"
-            icon={<Radar className="w-4 h-4" />}
-          />
-          <TabButton 
-            active={activeTab === 'battle'} 
-            onClick={() => setActiveTab('battle')}
-            label="Pertempuran"
-            icon={<Swords className="w-4 h-4" />}
-          />
-        </div>
+        {/* TAB NAVIGATION - hidden total jika SHOW_ONLY_MARKET, hanya Bursa */}
+        {!SHOW_ONLY_MARKET ? (
+          <div 
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className="flex border-b border-slate-800/80 gap-1 overflow-x-auto scrollbar-none flex-nowrap touch-pan-y"
+          >
+            <TabButton 
+              active={activeTab === 'company'} 
+              onClick={() => setActiveTab('company')}
+              label="Pabrik Anda"
+              icon={<Building2 className="w-4 h-4" />}
+            />
+            <TabButton 
+              active={activeTab === 'transaction'} 
+              onClick={() => setActiveTab('transaction')}
+              label="Buku Transaksi"
+              icon={<Wallet className="w-4 h-4" />}
+            />
+            <TabButton 
+              active={activeTab === 'market'} 
+              onClick={() => setActiveTab('market')}
+              label="Bursa Pasar"
+              icon={<TrendingUp className="w-4 h-4" />}
+            />
+            <TabButton 
+              active={activeTab === 'optimizer'} 
+              onClick={() => setActiveTab('optimizer')}
+              label="Skill"
+              icon={<Target className="w-4 h-4" />}
+            />
+            <TabButton 
+              active={activeTab === 'news'} 
+              onClick={() => setActiveTab('news')}
+              label="Linimasa"
+              icon={<Newspaper className="w-4 h-4" />}
+            />
+            <TabButton 
+              active={activeTab === 'tracking'} 
+              onClick={() => setActiveTab('tracking')}
+              label="Tracking"
+              icon={<Radar className="w-4 h-4" />}
+            />
+            <TabButton 
+              active={activeTab === 'battle'} 
+              onClick={() => setActiveTab('battle')}
+              label="Pertempuran"
+              icon={<Swords className="w-4 h-4" />}
+            />
+          </div>
+        ) : (
+          <div className="flex border-b border-slate-800/80">
+            <TabButton 
+              active={true}
+              onClick={() => setActiveTab('market')}
+              label="Bursa Pasar"
+              icon={<TrendingUp className="w-4 h-4" />}
+            />
+          </div>
+        )}
 
-        {/* MOBILE SLIDE INDICATOR & SWIPE HINT */}
-        <div className="flex sm:hidden flex-col items-center gap-1.5 mt-1">
-          <div className="flex justify-center items-center gap-1.5 py-1 px-3 bg-slate-950 border border-slate-900 rounded-full">
-            <span className="text-[9px] text-slate-400 font-medium">👈 Geser / Swipe layar untuk ganti tab 👉</span>
+        {/* MOBILE SLIDE INDICATOR & SWIPE HINT - hidden jika SHOW_ONLY_MARKET */}
+        {!SHOW_ONLY_MARKET && (
+          <div className="flex sm:hidden flex-col items-center gap-1.5 mt-1">
+            <div className="flex justify-center items-center gap-1.5 py-1 px-3 bg-slate-950 border border-slate-900 rounded-full">
+              <span className="text-[9px] text-slate-400 font-medium">👈 Geser / Swipe layar untuk ganti tab 👉</span>
+            </div>
+            <div className="flex justify-center items-center gap-2 mt-0.5">
+              <button 
+                onClick={() => setActiveTab('company')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'company' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Pabrik & Buruh"
+              />
+              <button 
+                onClick={() => setActiveTab('transaction')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'transaction' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Buku Besar Dompet"
+              />
+              <button 
+                onClick={() => setActiveTab('market')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'market' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Bursa Pasar"
+              />
+              <button 
+                onClick={() => setActiveTab('optimizer')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'optimizer' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Combat Unit Optimizer"
+              />
+              <button 
+                onClick={() => setActiveTab('news')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'news' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Berita & Event"
+              />
+              <button 
+                onClick={() => setActiveTab('tracking')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'tracking' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Tracking Negara"
+              />
+              <button 
+                onClick={() => setActiveTab('battle')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'battle' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Pertempuran"
+              />
+            </div>
           </div>
-          <div className="flex justify-center items-center gap-2 mt-0.5">
-            <button 
-              onClick={() => setActiveTab('company')} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'company' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
-              aria-label="Pabrik & Buruh"
-            />
-            <button 
-              onClick={() => setActiveTab('transaction')} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'transaction' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
-              aria-label="Buku Besar Dompet"
-            />
-            <button 
-              onClick={() => setActiveTab('market')} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'market' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
-              aria-label="Bursa Pasar"
-            />
-            <button 
-              onClick={() => setActiveTab('optimizer')} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'optimizer' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
-              aria-label="Combat Unit Optimizer"
-            />
-            <button 
-              onClick={() => setActiveTab('news')} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'news' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
-              aria-label="Berita & Event"
-            />
-            <button 
-              onClick={() => setActiveTab('tracking')} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'tracking' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
-              aria-label="Tracking Negara"
-            />
-            <button 
-              onClick={() => setActiveTab('battle')} 
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'battle' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
-              aria-label="Pertempuran"
-            />
-          </div>
-        </div>
+        )}
 
         {/* TAB VIEWS */}
         <div className="overflow-hidden">
+          {SHOW_ONLY_MARKET ? (
+            <MarketIntel token={config?.token} />
+          ) : (
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -553,6 +572,7 @@ export default function Dashboard() {
               )}
             </motion.div>
           </AnimatePresence>
+          )}
         </div>
 
       </main>

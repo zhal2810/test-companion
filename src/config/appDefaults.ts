@@ -7,3 +7,6 @@ export const DEFAULT_USER_ID = "69b6e417eb350ea7e6ec9bc6";
 
 // Jika DEFAULT_TOKEN diisi, akan dipakai otomatis jika localStorage kosong.
 // Prioritas: localStorage > DEFAULT_TOKEN > import.meta.env.VITE_WARERA_TOKEN
+
+// Mode Bursa Only: true = hanya tampil Bursa Pasar, header tetap, lainnya hidden
+export const SHOW_ONLY_MARKET = true;
