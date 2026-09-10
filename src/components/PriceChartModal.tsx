@@ -810,36 +810,36 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
         </div>
 
         {/* SIMULATOR LOKAL - Buy/Sell tanpa fee */}
-        <div className="border border-slate-800/80 bg-[#0E1017] rounded-xl p-3 space-y-2">
+        <div className="border border-slate-800/80 bg-[#0E1017] rounded-xl p-2.5 sm:p-3 space-y-2">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800/60 pb-1.5">Simulasi Lokal (Tanpa Fee)</div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-slate-900/40 border border-slate-800 rounded-lg p-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="bg-slate-900/40 border border-slate-800 rounded-lg p-2 overflow-hidden">
               <div className="text-[9px] uppercase text-emerald-500 font-bold mb-1">BUY</div>
               <div className="flex gap-1 mb-1">
-                <input type="number" step={0.001} value={simBuyPrice} onChange={e=>setSimBuyPrice(e.target.value)} placeholder={bestOffer?String(bestOffer):'1.654'} className="flex-1 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white" />
-                <span className="text-[10px] text-slate-500 self-center">×</span>
-                <input type="number" step={1} value={simBuyQty} onChange={e=>setSimBuyQty(e.target.value)} placeholder="100" className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white text-center" />
+                <input type="number" step={0.001} value={simBuyPrice} onChange={e=>setSimBuyPrice(e.target.value)} placeholder={bestOffer?String(bestOffer):'1.654'} className="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white" />
+                <span className="text-[10px] text-slate-500 self-center shrink-0">×</span>
+                <input type="number" step={1} value={simBuyQty} onChange={e=>setSimBuyQty(e.target.value)} placeholder="100" className="w-16 shrink-0 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white text-center" />
               </div>
               <div className="flex gap-1 flex-wrap mb-1">
                 {[100,500,1000,5000,10000].map(v=>(
-                  <button key={v} onClick={()=>setSimBuyQty(String(v))} className={`text-[9px] px-1.5 py-0.5 rounded border ${simBuyQty===String(v)?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{v>=1000?`${v/1000}k`:v}</button>
+                  <button key={v} onClick={()=>setSimBuyQty(String(v))} className={`text-[8.5px] px-1.5 py-0.5 rounded border ${simBuyQty===String(v)?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{v>=1000?`${v/1000}k`:v}</button>
                 ))}
               </div>
-              <div className="text-[10px] font-mono text-slate-400">Total: <span className="text-white font-bold">{(() => { const p=Number(simBuyPrice), q=Number(simBuyQty); return Number.isFinite(p)&&Number.isFinite(q)? formatPrice(p*q):'—'; })()}</span></div>
+              <div className="text-[9px] font-mono text-slate-400 flex items-center gap-1 flex-wrap">Total: <span className="text-white font-bold">{(() => { const p=Number(simBuyPrice), q=Number(simBuyQty); return Number.isFinite(p)&&Number.isFinite(q)? formatPrice(p*q):'—'; })()}</span> <CurrencyIcon className="w-2.5 h-2.5 inline-block" /></div>
             </div>
-            <div className="bg-slate-900/40 border border-slate-800 rounded-lg p-2">
+            <div className="bg-slate-900/40 border border-slate-800 rounded-lg p-2 overflow-hidden">
               <div className="text-[9px] uppercase text-rose-500 font-bold mb-1">SELL</div>
               <div className="flex gap-1 mb-1">
-                <input type="number" step={0.001} value={simSellPrice} onChange={e=>setSimSellPrice(e.target.value)} placeholder={bestBid?String(bestBid):'1.655'} className="flex-1 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white" />
-                <span className="text-[10px] text-slate-500 self-center">×</span>
-                <input type="number" step={1} value={simSellQty} onChange={e=>setSimSellQty(e.target.value)} placeholder="100" className="w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white text-center" />
+                <input type="number" step={0.001} value={simSellPrice} onChange={e=>setSimSellPrice(e.target.value)} placeholder={bestBid?String(bestBid):'1.655'} className="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white" />
+                <span className="text-[10px] text-slate-500 self-center shrink-0">×</span>
+                <input type="number" step={1} value={simSellQty} onChange={e=>setSimSellQty(e.target.value)} placeholder="100" className="w-16 shrink-0 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-xs font-mono text-white text-center" />
               </div>
               <div className="flex gap-1 flex-wrap mb-1">
                 {[100,500,1000,5000,10000].map(v=>(
-                  <button key={v} onClick={()=>setSimSellQty(String(v))} className={`text-[9px] px-1.5 py-0.5 rounded border ${simSellQty===String(v)?'bg-rose-500/20 text-rose-400 border-rose-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{v>=1000?`${v/1000}k`:v}</button>
+                  <button key={v} onClick={()=>setSimSellQty(String(v))} className={`text-[8.5px] px-1.5 py-0.5 rounded border ${simSellQty===String(v)?'bg-rose-500/20 text-rose-400 border-rose-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{v>=1000?`${v/1000}k`:v}</button>
                 ))}
               </div>
-              <div className="text-[10px] font-mono text-slate-400">Total: <span className="text-white font-bold">{(() => { const p=Number(simSellPrice), q=Number(simSellQty); return Number.isFinite(p)&&Number.isFinite(q)? formatPrice(p*q):'—'; })()}</span></div>
+              <div className="text-[9px] font-mono text-slate-400 flex items-center gap-1 flex-wrap">Total: <span className="text-white font-bold">{(() => { const p=Number(simSellPrice), q=Number(simSellQty); return Number.isFinite(p)&&Number.isFinite(q)? formatPrice(p*q):'—'; })()}</span> <CurrencyIcon className="w-2.5 h-2.5 inline-block" /></div>
             </div>
           </div>
           {(() => {
@@ -854,12 +854,12 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             const vsFairBuy = fair>0? ((bp-fair)/fair*100):0;
             const vsFairSell = fair>0? ((sp-fair)/fair*100):0;
             return (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] font-mono">
-                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">Gross</div><div className={`font-bold ${gross>=0?'text-emerald-400':'text-rose-400'}`}>{gross>=0?'+':''}{formatPrice(gross)}</div></div>
-                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">ROI</div><div className={`font-bold ${roi>=0?'text-emerald-400':'text-rose-400'}`}>{roi>=0?'+':''}{roi.toFixed(2)}%</div></div>
-                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">Profit/Unit</div><div className={`font-bold ${profitPerUnit>=0?'text-emerald-400':'text-rose-400'}`}>{profitPerUnit>=0?'+':''}{formatPrice(profitPerUnit)}</div></div>
-                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center"><div className="text-slate-500 uppercase text-[8px]">Break-even</div><div className="font-bold text-slate-300">{formatPrice(breakEven)}</div></div>
-                <div className="col-span-2 sm:col-span-4 text-[9px] text-slate-500 text-center">vs Fair {formatPrice(fair)}: Buy {vsFairBuy>=0?'+':''}{vsFairBuy.toFixed(2)}% / Sell {vsFairSell>=0?'+':''}{vsFairSell.toFixed(2)}%</div>
+              <div className="grid grid-cols-2 gap-2 text-[9px] font-mono">
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center overflow-hidden"><div className="text-slate-500 uppercase text-[7.5px]">Gross</div><div className={`font-bold text-[10px] flex items-center justify-center gap-1 ${gross>=0?'text-emerald-400':'text-rose-400'}`}>{gross>=0?'+':''}{formatPrice(gross)} <CurrencyIcon className="w-2.5 h-2.5 inline-block" /></div></div>
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center overflow-hidden"><div className="text-slate-500 uppercase text-[7.5px]">ROI</div><div className={`font-bold text-[10px] ${roi>=0?'text-emerald-400':'text-rose-400'}`}>{roi>=0?'+':''}{roi.toFixed(2)}%</div></div>
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center overflow-hidden"><div className="text-slate-500 uppercase text-[7.5px]">Profit/Unit</div><div className={`font-bold text-[10px] flex items-center justify-center gap-1 ${profitPerUnit>=0?'text-emerald-400':'text-rose-400'}`}>{profitPerUnit>=0?'+':''}{formatPrice(profitPerUnit)} <CurrencyIcon className="w-2.5 h-2.5 inline-block" /></div></div>
+                <div className="bg-slate-950/60 border border-slate-800 rounded p-1.5 text-center overflow-hidden"><div className="text-slate-500 uppercase text-[7.5px]">Break-even</div><div className="font-bold text-[10px] text-slate-300 flex items-center justify-center gap-1">{formatPrice(breakEven)} <CurrencyIcon className="w-2.5 h-2.5 inline-block" /></div></div>
+                <div className="col-span-2 text-[8px] text-slate-500 text-center leading-tight">vs Fair {formatPrice(fair)}: Buy {vsFairBuy>=0?'+':''}{vsFairBuy.toFixed(2)}% / Sell {vsFairSell>=0?'+':''}{vsFairSell.toFixed(2)}%</div>
               </div>
             );
           })()}
@@ -888,13 +888,13 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
           </div>
 
           <div className="bg-[#07080C] border border-slate-800/50 rounded-lg overflow-hidden">
-            <div className="grid grid-cols-12 gap-2 px-3 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[8.5px] uppercase tracking-wider font-bold text-slate-500">
+            <div className="grid grid-cols-12 gap-1 px-2 py-1 bg-slate-900/40 border-b border-slate-800/40 text-[7.5px] uppercase tracking-wider font-bold text-slate-500">
               <div className="col-span-2">Waktu</div>
-              <div className="col-span-2">Tipe</div>
-              <div className="col-span-2 text-left">Pembeli</div>
-              <div className="col-span-2 text-left">Penjual</div>
+              <div className="col-span-2 hidden sm:block">Tipe</div>
+              <div className="col-span-2 sm:col-span-2 text-left">Pembeli</div>
+              <div className="col-span-3 sm:col-span-2 text-left">Penjual</div>
               <div className="col-span-2 text-right">Qty</div>
-              <div className="col-span-2 text-right">Harga/u</div>
+              <div className="col-span-3 sm:col-span-2 text-right">Harga/u</div>
             </div>
 
             {liveTradesLoading && liveTrades.length === 0 ? (
@@ -902,7 +902,7 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             ) : liveTrades.length === 0 ? (
               <div className="text-center py-4 text-xs text-slate-600">Tidak ada transaksi terbaru untuk item ini.</div>
             ) : (
-              <div className="max-h-[140px] overflow-y-auto divide-y divide-slate-800/30">
+              <div className="max-h-[160px] overflow-y-auto divide-y divide-slate-800/30 scrollbar-thin">
                 {liveTrades.map((offer: any, idx) => {
                   const date = new Date(offer.offerAt || offer.createdAt);
                   const timeStr = date.toLocaleTimeString('id-ID', {
@@ -914,35 +914,35 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
                   const typeColor = 'text-sky-400';
 
                   return (
-                    <div key={offer._id || offer.offerId || idx} className="grid grid-cols-12 gap-2 items-center px-3 py-1 hover:bg-slate-900/30 text-[9.5px] font-mono transition duration-150">
-                      <div className="col-span-2 text-slate-500 text-[9px]">{timeStr}</div>
-                      <div className={`col-span-2 font-bold text-[8.5px] uppercase ${typeColor}`}>
+                    <div key={offer._id || offer.offerId || idx} className="grid grid-cols-12 gap-1 items-center px-2 py-1 hover:bg-slate-900/30 text-[9.5px] font-mono transition duration-150">
+                      <div className="col-span-2 text-slate-500 text-[8px] leading-none">{timeStr.slice(0,5)}</div>
+                      <div className={`hidden sm:block col-span-2 font-bold text-[7.5px] uppercase leading-none ${typeColor}`}>
                         TRADING
                       </div>
-                      <div className="col-span-2 flex items-center gap-1.5 min-w-0">
+                      <div className="col-span-2 flex items-center gap-1 min-w-0">
                         {offer.avatarUrl && (
                           <img 
                             src={offer.avatarUrl} 
                             alt={offer.username} 
-                            className="w-4 h-4 rounded-full shrink-0 bg-slate-800"
+                            className="w-3.5 h-3.5 rounded-full shrink-0 bg-slate-800"
                           />
                         )}
-                        <span className="text-slate-300 truncate text-[8.5px]">{offer.username || 'Unknown'}</span>
+                        <span className="text-slate-300 truncate text-[7.5px] leading-none">{offer.username || 'Unknown'}</span>
                       </div>
-                      <div className="col-span-2 flex items-center gap-1.5 min-w-0">
+                      <div className="col-span-3 sm:col-span-2 flex items-center gap-1 min-w-0">
                         {offer.avatarUrlSeller && (
                           <img 
                             src={offer.avatarUrlSeller} 
                             alt={offer.usernameSeller} 
-                            className="w-4 h-4 rounded-full shrink-0 bg-slate-800"
+                            className="w-3.5 h-3.5 rounded-full shrink-0 bg-slate-800"
                           />
                         )}
-                        <span className="text-slate-300 truncate text-[8.5px]">{offer.usernameSeller || 'Unknown'}</span>
+                        <span className="text-slate-300 truncate text-[7.5px] leading-none">{offer.usernameSeller || 'Unknown'}</span>
                       </div>
-                      <div className="col-span-2 text-right text-slate-300 font-bold text-[9px]">{(offer.quantity || 0).toLocaleString('id-ID')}</div>
-                      <div className="col-span-2 text-right leading-tight flex items-center justify-end gap-1">
-                        <span className="text-emerald-400 font-bold text-[9px]">{formatPrice(offer.price || 0)}</span>
-                        <CurrencyIcon className="w-2.5 h-2.5 inline-block" />
+                      <div className="col-span-2 text-right text-slate-300 font-bold text-[8px] leading-none">{(offer.quantity || 0).toLocaleString('id-ID')}</div>
+                      <div className="col-span-3 sm:col-span-2 text-right leading-none flex items-center justify-end gap-0.5">
+                        <span className="text-emerald-400 font-bold text-[8px]">{formatPrice(offer.price || 0)}</span>
+                        <CurrencyIcon className="w-2 h-2 inline-block shrink-0" />
                       </div>
                     </div>
                   );

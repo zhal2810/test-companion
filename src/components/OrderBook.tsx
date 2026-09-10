@@ -24,7 +24,6 @@ function formatTime(value: string) {
     timeZone: 'Asia/Jakarta',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
     hour12: false,
   });
 }
@@ -66,12 +65,12 @@ function OrderTable({
         </span>
       </div>
 
-      <div className="grid grid-cols-12 px-3 py-1.5 border-b border-slate-800/40 text-[8px] uppercase tracking-wider font-bold text-slate-600">
+      <div className="grid grid-cols-12 px-2 py-1.5 border-b border-slate-800/40 text-[7.5px] uppercase tracking-wider font-bold text-slate-600 gap-1">
         <div className="col-span-3">Pemain</div>
         <div className="col-span-2 text-right">Harga</div>
         <div className="col-span-2 text-right">Jumlah</div>
-        <div className="col-span-2 text-right">Total</div>
-        <div className="col-span-3 text-right">Waktu</div>
+        <div className="col-span-3 text-right">Total</div>
+        <div className="col-span-2 text-right">Waktu</div>
       </div>
 
       {loading && visibleOrders.length === 0 ? (
@@ -90,22 +89,22 @@ function OrderTable({
             return (
               <div
                 key={order._id || `${order.user}-${order.offerAt}-${index}`}
-                className="grid grid-cols-12 items-center px-3 py-1.5 hover:bg-slate-900/30 transition"
+                className="grid grid-cols-12 items-center px-2 py-1.5 hover:bg-slate-900/30 transition gap-1"
               >
-                <div className="col-span-3 min-w-0 flex items-center gap-1.5">
+                <div className="col-span-3 min-w-0 flex items-center gap-1">
                   {order.avatarUrl ? (
                     <img
                       src={order.avatarUrl}
                       alt=""
-                      className="w-5 h-5 rounded-full object-cover border border-slate-800 shrink-0"
+                      className="w-4 h-4 rounded-full object-cover border border-slate-800 shrink-0"
                       loading="lazy"
                     />
                   ) : (
-                    <div className="w-5 h-5 rounded-full bg-slate-800 shrink-0" />
+                    <div className="w-4 h-4 rounded-full bg-slate-800 shrink-0" />
                   )}
 
                   <span
-                    className="text-[9.5px] font-bold text-slate-300 truncate"
+                    className="text-[8.5px] font-bold text-slate-300 truncate"
                     title={order.username || order.user || 'Unknown'}
                   >
                     {order.username || order.user?.slice(0, 8) || 'Unknown'}
@@ -113,24 +112,24 @@ function OrderTable({
                 </div>
 
                 <div
-                  className={`col-span-2 text-right text-[9.5px] font-mono font-black ${
+                  className={`col-span-2 text-right text-[8px] font-mono font-black leading-none ${
                     isBuy ? 'text-emerald-400' : 'text-rose-400'
                   }`}
                 >
                   {formatPrice(order.price)}
                 </div>
 
-                <div className="col-span-2 text-right text-[9px] font-mono text-slate-300">
+                <div className="col-span-2 text-right text-[8px] font-mono text-slate-300 leading-none">
                   {formatNumber(order.quantity)}
                 </div>
 
-                <div className="col-span-2 text-right text-[9px] font-mono text-slate-400 flex items-center justify-end gap-1">
-                  <span>{formatNumber(total, 2)}</span>
-                  <CurrencyIcon className="w-3 h-3 inline-block" />
+                <div className="col-span-3 text-right text-[8px] font-mono text-slate-400 flex items-center justify-end gap-0.5 leading-none">
+                  <span className="truncate">{formatNumber(total, 2)}</span>
+                  <CurrencyIcon className="w-2.5 h-2.5 inline-block shrink-0" />
                 </div>
 
-                <div className="col-span-3 text-right text-[8.5px] font-mono text-slate-600">
-                  {formatTime(order.offerAt)}
+                <div className="col-span-2 text-right text-[7.5px] font-mono text-slate-500 leading-none">
+                  {formatTime(order.offerAt).slice(0,5)}
                 </div>
               </div>
             );

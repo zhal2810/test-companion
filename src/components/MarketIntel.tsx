@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchWarera, getMarketSnapshot, getMarketStats } from '../api/apiClient';
-import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag } from 'lucide-react';
+import { TrendingUp, TrendingDown, ArrowUpDown, RefreshCw, AlertCircle, ShoppingCart, Tag, Menu, X } from 'lucide-react';
 import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
@@ -320,6 +320,7 @@ export default function MarketIntel({ token }: MarketIntelProps) {
   const [changeRange, setChangeRange] = useState<'24h' | '7d' | '30d' | '90d' | 'all'>('24h');
   const [selectedItem, setSelectedItem] = useState<PriceEntry | null>(null);
   const [averageWagePerPP, setAverageWagePerPP] = useState(DEFAULT_AVG_WAGE_PER_PP);
+  const [showMarketList, setShowMarketList] = useState(false);
 
   const loadMarketData = async () => {
     setLoading(true);
@@ -654,14 +655,82 @@ export default function MarketIntel({ token }: MarketIntelProps) {
         </div>
       ) : priceEntries.length > 0 ? (
         <div className="space-y-3">
-          {/* TOP ITEM CARDS RESPONSIVE GRID (NO SIDE SCROLL) */}
-          <div>
+          {/* MOBILE HAMBURGER BAR - MARKETS / CHANGE */}
+          <div className="sm:hidden border border-slate-800 rounded-xl overflow-hidden bg-[#08090C] mb-2">
+            <button
+              onClick={() => setShowMarketList(v=>!v)}
+              className="w-full flex items-center justify-between px-3 py-2.5 text-xs font-bold cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-slate-400 uppercase tracking-wider text-[10px]">
+                MARKETS
+                <span className="text-sky-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
+                  {selectedItem ? `${selectedItem.item.toUpperCase()} ${formatPrice(selectedItem.price)}` : `${sortedEntries.length} ITEMS`}
+                </span>
+              </span>
+              <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider transition ${showMarketList ? 'bg-sky-500/20 text-sky-400 border-sky-500/30' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>
+                {showMarketList ? <X className="w-3 h-3"/> : <Menu className="w-3 h-3"/>}
+                CHANGE
+              </span>
+            </button>
+            {showMarketList && (
+              <div className="border-t border-slate-800 max-h-[50vh] overflow-y-auto">
+                {sortedEntries.map((entry)=>{
+                  const isSelected = selectedItem?.item === entry.item;
+                  const displayChangeValue = getDisplayChangeValue(entry);
+                  const isPositive = displayChangeValue > 0;
+                  return (
+                    <button
+                      key={entry.item}
+                      onClick={()=>{ setSelectedItem(entry); setShowMarketList(false); }}
+                      className={`w-full flex items-center justify-between px-3 py-2 border-b border-slate-800/40 last:border-0 text-left transition ${isSelected ? 'bg-sky-950/30' : 'bg-[#0B0D14] hover:bg-[#0F121D]'}`}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="w-5 h-5 flex items-center justify-center shrink-0"><ItemIcon itemCode={entry.item} size="sm" className="w-full h-full object-contain" /></span>
+                        <span className="flex flex-col min-w-0">
+                          <span className="text-[11px] font-black text-white uppercase truncate leading-none">{entry.item}</span>
+                          <span className="text-[9px] text-slate-500 truncate">{entry.name}</span>
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] font-mono font-bold text-white">{formatPrice(entry.price)}</span>
+                        <span className={`text-[10px] font-mono font-bold w-8 h-4 rounded-full flex items-center justify-center ${isPositive ? 'bg-emerald-500/15 text-emerald-400' : displayChangeValue < 0 ? 'bg-rose-500/15 text-rose-400' : 'bg-slate-800 text-slate-500'}`}>{formatChange(displayChangeValue)}</span>
+                        <span className="w-12 h-6 hidden xs:block opacity-60">
+                          {/* sparkline mini */}
+                          <svg viewBox="0 0 40 12" className="w-full h-full">
+                            {(entry.points && entry.points.length > 1) && (
+                              <polyline
+                                fill="none"
+                                stroke={isPositive ? '#34D399' : displayChangeValue < 0 ? '#FB7185' : '#64748B'}
+                                strokeWidth="1.2"
+                                points={entry.points.slice(-20).map((p,i,arr)=>{
+                                  const min = Math.min(...arr);
+                                  const max = Math.max(...arr);
+                                  const range = max - min || 1;
+                                  const x = (i/(arr.length-1))*40;
+                                  const y = 12 - ((p - min)/range)*12;
+                                  return `${x},${y}`;
+                                }).join(' ')}
+                              />
+                            )}
+                          </svg>
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* TOP ITEM CARDS RESPONSIVE GRID (NO SIDE SCROLL) - desktop only */}
+          <div className="hidden sm:block">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
               <span>Pilih Komoditas Pasar</span>
               <span className="text-[9.5px] text-slate-500 font-normal">Klik item untuk melihat Grafik Candle di bawah</span>
             </div>
             
-            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
               {sortedEntries.map((entry) => {
                 const isSelected = selectedItem?.item === entry.item;
                 const displayChangeValue = getDisplayChangeValue(entry);
@@ -733,6 +802,8 @@ export default function MarketIntel({ token }: MarketIntelProps) {
               })}
             </div>
           </div>
+          {/* mobile hint when list hidden */}
+          <div className="sm:hidden text-[9px] text-slate-600 text-center -mt-1 mb-1">Pilih MARKETS → CHANGE untuk ganti item, tidak perlu scroll jauh</div>
 
           {/* MAIN CENTER CANDLE CHART & DETAILS PANEL */}
           {selectedItem && (
