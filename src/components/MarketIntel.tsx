@@ -315,8 +315,8 @@ function SignalBadge({ signal }: { signal: TradeSignal }) {
 export default function MarketIntel({ token }: MarketIntelProps) {
   const [prices, setPrices] = useState<PriceEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState<'volume' | 'price' | 'change' | 'name'>('price');
-  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
+  const [sortBy, setSortBy] = useState<'volume' | 'price' | 'change' | 'name'>('change');
+  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('asc');
   const [changeRange, setChangeRange] = useState<'24h' | '7d' | '30d' | '90d' | 'all'>('24h');
   const [selectedItem, setSelectedItem] = useState<PriceEntry | null>(null);
   const [averageWagePerPP, setAverageWagePerPP] = useState(DEFAULT_AVG_WAGE_PER_PP);
@@ -750,8 +750,9 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                   >
                     {/* TOP HEADER: ITEM CODE & BID/ASK */}
                     <div className="bg-[#07080E] p-2 border-b border-slate-800/60">
-                      <div className="text-[11px] font-black text-white truncate tracking-wider uppercase leading-tight">
+                      <div className="text-[11px] font-black text-white truncate tracking-wider uppercase leading-tight flex items-center gap-1">
                         {entry.item}
+                        <span className={`w-4 h-4 shrink-0 rounded-full flex items-center justify-center text-[8px] font-black border leading-none ${entry.signal==='buy'?'bg-emerald-500/15 text-emerald-400 border-emerald-500/30': entry.signal==='sell'?'bg-rose-500/15 text-rose-400 border-rose-500/30':'bg-slate-800 text-slate-500 border-slate-700'}`}>{entry.signal==='buy'?'B':entry.signal==='sell'?'S':'H'}</span>
                       </div>
                       <div className="flex justify-between items-center text-[8.5px] font-mono leading-none mt-1">
                         <span className="text-emerald-400/90 font-bold truncate">
