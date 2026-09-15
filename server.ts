@@ -615,6 +615,30 @@ async function startServer() {
     }
   });
 
+  // 7a. Realmarijn series — fallback candle untuk item yang belum punya history di Pulse
+  app.get('/api/markt/series/:item', async (req, res) => {
+    const { item } = req.params;
+    const days = req.query.days || 7;
+    try {
+      const response = await fetch(
+        `https://warera.realmarijn.nl/api/markt/items/${encodeURIComponent(item)}/series.json?days=${encodeURIComponent(String(days))}`,
+        { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EraPlanner/1.0)' } }
+      );
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          error: 'Failed to fetch series data',
+        });
+      }
+      const data = await response.json();
+      res.set('Cache-Control', 'public, max-age=60');
+      res.json(data);
+    } catch (err: any) {
+      console.error('[Realmarijn Series Error]', err);
+      res.status(502).json({ success: false, error: 'Realmarijn series unavailable' });
+    }
+  });
+
   // 7b. Pulse Live Transactions
   app.get('/api/pulse/transactions', async (req, res) => {
     const limit = req.query.limit || 100;

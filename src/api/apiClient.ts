@@ -418,6 +418,47 @@ function generateFallbackTransactions(itemCode?: string, limit: number = 30): Li
   return list;
 }
 
+// Konversi series Realmarijn (garis harga per titik) menjadi candle sintetis
+// dengan open=high=low=close=price. Dipakai sebagai fallback agar item yang
+// belum punya history di Pulse tetap bisa tampil di chart.
+function seriesToCandles(history: { captured_at: string; price: number }[]): Candle[] {
+  return history
+    .map((h) => {
+      const t = Math.floor(new Date(h.captured_at).getTime() / 1000);
+      const p = Number(h.price);
+      if (!Number.isFinite(t) || !Number.isFinite(p) || p <= 0) return null;
+      return { time: t, open: p, high: p, low: p, close: p };
+    })
+    .filter((c): c is Candle => c !== null);
+}
+
+// Fallback candle: ketika WarEra Pulse belum punya history item (404/empty),
+// coba ambil series harga dari Realmarijn (endpoint internal serupa pulse).
+// tf 'month' -> 30 hari, selain itu (week/dll) -> 7 hari.
+async function fetchSeriesFallback(
+  itemCode: string,
+  tf: string
+): Promise<Candle[] | null> {
+  const days = tf === 'month' ? 30 : 7;
+  try {
+    const res = await fetch(`/api/markt/series/${encodeURIComponent(itemCode)}?days=${days}`);
+    if (!res.ok) {
+      const text = await res.text();
+      if (text && !text.trim().startsWith('<')) {
+        return null;
+      }
+      return null;
+    }
+    const text = await res.text();
+    if (!text || text.trim().startsWith('<')) return null;
+    const json = JSON.parse(text) as { history?: { captured_at: string; price: number }[] };
+    const candles = Array.isArray(json?.history) ? seriesToCandles(json.history) : [];
+    return candles.length > 0 ? candles : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export const getCandleHistory = async (
   itemCode: string,
   tf: string = 'week'
@@ -428,15 +469,21 @@ export const getCandleHistory = async (
     const parsedData = await fetchPulseJson<{ candles?: Candle[] }>(primaryUrl);
     const candles = Array.isArray(parsedData?.candles) ? parsedData!.candles : [];
 
-    if (candles.length === 0) {
-      return {
-        success: false,
-        error: 'Belum ada data candle buat item ini di WarEra Pulse.',
-        data: [],
-      };
+    if (candles.length > 0) {
+      return { success: true, error: null, data: candles };
     }
 
-    return { success: true, error: null, data: candles };
+    // Pulse belum punya history -> fallback ke series Realmarijn
+    const fallback = await fetchSeriesFallback(itemCode, tf);
+    if (fallback && fallback.length > 0) {
+      return { success: true, error: null, data: fallback };
+    }
+
+    return {
+      success: false,
+      error: 'Belum ada data candle buat item ini di WarEra Pulse.',
+      data: [],
+    };
   } catch (error: any) {
     return {
       success: false,

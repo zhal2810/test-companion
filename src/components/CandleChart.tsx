@@ -126,18 +126,37 @@ export default function CandleChart({
     else if (maxAbsPrice < 10) { pricePrecision = 3; minMove = 0.001; }
     else { pricePrecision = 2; minMove = 0.01; }
 
-    const series = chart.addSeries(CandlestickSeries, {
-      upColor: '#34D399',
-      downColor: '#FB7185',
-      borderVisible: false,
-      wickUpColor: '#34D399',
-      wickDownColor: '#FB7185',
-      priceFormat: {
-        type: 'price',
-        precision: pricePrecision,
-        minMove,
-      },
-    });
+    // Data fallback dari series Realmarijn berupa candle sintetis
+    // (open===high===low===close). Deteksi itu dan render sebagai line,
+    // bukan candlestick, supaya chart terlihat sebagai garis harga.
+    const isSeriesFallback =
+      candles.length > 0 &&
+      candles.every((c) => c.open === c.high && c.high === c.low && c.low === c.close);
+
+    const series = isSeriesFallback
+      ? chart.addSeries(LineSeries, {
+          color: '#34D399',
+          lineWidth: 2,
+          priceLineVisible: false,
+          crosshairMarkerVisible: true,
+          priceFormat: {
+            type: 'price',
+            precision: pricePrecision,
+            minMove,
+          },
+        } as any)
+      : chart.addSeries(CandlestickSeries, {
+          upColor: '#34D399',
+          downColor: '#FB7185',
+          borderVisible: false,
+          wickUpColor: '#34D399',
+          wickDownColor: '#FB7185',
+          priceFormat: {
+            type: 'price',
+            precision: pricePrecision,
+            minMove,
+          },
+        });
 
     // Configure price scale untuk konsisten
     const priceScale = series.priceScale();
@@ -167,7 +186,11 @@ export default function CandleChart({
           (b.time as number)
       );
 
-    series.setData(formatted);
+    series.setData(
+      isSeriesFallback
+        ? formatted.map((c) => ({ time: c.time, value: c.close }))
+        : formatted
+    );
 
     // MA overlay
     if (showMA && candles.length >= 9) {
