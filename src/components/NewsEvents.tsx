@@ -204,6 +204,7 @@ function getFriendlyItemName(itemCode: string): string {
     heavyAmmo: 'Heavy Ammo',
     case1: 'Case',
     case2: 'Elite Case',
+    woodenCase: 'Wooden Case',
   };
   return mapping[itemCode] || mapping[itemCode.toLowerCase()] || itemCode;
 }

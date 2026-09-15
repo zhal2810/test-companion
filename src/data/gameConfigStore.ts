@@ -14,7 +14,7 @@ export const ITEM_NAMES: Record<string, string> = {
   // Weapons
   knife: 'Knife', gun: 'Gun', rifle: 'Rifle', sniper: 'Sniper', tank: 'Tank', jet: 'Jet',
   // Cases
-  case1: 'Normal Case', case2: 'Elite Case',
+  case1: 'Normal Case', case2: 'Elite Case', woodenCase: 'Wooden Case',
   // Equipment - rarity prefix biar helmet3 = Rare Helmet
   helmet1: 'Common Helmet', helmet2: 'Uncommon Helmet', helmet3: 'Rare Helmet', helmet4: 'Epic Helmet',
   helmet5: 'Legendary Helmet', helmet6: 'Mythic Helmet',

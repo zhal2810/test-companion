@@ -49,6 +49,7 @@ export const GAME_CONFIG_ITEMS: Record<string, RawGameItem> = {
   jet: { type: 'weapon', code: 'jet', usage: 'weapon', skinSlot: 'jet', rarity: 'mythic', dynamicStats: { attack: [221, 300], criticalChance: [41, 50] } },
   case1: { usage: 'case', type: 'case', code: 'case1', rarity: 'legendary', isTradable: true },
   case2: { usage: 'case', type: 'case', code: 'case2', rarity: 'mythic', isTradable: true },
+  woodenCase: { usage: 'case', type: 'case', code: 'woodenCase', rarity: 'legendary', isTradable: true },
   helmet1: { type: 'equipment', code: 'helmet1', usage: 'helmet', skinSlot: 'helmet', rarity: 'common', iconImg: 'helmet.png', dynamicStats: { criticalDamages: [1, 15] } },
   helmet2: { type: 'equipment', code: 'helmet2', usage: 'helmet', skinSlot: 'helmet', rarity: 'uncommon', iconImg: 'helmet.png', dynamicStats: { criticalDamages: [16, 30] } },
   helmet3: { type: 'equipment', code: 'helmet3', usage: 'helmet', skinSlot: 'helmet', rarity: 'rare', iconImg: 'helmet.png', dynamicStats: { criticalDamages: [31, 50] } },

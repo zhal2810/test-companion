@@ -754,6 +754,28 @@ export default function ItemIcon({ itemCode, className = '', size = 'md' }: Item
           </svg>
         );
 
+      case 'woodenCase': // Wooden Case
+        return (
+          <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="woodGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#92400E" />
+                <stop offset="50%" stopColor="#6B3410" />
+                <stop offset="100%" stopColor="#3F2212" />
+              </linearGradient>
+            </defs>
+            <rect x="8" y="16" width="48" height="32" rx="4" fill="url(#woodGrad)" stroke="#1C1917" strokeWidth="2.5" />
+            <rect x="6" y="14" width="8" height="8" rx="1.5" fill="#78350F" stroke="#1C1917" strokeWidth="1.5" />
+            <rect x="50" y="14" width="8" height="8" rx="1.5" fill="#78350F" stroke="#1C1917" strokeWidth="1.5" />
+            <rect x="6" y="42" width="8" height="8" rx="1.5" fill="#78350F" stroke="#1C1917" strokeWidth="1.5" />
+            <rect x="50" y="42" width="8" height="8" rx="1.5" fill="#78350F" stroke="#1C1917" strokeWidth="1.5" />
+            <rect x="18" y="20" width="4" height="24" rx="1" fill="#78350F" />
+            <rect x="26" y="20" width="4" height="24" rx="1" fill="#78350F" />
+            <rect x="34" y="20" width="4" height="24" rx="1" fill="#78350F" />
+            <rect x="42" y="20" width="4" height="24" rx="1" fill="#78350F" />
+          </svg>
+        );
+
       default: {
         // Equipment items (helmet, chest, boots, gloves, pants)
         if (EQUIP_BASES.some((b) => code.startsWith(b))) {
