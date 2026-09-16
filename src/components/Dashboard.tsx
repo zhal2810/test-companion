@@ -8,8 +8,9 @@ import NewsEvents from './NewsEvents';
 import TrackingPanel from './TrackingPanel';
 import LiveBattles from './LiveBattles';
 import CombatUnitOptimizer from './CombatUnitOptimizer';
+import PlayerLocations from './PlayerLocations';
 import Logo from './Logo';
-import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords, Target } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords, Target, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DEFAULT_TOKEN, DEFAULT_USER_ID, DEFAULT_USERNAME, SHOW_ONLY_MARKET } from '../config/appDefaults';
 
@@ -18,7 +19,7 @@ function formatRangeDate(date: Date): string {
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle'>(SHOW_ONLY_MARKET ? 'market' : 'company');  const [config, setConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle' | 'location'>(SHOW_ONLY_MARKET ? 'market' : 'company');  const [config, setConfig] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [playerWealth, setPlayerWealth] = useState<any>(null);
 
@@ -76,7 +77,7 @@ export default function Dashboard() {
     
     // Swipe hanya di nav, threshold diperberat biar tidak kesenggol pas scroll
     if (Math.abs(diffX) > 90 && Math.abs(diffX) > Math.abs(diffY) * 2) {
-      const tabs: ('company' | 'transaction' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle')[] = ['company', 'transaction', 'market', 'optimizer', 'news', 'tracking', 'battle'];
+      const tabs: ('company' | 'transaction' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle' | 'location')[] = ['company', 'transaction', 'market', 'optimizer', 'news', 'tracking', 'battle', 'location'];
       const currentIndex = tabs.indexOf(activeTab);
       
       if (diffX > 0) {
@@ -348,6 +349,12 @@ export default function Dashboard() {
               icon={<TrendingUp className="w-4 h-4" />}
             />
             <TabButton 
+              active={activeTab === 'location'} 
+              onClick={() => setActiveTab('location')}
+              label="Lokasi"
+              icon={<MapPin className="w-4 h-4" />}
+            />
+            <TabButton 
               active={activeTab === 'optimizer'} 
               onClick={() => setActiveTab('optimizer')}
               label="Skill"
@@ -375,10 +382,16 @@ export default function Dashboard() {
         ) : (
           <div className="flex border-b border-slate-800/80">
             <TabButton 
-              active={true}
+              active={activeTab === 'market'} 
               onClick={() => setActiveTab('market')}
               label="Bursa Pasar"
               icon={<TrendingUp className="w-4 h-4" />}
+            />
+            <TabButton 
+              active={activeTab === 'location'} 
+              onClick={() => setActiveTab('location')}
+              label="Lokasi"
+              icon={<MapPin className="w-4 h-4" />}
             />
           </div>
         )}
@@ -404,6 +417,11 @@ export default function Dashboard() {
                 onClick={() => setActiveTab('market')} 
                 className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'market' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
                 aria-label="Bursa Pasar"
+              />
+              <button 
+                onClick={() => setActiveTab('location')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'location' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Lokasi Player"
               />
               <button 
                 onClick={() => setActiveTab('optimizer')} 
@@ -553,6 +571,10 @@ export default function Dashboard() {
 
               {activeTab === 'market' && (
                 <MarketIntel token={config?.token} />
+              )}
+
+              {activeTab === 'location' && (
+                <PlayerLocations token={config?.token} />
               )}
 
               {activeTab === 'optimizer' && (
