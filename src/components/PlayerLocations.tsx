@@ -7,6 +7,15 @@ import { MapPin, RefreshCw, AlertCircle, Users, Search, Loader } from 'lucide-re
 // user.getUserById + country.getAllCountries + region.getAll.
 // Pencarian MU memakai search.searchAnything (mengembalikan muIds).
 
+function flagEmoji(code: string): string {
+  if (!code || code.length !== 2) return '';
+  const c = code.toUpperCase();
+  return String.fromCodePoint(
+    0x1f1e6 + c.charCodeAt(0) - 65,
+    0x1f1e6 + c.charCodeAt(1) - 65,
+  );
+}
+
 interface MuSummary {
   _id: string;
   name: string;
@@ -42,7 +51,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
   const [error, setError] = useState<string | null>(null);
 
   const countryMapRef = useRef<Record<string, string>>({});
-  const regionMapRef = useRef<Record<string, string>>({});
+  const regionMapRef = useRef<Record<string, { name: string; countryCode: string }>>({});
   const muCacheRef = useRef<Record<string, MuSummary>>({});
   const searchTimerRef = useRef<number | null>(null);
 
@@ -67,9 +76,9 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
       }
 
       if (regionRes.success && Array.isArray(regionRes.data)) {
-        const map: Record<string, string> = {};
+        const map: Record<string, { name: string; countryCode: string }> = {};
         for (const r of regionRes.data) {
-          if (r?._id && (r?.name || r?.code)) map[r._id] = r.name || r.code;
+          if (r?._id && (r?.name || r?.code)) map[r._id] = { name: r.name || r.code, countryCode: r.countryCode || '' };
         }
         regionMapRef.current = map;
       }
@@ -210,7 +219,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
   const filtered = useMemo(() => {
     if (!searchInput) return members;
     const q = searchInput.toLowerCase();
-    const region = (id?: string) => (id && regionMapRef.current[id]) || '';
+    const region = (id?: string) => (id && regionMapRef.current[id]?.name) || '';
     const country = (id?: string) => (id && countryMapRef.current[id]) || '';
     return members.filter(
       (m) =>
@@ -342,10 +351,14 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
                       {(m.countryId && countryMapRef.current[m.countryId]) || '—'}
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-300">
-                      {(m.regionId && regionMapRef.current[m.regionId]) || '—'}
+                      {(m.regionId && regionMapRef.current[m.regionId]?.name) || '—'}
                     </td>
-                    <td className="px-3.5 py-2.5 text-slate-400 font-mono">
-                      {(m.locationId && regionMapRef.current[m.locationId]) || (m.locationId ? m.locationId.slice(0, 8) : '—')}
+                    <td className="px-3.5 py-2.5 text-slate-400">
+                      {(() => {
+                        const loc = m.locationId && regionMapRef.current[m.locationId];
+                        if (!loc) return <span className="font-mono">{m.locationId ? m.locationId.slice(0, 8) : '—'}</span>;
+                        return <span>{flagEmoji(loc.countryCode)} {loc.name}</span>;
+                      })()}
                     </td>
                   </tr>
                 ))}
