@@ -263,7 +263,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') searchMu(searchInput);
             }}
-            placeholder="Ketik nama Military Unit... (mis. Komando Lapis)"
+            placeholder="Ketik nama Military Unit..."
             className="flex-1 bg-[#08090C] text-slate-200 border border-slate-800 hover:border-slate-700 focus:border-emerald-500/50 rounded-lg px-3 py-2 text-xs font-semibold outline-none placeholder:text-slate-600"
           />
           {suggestionLoading && <Loader className="w-4 h-4 text-slate-500 animate-spin shrink-0" />}
