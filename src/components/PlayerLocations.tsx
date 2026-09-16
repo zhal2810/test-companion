@@ -16,6 +16,23 @@ function flagEmoji(code: string): string {
   );
 }
 
+function CountryFlagPng({ code, className = 'w-4.5 h-3.5 object-cover rounded shadow-sm border border-slate-800/40 inline-block align-middle mr-1.5' }: { code?: string; className?: string }) {
+  const [error, setError] = React.useState(false);
+  const clean = code?.toLowerCase() || '';
+  const url = clean.length === 2 ? `https://flagcdn.com/w40/${clean}.png` : '';
+
+  React.useEffect(() => {
+    setError(!url);
+  }, [url]);
+
+  if (error || !url) {
+    const emoji = flagEmoji(clean);
+    return <span className="inline-block align-middle leading-none mr-1.5">{emoji || ''}</span>;
+  }
+
+  return <img src={url} alt={clean} className={className} onError={() => setError(true)} referrerPolicy="no-referrer" />;
+}
+
 interface MuSummary {
   _id: string;
   name: string;
@@ -50,7 +67,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
   const [memberLoading, setMemberLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const countryMapRef = useRef<Record<string, string>>({});
+  const countryMapRef = useRef<Record<string, { name: string; code: string }>>({});
   const regionMapRef = useRef<Record<string, { name: string; countryCode: string }>>({});
   const muCacheRef = useRef<Record<string, MuSummary>>({});
   const searchTimerRef = useRef<number | null>(null);
@@ -68,9 +85,9 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
       if (!mounted) return;
 
       if (countryRes.success && Array.isArray(countryRes.data)) {
-        const map: Record<string, string> = {};
+        const map: Record<string, { name: string; code: string }> = {};
         for (const c of countryRes.data) {
-          if (c?._id && c?.name) map[c._id] = c.name;
+          if (c?._id && (c?.name || c?.code)) map[c._id] = { name: c.name || c.code, code: c.code || '' };
         }
         countryMapRef.current = map;
       }
@@ -220,7 +237,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
     if (!searchInput) return members;
     const q = searchInput.toLowerCase();
     const region = (id?: string) => (id && regionMapRef.current[id]?.name) || '';
-    const country = (id?: string) => (id && countryMapRef.current[id]) || '';
+    const country = (id?: string) => (id && countryMapRef.current[id]?.name) || '';
     return members.filter(
       (m) =>
         m.username.toLowerCase().includes(q) ||
@@ -348,7 +365,11 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-400 font-mono">{m.level}</td>
                     <td className="px-3.5 py-2.5 text-slate-300">
-                      {(m.countryId && countryMapRef.current[m.countryId]) || '—'}
+                      {(() => {
+                        const c = m.countryId && countryMapRef.current[m.countryId];
+                        if (!c) return '—';
+                        return <span className="inline-flex items-center gap-0.5"><CountryFlagPng code={c.code} />{c.name}</span>;
+                      })()}
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-300">
                       {(m.regionId && regionMapRef.current[m.regionId]?.name) || '—'}
@@ -357,7 +378,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
                       {(() => {
                         const loc = m.locationId && regionMapRef.current[m.locationId];
                         if (!loc) return <span className="font-mono">{m.locationId ? m.locationId.slice(0, 8) : '—'}</span>;
-                        return <span>{flagEmoji(loc.countryCode)} {loc.name}</span>;
+                        return <span className="inline-flex items-center"><CountryFlagPng code={loc.countryCode} />{loc.name}</span>;
                       })()}
                     </td>
                   </tr>
