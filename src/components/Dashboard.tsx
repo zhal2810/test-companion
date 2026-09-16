@@ -450,7 +450,11 @@ export default function Dashboard() {
         {/* TAB VIEWS */}
         <div className="overflow-hidden">
           {SHOW_ONLY_MARKET ? (
-            <MarketIntel token={config?.token} />
+            activeTab === 'location' ? (
+              <PlayerLocations token={config?.token} />
+            ) : (
+              <MarketIntel token={config?.token} />
+            )
           ) : (
           <AnimatePresence mode="wait">
             <motion.div
