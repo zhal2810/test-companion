@@ -9,14 +9,9 @@ import { Percent, RefreshCw, AlertCircle, Loader } from 'lucide-react';
 // (berdasarkan negara penguasa region) dan kolom Deposit bisa disembunyikan.
 
 const ITEM_CODES: string[] = [
-  'ammo', 'boots1', 'boots2', 'boots3', 'boots4', 'boots5', 'boots6', 'bread',
-  'case1', 'case2', 'chest1', 'chest2', 'chest3', 'chest4', 'chest5', 'chest6',
-  'coca', 'cocain', 'concrete', 'cookedFish', 'fish', 'gloves1', 'gloves2',
-  'gloves3', 'gloves4', 'gloves5', 'gloves6', 'grain', 'gun', 'heavyAmmo',
-  'helmet1', 'helmet2', 'helmet3', 'helmet4', 'helmet5', 'helmet6', 'iron', 'jet',
-  'knife', 'lead', 'lightAmmo', 'limestone', 'livestock', 'oil', 'pants1',
-  'pants2', 'pants3', 'pants4', 'pants5', 'pants6', 'paper', 'petroleum', 'rifle',
-  'scraps', 'sniper', 'steak', 'steel', 'tank', 'wood',
+  'cookedFish', 'heavyAmmo', 'steel', 'bread', 'grain', 'limestone', 'coca',
+  'concrete', 'oil', 'lightAmmo', 'steak', 'livestock', 'cocain', 'lead',
+  'fish', 'petroleum', 'ammo', 'iron', 'scraps', 'wood', 'paper',
 ];
 
 function itemName(code: string): string {
