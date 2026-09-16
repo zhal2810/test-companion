@@ -314,7 +314,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
                   <th className="px-3.5 py-2.5 font-bold">Player</th>
                   <th className="px-3.5 py-2.5 font-bold">Lv</th>
                   <th className="px-3.5 py-2.5 font-bold">Negara</th>
-                  <th className="px-3.5 py-2.5 font-bold">Region</th>
+                  <th className="px-3.5 py-2.5 font-bold">Home</th>
                   <th className="px-3.5 py-2.5 font-bold">Lokasi</th>
                 </tr>
               </thead>
@@ -345,7 +345,7 @@ export default function PlayerLocations({ token }: PlayerLocationsProps) {
                       {(m.regionId && regionMapRef.current[m.regionId]) || '—'}
                     </td>
                     <td className="px-3.5 py-2.5 text-slate-400 font-mono">
-                      {m.locationId ? m.locationId.slice(0, 8) : '—'}
+                      {(m.locationId && regionMapRef.current[m.locationId]) || (m.locationId ? m.locationId.slice(0, 8) : '—')}
                     </td>
                   </tr>
                 ))}
