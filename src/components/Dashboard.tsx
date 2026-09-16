@@ -9,8 +9,9 @@ import TrackingPanel from './TrackingPanel';
 import LiveBattles from './LiveBattles';
 import CombatUnitOptimizer from './CombatUnitOptimizer';
 import PlayerLocations from './PlayerLocations';
+import ProductionBonusMap from './ProductionBonusMap';
 import Logo from './Logo';
-import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords, Target, MapPin } from 'lucide-react';
+import { Wallet, Building2, TrendingUp, Settings, ChevronRight, FileText, RefreshCw, LogIn, AlertCircle, Newspaper, Radar, Swords, Target, MapPin, Percent } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DEFAULT_TOKEN, DEFAULT_USER_ID, DEFAULT_USERNAME, SHOW_ONLY_MARKET } from '../config/appDefaults';
 
@@ -19,7 +20,7 @@ function formatRangeDate(date: Date): string {
 }
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle' | 'location'>(SHOW_ONLY_MARKET ? 'market' : 'company');  const [config, setConfig] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'transaction' | 'company' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle' | 'location' | 'bonus'>(SHOW_ONLY_MARKET ? 'market' : 'company');  const [config, setConfig] = useState<any>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [playerWealth, setPlayerWealth] = useState<any>(null);
 
@@ -77,7 +78,7 @@ export default function Dashboard() {
     
     // Swipe hanya di nav, threshold diperberat biar tidak kesenggol pas scroll
     if (Math.abs(diffX) > 90 && Math.abs(diffX) > Math.abs(diffY) * 2) {
-      const tabs: ('company' | 'transaction' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle' | 'location')[] = ['company', 'transaction', 'market', 'optimizer', 'news', 'tracking', 'battle', 'location'];
+      const tabs: ('company' | 'transaction' | 'market' | 'optimizer' | 'news' | 'tracking' | 'battle' | 'location' | 'bonus')[] = ['company', 'transaction', 'market', 'location', 'bonus', 'optimizer', 'news', 'tracking', 'battle'];
       const currentIndex = tabs.indexOf(activeTab);
       
       if (diffX > 0) {
@@ -355,6 +356,12 @@ export default function Dashboard() {
               icon={<MapPin className="w-4 h-4" />}
             />
             <TabButton 
+              active={activeTab === 'bonus'} 
+              onClick={() => setActiveTab('bonus')}
+              label="Bonus"
+              icon={<Percent className="w-4 h-4" />}
+            />
+            <TabButton 
               active={activeTab === 'optimizer'} 
               onClick={() => setActiveTab('optimizer')}
               label="Skill"
@@ -393,6 +400,12 @@ export default function Dashboard() {
               label="Lokasi"
               icon={<MapPin className="w-4 h-4" />}
             />
+            <TabButton 
+              active={activeTab === 'bonus'} 
+              onClick={() => setActiveTab('bonus')}
+              label="Bonus"
+              icon={<Percent className="w-4 h-4" />}
+            />
           </div>
         )}
 
@@ -424,6 +437,11 @@ export default function Dashboard() {
                 aria-label="Lokasi Player"
               />
               <button 
+                onClick={() => setActiveTab('bonus')} 
+                className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'bonus' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
+                aria-label="Bonus Produksi"
+              />
+              <button 
                 onClick={() => setActiveTab('optimizer')} 
                 className={`h-1.5 rounded-full transition-all duration-300 ${activeTab === 'optimizer' ? 'bg-emerald-500 w-5' : 'bg-slate-700 w-1.5'}`}
                 aria-label="Combat Unit Optimizer"
@@ -452,6 +470,8 @@ export default function Dashboard() {
           {SHOW_ONLY_MARKET ? (
             activeTab === 'location' ? (
               <PlayerLocations token={config?.token} />
+            ) : activeTab === 'bonus' ? (
+              <ProductionBonusMap token={config?.token} />
             ) : (
               <MarketIntel token={config?.token} />
             )
@@ -579,6 +599,10 @@ export default function Dashboard() {
 
               {activeTab === 'location' && (
                 <PlayerLocations token={config?.token} />
+              )}
+
+              {activeTab === 'bonus' && (
+                <ProductionBonusMap token={config?.token} />
               )}
 
               {activeTab === 'optimizer' && (
