@@ -517,6 +517,43 @@ export default function CombatUnitOptimizer({ userId, token }: CombatUnitOptimiz
                 <RefreshCw className="w-3 h-3" /> Reset
               </button>
             </div>
+            {(() => {
+              const warPts = COMBAT_SKILLS.reduce(
+                (sum, d) => sum + skillTotalCost(profile.skills?.[d.key]?.level ?? 0),
+                0
+              );
+              const ecoPts = ECONOMIC_SKILLS.reduce(
+                (sum, d) => sum + skillTotalCost(profile.skills?.[d.key]?.level ?? 0),
+                0
+              );
+              const total = warPts + ecoPts;
+              if (total <= 0) return null;
+              const warPct = Math.round((warPts / total) * 100);
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 border ${
+                      warPts >= ecoPts
+                        ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                        : 'bg-slate-800/40 border-slate-700 text-slate-400'
+                    }`}
+                  >
+                    <img src="/assets/flame.png" alt="War" className="w-3.5 h-3.5 object-contain" />
+                    War {warPct}%
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-1 border ${
+                      ecoPts > warPts
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-slate-800/40 border-slate-700 text-slate-400'
+                    }`}
+                  >
+                    <img src="/assets/cc-coin.png" alt="Eco" className="w-3.5 h-3.5 object-contain" />
+                    Eco {100 - warPct}%
+                  </span>
+                </div>
+              );
+            })()}
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-400 font-mono">
               <span>Attack <b className="text-slate-200">{profile.skills?.attack?.level ?? 0}</b></span>
               <span>Precision <b className="text-slate-200">{profile.skills?.precision?.level ?? 0}</b></span>

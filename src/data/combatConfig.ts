@@ -43,7 +43,7 @@ export const COMBAT_SKILLS: SkillDef[] = [
   { key: 'dodge', name: 'Dodge', group: 'defense', desc: '+4 dodge/level (soft-cap 40)', base: 0, perLevel: 4, unlockAtLevel: 10 },
   { key: 'health', name: 'Health', group: 'sustain', desc: '+10 max HP/level', base: 100, perLevel: 10, unlockAtLevel: 5 },
   { key: 'hunger', name: 'Hunger', group: 'sustain', desc: '+1 slot makanan/level', base: 4, perLevel: 1, unlockAtLevel: 10 },
-  { key: 'lootChance', name: 'Loot Chance', group: 'sustain', desc: '+2% loot/level', base: 2, perLevel: 2, unlockAtLevel: 1 },
+  { key: 'lootChance', name: 'Loot Chance', group: 'sustain', desc: '+2% loot/level', base: 5, perLevel: 2, unlockAtLevel: 1 },
 ];
 
 export const SKILL_MAP = Object.fromEntries(
@@ -67,14 +67,15 @@ export interface EconomicSkillDef {
   desc: string;
   base: number;
   perLevel: number;
+  unlockAtLevel: number;
 }
 
 export const ECONOMIC_SKILLS: EconomicSkillDef[] = [
-  { key: 'entrepreneurship', name: 'Entrepreneurship', desc: 'Membuka slot perusahaan', base: 0, perLevel: 1 },
-  { key: 'energy', name: 'Energy', desc: '+1 energy/level', base: 10, perLevel: 1 },
-  { key: 'production', name: 'Production', desc: '+1 production slot/level', base: 0, perLevel: 1 },
-  { key: 'companies', name: 'Companies', desc: '+1 company slot/level', base: 1, perLevel: 1 },
-  { key: 'management', name: 'Management', desc: '+1 management slot/level', base: 0, perLevel: 1 },
+  { key: 'entrepreneurship', name: 'Entrepreneurship', desc: '+5 energi wirausaha/level', base: 30, perLevel: 5, unlockAtLevel: 1 },
+  { key: 'energy', name: 'Energy', desc: '+10 energy/level', base: 30, perLevel: 10, unlockAtLevel: 1 },
+  { key: 'production', name: 'Production', desc: '+3 produksi/level', base: 10, perLevel: 3, unlockAtLevel: 1 },
+  { key: 'companies', name: 'Companies', desc: '+1 company slot/level', base: 2, perLevel: 1, unlockAtLevel: 5 },
+  { key: 'management', name: 'Management', desc: '+2 manajemen/level', base: 4, perLevel: 2, unlockAtLevel: 10 },
 ];
 
 export const ECONOMIC_SKILL_MAP = Object.fromEntries(

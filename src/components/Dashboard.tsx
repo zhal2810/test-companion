@@ -259,7 +259,7 @@ export default function Dashboard() {
             <h1 className="text-xs sm:text-sm font-bold tracking-tight text-white uppercase flex items-center gap-1.5 truncate">
               <span>WarEra <span className="hidden xs:inline">Companion</span></span> 
             </h1>
-            <p className="hidden sm:block text-[10px] text-slate-500 font-mono">Market & Rekap Portofolio Makro</p>
+            <p className="hidden sm:block text-[10px] text-slate-500 font-mono">Companion</p>
           </div>
         </div>
 
