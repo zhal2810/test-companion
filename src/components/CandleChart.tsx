@@ -11,7 +11,7 @@ import {
   type ISeriesApi,
 } from 'lightweight-charts';
 
-import { type Candle, type MarketOrder } from '../api/apiClient';
+import { type Candle } from '../api/apiClient';
 import { calculateSMA } from '../utils/signalEngine';
 import { formatPrice } from '../utils/priceHelper';
 
@@ -24,14 +24,9 @@ function formatCompactQty(n: number): string {
   return String(Math.round(v));
 }
 
-function aggregateByPrice(orders: MarketOrder[]): { price: number; quantity: number }[] {
-  const map = new Map<number, number>();
-  for (const order of orders) {
-    const price = Number(order.price);
-    const quantity = Number(order.quantity) || 0;
-    map.set(price, (map.get(price) || 0) + quantity);
-  }
-  return Array.from(map.entries()).map(([price, quantity]) => ({ price, quantity }));
+interface OrderBookLevel {
+  price: number;
+  quantity: number;
 }
 
 // Format waktu ke WIB (UTC+7) untuk label sumbu bawah chart dan crosshair.
@@ -54,8 +49,8 @@ interface CandleChartProps {
   errorMsg: string;
   tf: string;
   setTf: (tf: string) => void;
-  buyOrders?: MarketOrder[];
-  sellOrders?: MarketOrder[];
+  buyLevels?: OrderBookLevel[];
+  sellLevels?: OrderBookLevel[];
 }
 
 const TIMEFRAMES: { value: string; label: string }[] = [
@@ -72,23 +67,23 @@ export default function CandleChart({
   errorMsg,
   tf,
   setTf,
-  buyOrders = [],
-  sellOrders = [],
+  buyLevels = [],
+  sellLevels = [],
 }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
   const [showMA, setShowMA] = useState(true);
 
-  const bidVolume = buyOrders.reduce((sum, o) => sum + (Number(o.quantity) || 0), 0);
-  const offerVolume = sellOrders.reduce((sum, o) => sum + (Number(o.quantity) || 0), 0);
+  const bidVolume = buyLevels.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
+  const offerVolume = sellLevels.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
   const totalVolume = bidVolume + offerVolume;
   const bidPct = totalVolume > 0 ? (bidVolume / totalVolume) * 100 : 50;
   const offerPct = totalVolume > 0 ? 100 - bidPct : 50;
-  const bidLevels = aggregateByPrice(buyOrders).sort((a, b) => b.price - a.price).slice(0, 5);
-  const offerLevels = aggregateByPrice(sellOrders).sort((a, b) => a.price - b.price).slice(0, 5);
-  const maxBidQty = Math.max(1, ...bidLevels.map((o) => o.quantity));
-  const maxOfferQty = Math.max(1, ...offerLevels.map((o) => o.quantity));
+  const bidLevels = [...buyLevels].sort((a, b) => Number(b.price) - Number(a.price)).slice(0, 5);
+  const offerLevels = [...sellLevels].sort((a, b) => Number(a.price) - Number(b.price)).slice(0, 5);
+  const maxBidQty = Math.max(1, ...bidLevels.map((l) => Number(l.quantity) || 0));
+  const maxOfferQty = Math.max(1, ...offerLevels.map((l) => Number(l.quantity) || 0));
 
   // Main candle chart
   useEffect(() => {

@@ -102,23 +102,29 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
   }, [item.item, fetchTf]);
 
   // Order book (bid/ask) — dipakai buat konfirmasi sinyal margin produksi.
-  // Fetch sekali per item, tidak bergantung pada timeframe chart.
+  // Fetch per item setiap 15 detik (sinkron dengan marketOrders).
   useEffect(() => {
     let cancelled = false;
     setOrderBookError('');
     setOrderBookRaw(null);
 
-    getItemStats(item.item).then((res) => {
-      if (cancelled) return;
-      if (res.success && res.data?.orderbook) {
-        setOrderBookRaw(res.data.orderbook);
-      } else {
-        setOrderBookError(res.error || 'Order book tidak tersedia');
-      }
-    });
+    const loadOrderBook = () => {
+      getItemStats(item.item).then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data?.orderbook) {
+          setOrderBookRaw(res.data.orderbook);
+        } else {
+          setOrderBookError(res.error || 'Order book tidak tersedia');
+        }
+      });
+    };
+
+    loadOrderBook();
+    const interval = setInterval(loadOrderBook, 15000);
 
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [item.item]);
 
@@ -477,8 +483,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             errorMsg={errorMsg} 
             tf={displayTf} 
             setTf={setDisplayTf} 
-            buyOrders={marketOrders.buyOrders}
-            sellOrders={marketOrders.sellOrders}
+            buyLevels={orderBookRaw?.buy ?? []}
+            sellLevels={orderBookRaw?.sell ?? []}
           />
         ) : chartData.length > 1 ? (
           <ResponsiveContainer width="100%" height={240}>
