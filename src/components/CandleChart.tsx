@@ -11,10 +11,18 @@ import {
   type ISeriesApi,
 } from 'lightweight-charts';
 
-import { type Candle } from '../api/apiClient';
-import { calculateSMA, calculateRSI } from '../utils/signalEngine';
+import { type Candle, type MarketOrder } from '../api/apiClient';
+import { calculateSMA } from '../utils/signalEngine';
+import { formatPrice } from '../utils/priceHelper';
 
 import { RefreshCw } from 'lucide-react';
+
+function formatCompactQty(n: number): string {
+  const v = Number(n) || 0;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(Math.round(v));
+}
 
 // Format waktu ke WIB (UTC+7) untuk label sumbu bawah chart dan crosshair.
 // Candle API berupa timestamp UTC, jadi perlu konversi eksplisit ke Asia/Jakarta.
@@ -36,6 +44,8 @@ interface CandleChartProps {
   errorMsg: string;
   tf: string;
   setTf: (tf: string) => void;
+  buyOrders?: MarketOrder[];
+  sellOrders?: MarketOrder[];
 }
 
 const TIMEFRAMES: { value: string; label: string }[] = [
@@ -52,14 +62,23 @@ export default function CandleChart({
   errorMsg,
   tf,
   setTf,
+  buyOrders = [],
+  sellOrders = [],
 }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const rsiContainerRef = useRef<HTMLDivElement>(null);
-  const rsiChartRef = useRef<IChartApi | null>(null);
 
   const [showMA, setShowMA] = useState(true);
-  const [showRSI, setShowRSI] = useState(true);
+
+  const bidVolume = buyOrders.reduce((sum, o) => sum + (Number(o.quantity) || 0), 0);
+  const offerVolume = sellOrders.reduce((sum, o) => sum + (Number(o.quantity) || 0), 0);
+  const totalVolume = bidVolume + offerVolume;
+  const bidPct = totalVolume > 0 ? (bidVolume / totalVolume) * 100 : 50;
+  const offerPct = totalVolume > 0 ? 100 - bidPct : 50;
+  const topBids = [...buyOrders].sort((a, b) => Number(b.price) - Number(a.price)).slice(0, 5);
+  const topOffers = [...sellOrders].sort((a, b) => Number(a.price) - Number(b.price)).slice(0, 5);
+  const maxBidQty = Math.max(1, ...topBids.map((o) => Number(o.quantity) || 0));
+  const maxOfferQty = Math.max(1, ...topOffers.map((o) => Number(o.quantity) || 0));
 
   // Main candle chart
   useEffect(() => {
@@ -233,69 +252,6 @@ export default function CandleChart({
     };
   }, [candles, loading, errorMsg, showMA]);
 
-  // RSI panel
-  useEffect(() => {
-    if (!showRSI || loading || errorMsg || candles.length < 14) {
-      if (rsiChartRef.current) {
-        rsiChartRef.current.remove();
-        rsiChartRef.current = null;
-      }
-      return;
-    }
-    if (!rsiContainerRef.current) return;
-    if (rsiChartRef.current) {
-      rsiChartRef.current.remove();
-      rsiChartRef.current = null;
-    }
-    const sorted = [...candles].sort((a,b)=> Number(a.time)-Number(b.time));
-    const closes = sorted.map(c=> Number(c.close));
-    const times = sorted.map(c=> c.time as any);
-    const rsiArr = calculateRSI(closes, 14);
-
-    const rsiChart = createChart(rsiContainerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#64748B', attributionLogo: false as any },
-      grid: { vertLines: { color: '#1E293B' }, horzLines: { color: '#1E293B' } },
-      width: rsiContainerRef.current.clientWidth,
-      height: 120,
-      localization: { timeFormatter: (t:number)=> formatWIB(t) },
-      timeScale: { timeVisible: true, secondsVisible: false, tickMarkFormatter: (t:any)=> typeof t==='number'? formatWIB(t): null },
-      rightPriceScale: { borderVisible: false, entireTextOnly: false, ticksVisible: true },
-    } as any);
-
-    const rsiSeries = rsiChart.addSeries(LineSeries, { color: '#A78BFA', lineWidth: 1.5, priceLineVisible: false } as any);
-    const data = rsiArr.map((v,i)=> Number.isFinite(v) ? { time: times[i], value: Number(v.toFixed(2)) } : null).filter(Boolean) as any[];
-    rsiSeries.setData(data);
-
-    // Overbought/oversold lines 70/30
-    const line70 = rsiChart.addSeries(LineSeries, { color: 'rgba(251,113,133,0.5)', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false } as any);
-    const line30 = rsiChart.addSeries(LineSeries, { color: 'rgba(52,211,153,0.5)', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false } as any);
-    const refTimes = times.filter((_,i)=> Number.isFinite(rsiArr[i]));
-    line70.setData(refTimes.map(t=> ({ time: t, value: 70 })) as any);
-    line30.setData(refTimes.map(t=> ({ time: t, value: 30 })) as any);
-
-    rsiChart.timeScale().fitContent();
-    // sync timescales
-    if (chartRef.current) {
-      const main = chartRef.current.timeScale();
-      const rsi = rsiChart.timeScale();
-      // simple sync on visible range change
-      try {
-        (main as any).subscribeVisibleTimeRangeChange?.((range:any)=>{
-          if(range) rsi.setVisibleRange(range);
-        });
-      } catch {}
-    }
-    // hide TV link
-    try {
-      const tvLink = (rsiContainerRef.current as HTMLElement).querySelector('a[href*="tradingview"]') as HTMLElement | null;
-      if (tvLink) tvLink.style.display = 'none';
-    } catch {}
-    rsiChartRef.current = rsiChart;
-    return () => {
-      if (rsiChartRef.current) { rsiChartRef.current.remove(); rsiChartRef.current = null; }
-    };
-  }, [candles, loading, errorMsg, showRSI]);
-
   // Responsif ketika ukuran container berubah
   useEffect(() => {
     const handleResize = () => {
@@ -303,9 +259,6 @@ export default function CandleChart({
         chartRef.current.applyOptions({
           width: containerRef.current.clientWidth,
         });
-      }
-      if (rsiChartRef.current && rsiContainerRef.current) {
-        rsiChartRef.current.applyOptions({ width: rsiContainerRef.current.clientWidth });
       }
     };
 
@@ -343,13 +296,6 @@ export default function CandleChart({
           >
             MA
           </button>
-          <button
-            onClick={() => setShowRSI(v=>!v)}
-            title="Toggle RSI 14 panel"
-            className={`text-[10px] font-bold px-2 py-1 rounded border transition cursor-pointer ${showRSI ? 'bg-violet-500/15 text-violet-400 border-violet-500/30' : 'bg-slate-900 text-slate-500 border-slate-800'}`}
-          >
-            RSI
-          </button>
           <span className="text-[8px] text-slate-600 ml-1 hidden sm:inline">Tools</span>
         </div>
       </div>
@@ -371,13 +317,59 @@ export default function CandleChart({
               ref={containerRef}
               className="w-full"
             />
-            {showRSI && candles.length >= 14 && !loading && !errorMsg && (
+            {!loading && !errorMsg && (
               <div className="mt-2 border-t border-slate-800/50 pt-2">
-                <div className="text-[9px] font-bold text-violet-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-                  <span>RSI (14)</span>
-                  <span className="text-[8px] text-slate-600 font-normal">30 oversold • 70 overbought</span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Bursa · Bid vs Offer</span>
+                  <span className="text-[8px] text-slate-600 font-mono">5 level / sisi</span>
                 </div>
-                <div ref={rsiContainerRef} className="w-full" />
+
+                {/* PERCENTAGE BAR */}
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-[#0A0C10] border border-slate-800">
+                    <div className="bg-emerald-500/80 transition-all duration-500" style={{ width: `${bidPct}%` }} />
+                    <div className="bg-rose-500/80 transition-all duration-500" style={{ width: `${offerPct}%` }} />
+                  </div>
+                  <span className="text-[9px] font-mono font-bold whitespace-nowrap">
+                    <span className="text-emerald-400">{bidPct.toFixed(0)}%</span>
+                    <span className="text-slate-600"> · </span>
+                    <span className="text-rose-400">{offerPct.toFixed(0)}%</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 font-mono">
+                  {/* BUY SIDE */}
+                  <div>
+                    <div className="text-[8px] uppercase text-emerald-500/80 font-bold mb-0.5">Buy (Bid)</div>
+                    {topBids.length === 0 && <div className="text-[8.5px] text-slate-600">—</div>}
+                    {topBids.map((order, i) => (
+                      <div key={i} className="relative flex items-center justify-between text-[9.5px] leading-[1.45] text-emerald-400">
+                        <div className="absolute inset-y-0 right-0 bg-emerald-500/10" style={{ width: `${((Number(order.quantity) || 0) / maxBidQty) * 100}%` }} />
+                        <span className="relative">{formatPrice(Number(order.price))}</span>
+                        <span className="relative text-[8.5px] text-emerald-500/80">{formatCompactQty(Number(order.quantity))}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* SELL SIDE */}
+                  <div>
+                    <div className="text-[8px] uppercase text-rose-500/80 font-bold mb-0.5">Sell (Offer)</div>
+                    {topOffers.length === 0 && <div className="text-[8.5px] text-slate-600">—</div>}
+                    {topOffers.map((order, i) => (
+                      <div key={i} className="relative flex items-center justify-between text-[9.5px] leading-[1.45] text-rose-400">
+                        <div className="absolute inset-y-0 right-0 bg-rose-500/10" style={{ width: `${((Number(order.quantity) || 0) / maxOfferQty) * 100}%` }} />
+                        <span className="relative">{formatPrice(Number(order.price))}</span>
+                        <span className="relative text-[8.5px] text-rose-500/80">{formatCompactQty(Number(order.quantity))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* TOTALS */}
+                <div className="flex justify-between mt-1 pt-1 border-t border-slate-800/50 text-[9px] font-mono">
+                  <span className="text-slate-500">Bid vol <span className="text-emerald-400 font-bold">{formatCompactQty(bidVolume)}</span></span>
+                  <span className="text-slate-500">Offer vol <span className="text-rose-400 font-bold">{formatCompactQty(offerVolume)}</span></span>
+                </div>
               </div>
             )}
             {showMA && (

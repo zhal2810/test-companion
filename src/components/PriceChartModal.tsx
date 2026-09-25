@@ -477,6 +477,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
             errorMsg={errorMsg} 
             tf={displayTf} 
             setTf={setDisplayTf} 
+            buyOrders={marketOrders.buyOrders}
+            sellOrders={marketOrders.sellOrders}
           />
         ) : chartData.length > 1 ? (
           <ResponsiveContainer width="100%" height={240}>
