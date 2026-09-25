@@ -24,6 +24,16 @@ function formatCompactQty(n: number): string {
   return String(Math.round(v));
 }
 
+function aggregateByPrice(orders: MarketOrder[]): { price: number; quantity: number }[] {
+  const map = new Map<number, number>();
+  for (const order of orders) {
+    const price = Number(order.price);
+    const quantity = Number(order.quantity) || 0;
+    map.set(price, (map.get(price) || 0) + quantity);
+  }
+  return Array.from(map.entries()).map(([price, quantity]) => ({ price, quantity }));
+}
+
 // Format waktu ke WIB (UTC+7) untuk label sumbu bawah chart dan crosshair.
 // Candle API berupa timestamp UTC, jadi perlu konversi eksplisit ke Asia/Jakarta.
 function formatWIB(timestamp: number): string {
@@ -75,10 +85,10 @@ export default function CandleChart({
   const totalVolume = bidVolume + offerVolume;
   const bidPct = totalVolume > 0 ? (bidVolume / totalVolume) * 100 : 50;
   const offerPct = totalVolume > 0 ? 100 - bidPct : 50;
-  const topBids = [...buyOrders].sort((a, b) => Number(b.price) - Number(a.price)).slice(0, 5);
-  const topOffers = [...sellOrders].sort((a, b) => Number(a.price) - Number(b.price)).slice(0, 5);
-  const maxBidQty = Math.max(1, ...topBids.map((o) => Number(o.quantity) || 0));
-  const maxOfferQty = Math.max(1, ...topOffers.map((o) => Number(o.quantity) || 0));
+  const bidLevels = aggregateByPrice(buyOrders).sort((a, b) => b.price - a.price).slice(0, 5);
+  const offerLevels = aggregateByPrice(sellOrders).sort((a, b) => a.price - b.price).slice(0, 5);
+  const maxBidQty = Math.max(1, ...bidLevels.map((o) => o.quantity));
+  const maxOfferQty = Math.max(1, ...offerLevels.map((o) => o.quantity));
 
   // Main candle chart
   useEffect(() => {
@@ -341,12 +351,12 @@ export default function CandleChart({
                   {/* BUY SIDE */}
                   <div>
                     <div className="text-[8px] uppercase text-emerald-500/80 font-bold mb-0.5">Buy (Bid)</div>
-                    {topBids.length === 0 && <div className="text-[8.5px] text-slate-600">—</div>}
-                    {topBids.map((order, i) => (
+                    {bidLevels.length === 0 && <div className="text-[8.5px] text-slate-600">—</div>}
+                    {bidLevels.map((level, i) => (
                       <div key={i} className="relative flex items-center justify-between text-[9.5px] leading-[1.45] text-emerald-400">
-                        <div className="absolute inset-y-0 right-0 bg-emerald-500/10" style={{ width: `${((Number(order.quantity) || 0) / maxBidQty) * 100}%` }} />
-                        <span className="relative">{formatPrice(Number(order.price))}</span>
-                        <span className="relative text-[8.5px] text-emerald-500/80">{formatCompactQty(Number(order.quantity))}</span>
+                        <div className="absolute inset-y-0 right-0 bg-emerald-500/10" style={{ width: `${(level.quantity / maxBidQty) * 100}%` }} />
+                        <span className="relative">{formatPrice(level.price)}</span>
+                        <span className="relative text-[8.5px] text-emerald-500/80">{formatCompactQty(level.quantity)}</span>
                       </div>
                     ))}
                   </div>
@@ -354,12 +364,12 @@ export default function CandleChart({
                   {/* SELL SIDE */}
                   <div>
                     <div className="text-[8px] uppercase text-rose-500/80 font-bold mb-0.5">Sell (Offer)</div>
-                    {topOffers.length === 0 && <div className="text-[8.5px] text-slate-600">—</div>}
-                    {topOffers.map((order, i) => (
+                    {offerLevels.length === 0 && <div className="text-[8.5px] text-slate-600">—</div>}
+                    {offerLevels.map((level, i) => (
                       <div key={i} className="relative flex items-center justify-between text-[9.5px] leading-[1.45] text-rose-400">
-                        <div className="absolute inset-y-0 right-0 bg-rose-500/10" style={{ width: `${((Number(order.quantity) || 0) / maxOfferQty) * 100}%` }} />
-                        <span className="relative">{formatPrice(Number(order.price))}</span>
-                        <span className="relative text-[8.5px] text-rose-500/80">{formatCompactQty(Number(order.quantity))}</span>
+                        <div className="absolute inset-y-0 right-0 bg-rose-500/10" style={{ width: `${(level.quantity / maxOfferQty) * 100}%` }} />
+                        <span className="relative">{formatPrice(level.price)}</span>
+                        <span className="relative text-[8.5px] text-rose-500/80">{formatCompactQty(level.quantity)}</span>
                       </div>
                     ))}
                   </div>
