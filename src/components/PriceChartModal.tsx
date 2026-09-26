@@ -8,7 +8,7 @@ import { getCandleHistory, Candle, getItemStats, getLiveTransactions, LiveTransa
 import OrderBook from './OrderBook';
 import CurrencyIcon from './CurrencyIcon';
 import { calculateProductionMargin, calculateOrderBookImbalance, computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, computeTechnicalSignal } from '../utils/signalEngine';
-import { getConsistentPrice, formatPrice } from '../utils/priceHelper';
+import { getConsistentPrice, formatPrice, computeAnchoredChange } from '../utils/priceHelper';
 
 interface PriceChartModalProps {
   item: {
@@ -258,16 +258,8 @@ export default function PriceChartModal({ item, onClose, priceMap = {}, avgWageP
       return Number(change24h);
     }
     if (lastCandle && sortedCandles.length > 1) {
-      const targetTime = Number(lastCandle.time) - 86400;
-      let base: Candle | null = null;
-      for (let i = sortedCandles.length - 2; i >= 0; i--) {
-        if (Number(sortedCandles[i].time) <= targetTime) {
-          base = sortedCandles[i];
-          break;
-        }
-      }
-      const basePrice = base ? Number(base.close) : Number(sortedCandles[0].close);
-      if (basePrice > 0) return ((Number(lastCandle.close) - basePrice) / basePrice) * 100;
+      const anchored = computeAnchoredChange(sortedCandles, 'day');
+      if (anchored !== null) return anchored;
     }
     if (Number.isFinite(Number(item.changeValue))) return Number(item.changeValue);
     return 0;

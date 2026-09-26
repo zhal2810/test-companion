@@ -181,3 +181,55 @@ export function getCacheStats(): { total: number; hitRate: string } {
     return { total: 0, hitRate: '0 items cached' };
   }
 }
+
+/**
+ * Anchor kalender dalam UTC (reset in-game: 00:00 UTC = 07:00 WIB).
+ * day  -> awal hari UTC berjalan (00:00 UTC)
+ * week -> awal minggu ISO berjalan (Senin 00:00 UTC)
+ * month-> awal bulan berjalan (tgl 1 00:00 UTC)
+ */
+export type AnchorPeriod = 'day' | 'week' | 'month';
+
+export function getPeriodAnchor(candleTime: number, period: AnchorPeriod): number {
+  const d = new Date(Number(candleTime) * 1000);
+  const dayStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 1000;
+  if (period === 'day') return dayStart;
+  if (period === 'week') {
+    const diffToMonday = (d.getUTCDay() + 6) % 7;
+    return dayStart - diffToMonday * 86400;
+  }
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000;
+}
+
+export interface AnchorableCandle {
+  time: number | string;
+  close: number;
+}
+
+/**
+ * % perubahan dari anchor kalender (candle pertama di dalam periode
+ * berjalan, mis. candle 00:00 UTC hari ini) hingga candle terakhir.
+ */
+export function computeAnchoredChange(
+  candles: AnchorableCandle[],
+  period: AnchorPeriod
+): number | null {
+  if (!Array.isArray(candles) || candles.length < 2) return null;
+  const sorted = [...candles].sort((a, b) => Number(a.time) - Number(b.time));
+  const last = sorted[sorted.length - 1];
+  const lastClose = Number(last.close);
+  if (!Number.isFinite(lastClose) || lastClose <= 0) return null;
+
+  const anchor = getPeriodAnchor(Number(last.time), period);
+  let base: AnchorableCandle | null = null;
+  for (let i = 0; i < sorted.length; i++) {
+    if (Number(sorted[i].time) >= anchor) {
+      base = sorted[i];
+      break;
+    }
+  }
+  if (!base) base = sorted[0];
+  const baseClose = Number(base.close);
+  if (!Number.isFinite(baseClose) || baseClose <= 0) return null;
+  return ((lastClose - baseClose) / baseClose) * 100;
+}

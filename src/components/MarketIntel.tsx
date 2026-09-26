@@ -5,7 +5,7 @@ import ItemIcon from './ItemIcon';
 import { GAME_ITEMS } from '../data/gameConfig';
 import { computeMarketSignal, DEFAULT_AVG_WAGE_PER_PP, calculateOrderBookImbalance, extractAverageWagePerPP, type TradeSignal } from '../utils/signalEngine';
 import { getItemStats, getCandleHistory } from '../api/apiClient';
-import { getConsistentPrice, getCacheStats, formatPrice } from '../utils/priceHelper';
+import { getConsistentPrice, getCacheStats, formatPrice, computeAnchoredChange } from '../utils/priceHelper';
 
 const PriceChartModal = React.lazy(() => import('./PriceChartModal'));
 
@@ -398,17 +398,9 @@ export default function MarketIntel({ token }: MarketIntelProps) {
                 const sorted = [...candleRes.data].sort((a,b)=> Number(a.time)-Number(b.time));
                 const closes = sorted.map(c=> Number(c.close)).filter(n=> Number.isFinite(n) && n>0);
                 candlePoints = closes;
-                const last = sorted[sorted.length-1];
-                const lastClose = Number(last.close);
-                // 24h = ~24 candle 1h
-                const target24h = Number(last.time) - 86400;
-                let base24: any = null;
-                for (let i=sorted.length-2;i>=0;i--) if (Number(sorted[i].time) <= target24h) { base24 = sorted[i]; break; }
-                if (!base24) base24 = sorted[0];
-                if (base24 && Number(base24.close)>0) candleChange24h = ((lastClose - Number(base24.close))/Number(base24.close))*100;
-                // 7d = seluruh week (168)
-                const first = sorted[0];
-                if (first && Number(first.close)>0) candleChange7d = ((lastClose - Number(first.close))/Number(first.close))*100;
+                // In-game anchor (UTC): day = 00:00 UTC hari berjalan, week = Senin 00:00 UTC
+                candleChange24h = computeAnchoredChange(sorted, 'day');
+                candleChange7d = computeAnchoredChange(sorted, 'week');
               }
             } catch {}
             // Merge: prioritas candle > statsMap > fallback
