@@ -406,6 +406,12 @@ export default function Dashboard() {
               label="Bonus"
               icon={<Percent className="w-4 h-4" />}
             />
+            <TabButton 
+              active={activeTab === 'tracking'} 
+              onClick={() => setActiveTab('tracking')}
+              label="Tracking"
+              icon={<Radar className="w-4 h-4" />}
+            />
           </div>
         )}
 
@@ -472,6 +478,8 @@ export default function Dashboard() {
               <PlayerLocations token={config?.token} />
             ) : activeTab === 'bonus' ? (
               <ProductionBonusMap token={config?.token} />
+            ) : activeTab === 'tracking' ? (
+              <TrackingPanel token={config?.token} onOpenSettings={() => setIsConfigOpen(true)} />
             ) : (
               <MarketIntel token={config?.token} />
             )

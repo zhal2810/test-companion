@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs/promises';
+import dotenv from 'dotenv';
+dotenv.config(); // SUPABASE_URL / SUPABASE_SERVICE_KEY lokal via .env (gitignored)
 import { handleWareraProxy, handleLiveMarketStats, callCommunity } from './src/utils/proxyHandler';
 
 // ─── Simple File Cache ─────────────────────────────────────────────
@@ -330,6 +332,235 @@ async function startServer() {
     } catch (err: any) {
       console.error('[Tracker Transactions] Error:', err);
       res.status(502).json({ success: false, error: 'Gagal mengambil data transaksi negara' });
+    }
+  });
+
+  // ─── Helper tracker mingguan (Senin 00:00 UTC) + Supabase REST (dev) ──
+  function mondayDev(input: string | Date): string {
+    const d = new Date(input);
+    const diff = (d.getUTCDay() + 6) % 7;
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - diff)).toISOString().slice(0, 10);
+  }
+  async function sbDev(sbUrl: string, sbKey: string, path: string): Promise<any[]> {
+    const r = await fetch(`${sbUrl}/rest/v1/${path}`, { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` } });
+    if (!r.ok) throw new Error(`Supabase ${r.status}`);
+    const t = await r.text();
+    return t ? JSON.parse(t) : [];
+  }
+  async function sbDevUpsert(sbUrl: string, sbKey: string, table: string, rows: Record<string, any>[], onConflict: string, merge: boolean): Promise<any[]> {
+    if (rows.length === 0) return [];
+    const r = await fetch(`${sbUrl}/rest/v1/${table}?on_conflict=${onConflict}`, {
+      method: 'POST',
+      headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, 'Content-Type': 'application/json', Prefer: `${merge ? 'resolution=merge-duplicates' : 'resolution=ignore-duplicates'},return=representation` },
+      body: JSON.stringify(rows),
+    });
+    if (!r.ok) throw new Error(`Supabase upsert ${r.status}`);
+    const t = await r.text();
+    return t ? JSON.parse(t) : [];
+  }
+
+  // 2.4.2 Tracker Donations (dev mirror: EVENT-based, transactionType=donation)
+  app.get('/api/tracker/donations', async (req, res) => {
+    const countryId = String(req.query.countryId || '6813b6d546e731854c7ac829');
+    const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.weekStart || '')) ? String(req.query.weekStart) : mondayDev(new Date());
+    try {
+      const ws = new Date(`${weekStart}T00:00:00.000Z`).getTime();
+      const we = ws + 7 * 86400000;
+      const wDate = new Date(ws);
+      const monthStart = Date.UTC(wDate.getUTCFullYear(), wDate.getUTCMonth(), 1);
+      const stopAt = Math.min(ws, monthStart);
+      const events: { money: number; time: number; donorId: string }[] = [];
+      let cursor: string | null = null;
+      let pagesUsed = 0;
+      for (let page = 0; page < 80; page++) {
+        const input: Record<string, any> = { countryId, transactionType: 'donation', limit: 100 };
+        if (cursor) input.cursor = cursor;
+        let json: any = null;
+        try { json = await callCommunity('transaction.getPaginatedTransactions', input, 8000); } catch { json = null; }
+        if (!json) break;
+        const items = Array.isArray(json?.result?.data?.items) ? json.result.data.items : [];
+        if (items.length === 0) break;
+        pagesUsed++;
+        let reachedStop = false;
+        for (const tx of items) {
+          const t = new Date(tx?.createdAt || 0).getTime();
+          if (!Number.isFinite(t)) continue;
+          if (t < stopAt) { reachedStop = true; break; }
+          const money = Number(tx?.money) || 0;
+          if (!(money > 0)) continue;
+          events.push({ money, time: t, donorId: String(tx?.buyerId || tx?.sellerId || '') });
+        }
+        if (reachedStop) break;
+        cursor = json?.result?.data?.nextCursor || null;
+        if (!cursor) break;
+      }
+      const daily = Array.from({ length: 7 }, (_, i) => ({ date: new Date(ws + i * 86400000).toISOString().slice(0, 10), total: 0, count: 0 }));
+      let weekTotal = 0, weekCount = 0, monthTotal = 0, monthCount = 0;
+      const donorMap = new Map<string, { total: number; count: number; lastAt: number }>();
+      for (const e of events) {
+        const d = new Date(e.time);
+        if (d.getUTCFullYear() === wDate.getUTCFullYear() && d.getUTCMonth() === wDate.getUTCMonth()) { monthTotal += e.money; monthCount++; }
+        if (e.time < ws || e.time >= we) continue;
+        weekTotal += e.money; weekCount++;
+        const idx = Math.floor((e.time - ws) / 86400000);
+        if (idx >= 0 && idx < 7) { daily[idx].total += e.money; daily[idx].count++; }
+        if (e.donorId) {
+          let en = donorMap.get(e.donorId);
+          if (!en) { en = { total: 0, count: 0, lastAt: 0 }; donorMap.set(e.donorId, en); }
+          en.total += e.money; en.count++; en.lastAt = Math.max(en.lastAt, e.time);
+        }
+      }
+      const ranked = [...donorMap.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 50);
+      const nameMap = await fetchUserLiteThrottled(ranked.slice(0, 30).map(([uid]) => uid));
+      res.json({
+        success: true,
+        data: {
+          countryId, weekStart, fetchedAt: new Date().toISOString(), pagesUsed,
+          week: { total: weekTotal, count: weekCount, donors: donorMap.size, daily },
+          month: { month: `${wDate.getUTCFullYear()}-${String(wDate.getUTCMonth() + 1).padStart(2, '0')}`, total: monthTotal, count: monthCount },
+          topDonors: ranked.map(([userId, e]) => ({ userId, username: nameMap.get(userId)?.username || '', avatarUrl: nameMap.get(userId)?.avatarUrl || '', total: e.total, count: e.count, lastAt: new Date(e.lastAt).toISOString() })),
+          recent: events.filter((e) => e.time >= ws && e.time < we).sort((a, b) => b.time - a.time).slice(0, 30)
+            .map((e) => ({ donorId: e.donorId, donorName: nameMap.get(e.donorId)?.username || '', donorAvatar: nameMap.get(e.donorId)?.avatarUrl || '', money: e.money, at: new Date(e.time).toISOString() })),
+        },
+      });
+    } catch (err: any) {
+      console.error('[Tracker Donations] Error:', err);
+      res.status(502).json({ success: false, error: 'Gagal mengambil data donasi' });
+    }
+  });
+
+  // 2.4.3 Tracker Market Tax (dev mirror of functions/api/tracker/market-tax.ts)
+  app.get('/api/tracker/market-tax', async (req, res) => {
+    const countryId = String(req.query.countryId || '6813b6d546e731854c7ac829');
+    const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.weekStart || '')) ? String(req.query.weekStart) : mondayDev(new Date());
+    let cursor: string | null = (req.query.cursor as string) || null;
+    const pages = Math.max(1, Math.min(40, Number(req.query.pages) || 25));
+    const sbUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+    const sbKey = process.env.SUPABASE_SERVICE_KEY || '';
+    if (!sbUrl || !sbKey) return res.status(500).json({ success: false, error: 'SUPABASE_URL / SUPABASE_SERVICE_KEY belum di-set (.env)' });
+    try {
+      const nowIso = new Date().toISOString();
+      const weekStartMs = new Date(`${weekStart}T00:00:00.000Z`).getTime();
+      let citizenRows: any[] = await sbDev(sbUrl, sbKey, `country_citizens?country_id=eq.${countryId}&select=user_id,username,fetched_at`).catch(() => []);
+      const newestFetch = citizenRows.reduce((m: number, r: any) => Math.max(m, new Date(r.fetched_at || 0).getTime()), 0);
+      let citizenStale = false;
+      if (citizenRows.length === 0 || Date.now() - newestFetch > 86400000) {
+        try {
+          const spy = await fetch('https://spywarera.com/countries/indonesia', { headers: { 'X-Inertia': 'true', 'X-Inertia-Version': '6a7d711f474908a8ccf2e6a0923e8865', 'X-Inertia-Partial-Data': 'citizens', 'X-Inertia-Partial-Component': 'Countries/Show', Accept: 'application/json' } });
+          if (!spy.ok) throw new Error(`spywarera ${spy.status}`);
+          const sj: any = await spy.json();
+          const list = Array.isArray(sj?.props?.citizens) ? sj.props.citizens : [];
+          if (list.length > 0) {
+            await sbDevUpsert(sbUrl, sbKey, 'country_citizens', list.filter((c: any) => c?.player_warera_id).map((c: any) => ({ country_id: countryId, user_id: String(c.player_warera_id), username: c.username || c.display_name || '', fetched_at: nowIso })), 'country_id,user_id', true).catch(() => null);
+            citizenRows = await sbDev(sbUrl, sbKey, `country_citizens?country_id=eq.${countryId}&select=user_id,username,fetched_at`).catch(() => citizenRows);
+          } else citizenStale = citizenRows.length > 0;
+        } catch {
+          if (citizenRows.length === 0) return res.status(502).json({ success: false, error: 'Gagal memuat daftar citizen' });
+          citizenStale = true;
+        }
+      }
+      const citizenNames = new Map<string, string>();
+      for (const r of citizenRows) citizenNames.set(String(r.user_id), String(r.username || ''));
+      let rate = 1;
+      try {
+        const cj = await callCommunity('country.getCountryById', { countryId }, 6000);
+        const t = Number(cj?.result?.data?.taxes?.market);
+        if (Number.isFinite(t) && t > 0) rate = t;
+      } catch { /* default */ }
+      const matched: Record<string, any>[] = [];
+      let done = false, scanned = 0;
+      let oldestSeen: string | null = null;
+      for (let page = 0; page < pages; page++) {
+        const input: Record<string, any> = { transactionType: 'itemMarket', limit: 100 };
+        if (cursor) input.cursor = cursor;
+        let json: any = null;
+        try {
+          json = await callCommunity('transaction.getPaginatedTransactions', input, 8000);
+        } catch { json = null; }
+        if (!json) {
+          try {
+            await new Promise((r) => setTimeout(r, 500));
+            json = await callCommunity('transaction.getPaginatedTransactions', input, 8000);
+          } catch { json = null; }
+          if (!json) break; // gagal fetch — jangan tandai done, poll berikutnya lanjutkan
+        }
+        const items = Array.isArray(json?.result?.data?.items) ? json.result.data.items : [];
+        if (items.length === 0) {
+          const next = json?.result?.data?.nextCursor || null;
+          if (!next) { done = true; break; }
+          cursor = next; // halaman kosong sesaat — lanjut, bukan selesai
+          continue;
+        }
+        for (const tx of items) {
+          const created = String(tx?.createdAt || '');
+          const t = new Date(created).getTime();
+          if (!Number.isFinite(t)) continue;
+          oldestSeen = created;
+          if (t < weekStartMs) { done = true; break; }
+          scanned++;
+          const sid = String(tx?.sellerId || '');
+          if (!sid || !citizenNames.has(sid)) continue;
+          const money = Number(tx?.money) || 0;
+          if (!(money > 0)) continue;
+          const soldAt = new Date(t).toISOString();
+          const d = new Date(t);
+          const ws = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7))).toISOString().slice(0, 10);
+          matched.push({ tx_id: String(tx?._id || ''), country_id: countryId, item_code: String(tx?.itemCode || ''), money, tax: money * (rate / 100), seller_id: sid, seller_name: citizenNames.get(sid) || '', buyer_id: String(tx?.buyerId || ''), sold_at: soldAt, week_start: ws, inserted_at: nowIso });
+        }
+        if (done) break;
+        cursor = json?.result?.data?.nextCursor || null;
+        if (!cursor) { done = true; break; }
+      }
+      const inserted: any[] = await sbDevUpsert(sbUrl, sbKey, 'market_tx', matched, 'tx_id', false).catch(() => []) || [];
+      const byWeek = new Map<string, { volume: number; tax: number; sellers: Set<string>; count: number }>();
+      for (const row of inserted) {
+        const w = String(row.week_start);
+        let b = byWeek.get(w);
+        if (!b) { b = { volume: 0, tax: 0, sellers: new Set(), count: 0 }; byWeek.set(w, b); }
+        b.volume += Number(row.money) || 0;
+        b.tax += Number(row.tax) || 0;
+        b.sellers.add(String(row.seller_id));
+        b.count++;
+      }
+      for (const [w, b] of byWeek) {
+        try {
+          const existing: any[] = await sbDev(sbUrl, sbKey, `weekly_tax?country_id=eq.${countryId}&week_start=eq.${w}&select=total_tax,total_volume,tx_count`);
+          const cur = existing[0] || { total_tax: 0, total_volume: 0, tx_count: 0 };
+          const sellerRows: any[] = await sbDev(sbUrl, sbKey, `market_tx?country_id=eq.${countryId}&week_start=eq.${w}&select=seller_id&limit=2000`).catch(() => []);
+          await sbDevUpsert(sbUrl, sbKey, 'weekly_tax', [{ country_id: countryId, week_start: w, total_tax: Number(cur.total_tax || 0) + b.tax, total_volume: Number(cur.total_volume || 0) + b.volume, tx_count: Number(cur.tx_count || 0) + b.count, seller_count: new Set(sellerRows.map((r: any) => String(r.seller_id))).size, rate, updated_at: nowIso }], 'country_id,week_start', true);
+        } catch { /* lanjut */ }
+      }
+      const aggRows: any[] = await sbDev(sbUrl, sbKey, `weekly_tax?country_id=eq.${countryId}&week_start=eq.${weekStart}&select=total_tax,total_volume,tx_count,seller_count,updated_at`).catch(() => []);
+      const agg = aggRows[0] || { total_tax: 0, total_volume: 0, tx_count: 0, seller_count: 0, updated_at: null };
+      const weekRows: any[] = await sbDev(sbUrl, sbKey, `market_tx?country_id=eq.${countryId}&week_start=eq.${weekStart}&select=tx_id,item_code,money,tax,seller_id,seller_name,sold_at&order=sold_at.desc&limit=5000`).catch(() => []);
+      const sellerMap = new Map<string, { name: string; tx: number; volume: number; tax: number }>();
+      for (const r of weekRows) {
+        const sid = String(r.seller_id);
+        let e = sellerMap.get(sid);
+        if (!e) { e = { name: String(r.seller_name || sid.slice(0, 8)), tx: 0, volume: 0, tax: 0 }; sellerMap.set(sid, e); }
+        e.tx++; e.volume += Number(r.money) || 0; e.tax += Number(r.tax) || 0;
+      }
+      const weeks: any[] = await sbDev(sbUrl, sbKey, `weekly_tax?country_id=eq.${countryId}&select=week_start,total_tax,tx_count&order=week_start.desc&limit=26`).catch(() => []);
+      const topIds: string[] = [...sellerMap.entries()].sort((a, b) => b[1].tax - a[1].tax).slice(0, 30).map(([sid]) => sid);
+      const recentIds: string[] = weekRows.slice(0, 30).map((r: any) => String(r.seller_id));
+      const avatarIds = [...new Set<string>([...topIds, ...recentIds])].slice(0, 30);
+      const avatarMap = await fetchUserLiteThrottled(avatarIds);
+      res.json({
+        success: true,
+        data: {
+          countryId, weekStart, weekEnd: new Date(weekStartMs + 7 * 86400000).toISOString().slice(0, 10),
+          rate, citizenCount: citizenNames.size, citizenStale,
+          aggregate: { totalTax: Number(agg.total_tax) || 0, totalVolume: Number(agg.total_volume) || 0, txCount: Number(agg.tx_count) || 0, sellerCount: Number(agg.seller_count) || 0, updatedAt: agg.updated_at || null },
+          topSellers: [...sellerMap.entries()].map(([sellerId, e]) => ({ sellerId, ...e, avatarUrl: avatarMap.get(sellerId)?.avatarUrl || '' })).sort((a, b) => b.tax - a.tax).slice(0, 15),
+          recent: weekRows.slice(0, 30).map((r: any) => ({ txId: r.tx_id, itemCode: r.item_code, money: Number(r.money) || 0, tax: Number(r.tax) || 0, sellerId: r.seller_id, sellerName: r.seller_name, sellerAvatar: avatarMap.get(String(r.seller_id))?.avatarUrl || '', soldAt: r.sold_at })),
+          ingest: { done, nextCursor: done ? null : cursor, scanned, newRows: inserted.length, oldestSeen },
+          weeks: weeks.map((w: any) => ({ weekStart: w.week_start, totalTax: Number(w.total_tax) || 0, txCount: Number(w.tx_count) || 0 })),
+          fetchedAt: nowIso,
+        },
+      });
+    } catch (err: any) {
+      console.error('[Tracker MarketTax] Error:', err);
+      res.status(502).json({ success: false, error: 'Gagal mengambil data pajak market' });
     }
   });
 
