@@ -58,6 +58,15 @@ function weekLabel(weekStart: string): string {
   return `${fmtWIB(s.toISOString())} – ${fmtWIB(e.toISOString())} WIB`;
 }
 
+// Label ringkas untuk layar sempit: "5–12 Okt".
+function compactWeekLabel(weekStart: string): string {
+  const s = new Date(`${weekStart}T00:00:00.000Z`);
+  const e = new Date(s.getTime() + 6 * 86400000);
+  const sameMonth = s.getUTCMonth() === e.getUTCMonth();
+  const left = sameMonth ? String(s.getUTCDate()) : `${s.getUTCDate()} ${MONTH_ID[s.getUTCMonth()]}`;
+  return `${left}–${e.getUTCDate()} ${MONTH_ID[e.getUTCMonth()]}`;
+}
+
 function formatMoney(value: number): string {
   if (value === null || value === undefined || isNaN(value)) return '0';
   const absValue = Math.abs(value);
@@ -452,7 +461,8 @@ export default function TrackingPanel({ token }: TrackerProps) {
             <ChevronLeft className="w-4 h-4" />
           </button>
           <div className="text-center min-w-0">
-            <div className="text-xs font-bold text-slate-200 truncate">{weekLabel(weekStart)}</div>
+            <div className="text-xs font-bold text-slate-200 truncate hidden min-[420px]:block">{weekLabel(weekStart)}</div>
+            <div className="text-xs font-bold text-slate-200 min-[420px]:hidden">{compactWeekLabel(weekStart)}</div>
             {!isCurrentWeek && (
               <button
                 onClick={() => setWeekStart(mondayOf(new Date()))}
@@ -564,9 +574,7 @@ export default function TrackingPanel({ token }: TrackerProps) {
                   <thead className="sticky top-0 bg-[#12141C]">
                     <tr className="text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-800/60">
                       <th className="px-3 py-2 font-bold">Top Donatur</th>
-                      <th className="px-3 py-2 font-bold text-right">Donasi</th>
                       <th className="px-3 py-2 font-bold text-right">Total</th>
-                      <th className="px-3 py-2 font-bold text-right">Terakhir</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -578,11 +586,9 @@ export default function TrackingPanel({ token }: TrackerProps) {
                             <span>{donorName(d.userId, d.username)}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-slate-300">{d.count}×</td>
                         <td className="px-3 py-2 text-right font-mono text-amber-300">
                           {formatFullMoney(d.total)}
                         </td>
-                        <td className="px-3 py-2 text-right text-slate-400">{formatDate(d.lastAt)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -688,8 +694,7 @@ export default function TrackingPanel({ token }: TrackerProps) {
                   <thead className="sticky top-0 bg-[#12141C]">
                     <tr className="text-[9px] uppercase tracking-wider text-slate-500 border-b border-slate-800/60">
                       <th className="px-3 py-2 font-bold">Top Seller</th>
-                      <th className="px-3 py-2 font-bold text-right">Tx</th>
-                      <th className="px-3 py-2 font-bold text-right">Volume</th>
+                      <th className="px-3 py-2 font-bold text-right">Penjualan</th>
                       <th className="px-3 py-2 font-bold text-right">Pajak</th>
                     </tr>
                   </thead>
@@ -702,7 +707,6 @@ export default function TrackingPanel({ token }: TrackerProps) {
                             <span>{s.name}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-slate-300">{s.tx}</td>
                         <td className="px-3 py-2 text-right font-mono text-slate-300">{formatFullMoney(s.volume)}</td>
                         <td className="px-3 py-2 text-right font-mono font-bold text-emerald-400">
                           +{formatFullMoney(s.tax)}

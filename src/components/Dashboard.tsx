@@ -387,7 +387,7 @@ export default function Dashboard() {
             />
           </div>
         ) : (
-          <div className="flex border-b border-slate-800/80">
+          <div className="flex border-b border-slate-800/80 overflow-x-auto scrollbar-none flex-nowrap">
             <TabButton 
               active={activeTab === 'market'} 
               onClick={() => setActiveTab('market')}
@@ -655,9 +655,16 @@ interface TabButtonProps {
 
 function TabButton({ active, onClick, label, icon }: TabButtonProps) {
   const borderClass = active ? 'border-emerald-500 text-emerald-400 font-bold bg-[#0D1016]' : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-800';
+  const ref = React.useRef<HTMLButtonElement>(null);
+
+  // Tab aktif selalu di-scroll ke area terlihat (penting di mobile sempit).
+  React.useEffect(() => {
+    if (active) ref.current?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+  }, [active]);
 
   return (
     <button
+      ref={ref}
       onClick={onClick}
       className={`flex items-center gap-1.5 px-3.5 sm:px-5 py-2.5 sm:py-3 border-b-2 ${borderClass} transition duration-200 text-xs sm:text-sm cursor-pointer shrink-0 uppercase tracking-wider`}
     >
